@@ -31,7 +31,7 @@ export default function App() {
       <ul>
         {items.map(i => <li key={i.id}>{i.name} ({i.qty})</li>)}
       </ul>
-
+      <span> Haello! </span>
       <input value={name} onChange={e => setName(e.target.value)} />
       <button onClick={add}>Add</button>
     </div>
