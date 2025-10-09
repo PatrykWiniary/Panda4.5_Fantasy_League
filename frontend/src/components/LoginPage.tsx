@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import LoginPage from './components/LoginPage';
-import RegistrationPage from './components/RegistrationPage';
+
 type Item = { id: number; name: string; qty: number };
 
 export default function App() {
@@ -28,8 +27,13 @@ export default function App() {
 
   return (
     <div style={{ padding: 20 }}>
-      <LoginPage /> 
-      <RegistrationPage />
+      <h1>Items</h1>
+      <ul>
+        {items.map(i => <li key={i.id}>{i.name} ({i.qty})</li>)}
+      </ul>
+      <span> Haello! </span>
+      <input value={name} onChange={e => setName(e.target.value)} />
+      <button onClick={add}>Add</button>
     </div>
   );
 }
