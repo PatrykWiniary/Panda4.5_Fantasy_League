@@ -22,3 +22,16 @@ const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`Backend listening on port ${PORT}`);
 });
+
+async function fetchData() {
+    console.log("Fetching data...");
+    
+    //const API_URL = "https://lol.fandom.com/api.php?action=query&format=json&list=allpages";
+    const API_URL = "https://lol.fandom.com/api.php?action=parse&page=001122/Tournament Results&format=json ";
+
+    
+    const data = await fetch(API_URL);
+    const res = await data.json()
+    console.log(res.parse.links)
+}
+fetchData();
