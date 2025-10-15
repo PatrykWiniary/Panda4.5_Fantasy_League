@@ -28,12 +28,11 @@ export default function App() {
   };
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<LoginPage />} />
-        <Route path="/registration" element={<RegistrationPage />} />
-      </Routes>  
-      <Routes/>
-    </BrowserRouter>
+  <BrowserRouter>
+    <Routes>
+      <Route path="/" element={<LoginPage />} />
+      <Route path="/registration" element={<RegistrationPage />} />
+    </Routes>
+  </BrowserRouter>
   );
 }
