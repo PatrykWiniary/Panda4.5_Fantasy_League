@@ -29,7 +29,7 @@ export default function App() {
   return (
     <div className="login-container">
       <form className="login-form">
-        <h2 className="login-title">Login</h2>
+        <h2 className="login-title">Zaloguj się</h2>
         <div className="login-field">
           <label htmlFor="email" className="login-label">Email</label>
           <input type="email" id="email" name="email" placeholder="Enter your email" className="login-input" />
@@ -41,9 +41,9 @@ export default function App() {
         <button type="submit" className="login-button">Login</button>
         <div className="login-register">
           Nie masz konta?{' '}
-<Link to="/registration" className="register-link">
-  Zarejestruj się
-</Link>
+      <Link to="/registration" className="register-link">
+      Zarejestruj się
+      </Link>
         </div>
       </form>
     </div>

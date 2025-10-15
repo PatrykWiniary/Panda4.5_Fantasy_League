@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import LoginPage from './components/LoginPage';
 import RegistrationPage from './components/RegistrationPage';
-import { BrowserRouter, Routes, Route } from 'react-router';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 type Item = { id: number; name: string; qty: number };
 
 export default function App() {
