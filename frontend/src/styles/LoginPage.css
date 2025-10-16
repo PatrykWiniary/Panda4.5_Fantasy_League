@@ -1,117 +1,163 @@
 .login-container {
   width: 100vw;
-  min-height: 80vh;
-  background: #141313;
+  min-height: 100vh; /* pełne okno */
+  background: #0f0f0f; /* ciemniejsze tło jak na zrzucie */
   display: flex;
   justify-content: center;
   align-items: center;
   font-family: 'Outfit', Arial, sans-serif;
+  padding: 2rem 1rem;
 }
 
 .login-form {
-  background: #23262f;
-  padding: 1rem 2.5rem;
+  background: transparent; /* usuń ciężką ramkę formularza */
+  padding: 0; /* tytuły i pola są centrowane osobno */
   border-radius: 16px;
-  box-shadow: 0 4px 32px rgba(0,0,0,0.7);
   width: 100%;
-  max-width: 400px;
-  border: 2px solid #635536;
+  max-width: 520px;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
+
+/* większy, wyśrodkowany nagłówek */
 .login-title {
   width: 100%;
   text-align: center;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
   font-weight: 400;
   font-family: 'Outfit', Arial, sans-serif;
-  font-size: 4rem;
-  letter-spacing: 2px;
+  font-size: clamp(2rem, 6.5vw, 3.6rem);
+  letter-spacing: 4px;
+  text-transform: uppercase;
   background: radial-gradient(circle at 50% 40%, #C9AC6D 0%, #635536 80%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   color: transparent;
-  -webkit-text-stroke: 1px #000;
-
+  -webkit-text-stroke: 0.6px rgba(0,0,0,0.85);
 }
 
+/* główny tytuł (duży) */
+.login-title--main {
+  font-size: clamp(2.6rem, 8.5vw, 4rem);
+  margin-bottom: 0.75rem;
+  letter-spacing: 6px;
+}
+
+/* mniejszy podtytuł */
+.login-title--sub {
+  font-size: clamp(1rem, 3vw, 1.25rem);
+  margin-top: 0;
+  margin-bottom: 1rem;
+  letter-spacing: 3px;
+  -webkit-text-stroke: 0.4px rgba(0,0,0,0.85);
+}
+
+/* grupowanie pól w wąski panel (pozostaje centralne) */
 .login-field {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
   width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
+  max-width: 420px;
 }
 
+/* etykiety */
 .login-label {
   align-self: flex-start;
   margin-bottom: 0.5rem;
   color: #C9AC6D;
   font-family: 'Outfit', Arial, sans-serif;
-  font-size: 1.1rem;
-  letter-spacing: 1px;
+  font-size: 0.95rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
 }
 
+/* styl wejść - transparentne tło, cienka złota ramka */
 .login-input {
   width: 100%;
-  padding: 0.7rem 1rem;
-  border-radius: 8px;
-  border: 1.5px solid #C9AC6D;
-  background: #fff;
-  color: #141313;
+  padding: 0.85rem 1.2rem;
+  border-radius: 10px;
+  border: 1.2px solid rgba(201,172,109,0.9);
+  background: rgba(20,20,20,0.25);
+  color: #EDE6D8;
   font-family: 'Outfit', Arial, sans-serif;
   font-weight: 400;
-  font-size: 1.05rem;
+  font-size: 1rem;
   outline: none;
-  transition: border 0.2s;
+  transition: border 0.15s, background 0.15s;
   box-sizing: border-box;
 }
 
+/* focus wyraźniejszy */
 .login-input:focus {
-  border: 2px solid #635536;
-  background: #fff;
+  border: 1.8px solid #C9AC6D;
+  background: rgba(20,20,20,0.35);
 }
 
+/* placeholdery uppercase jak na projekcie */
 .login-input::placeholder {
-  color: #635536;
-  opacity: 0.8;
+  color: rgba(201,172,109,0.9);
+  opacity: 0.95;
   font-family: 'Outfit', Arial, sans-serif;
-  font-size: 1rem;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
 }
 
+/* wiersz przycisku + linku (Forgot + Button) */
+.login-actions {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.75rem;
+}
+
+/* "Forgot password?" tekst po lewej */
+.login-forgot {
+  color: rgba(201,172,109,0.95);
+  font-size: 0.9rem;
+  text-decoration: none;
+  cursor: pointer;
+  margin-right: 1rem;
+}
+
+/* przycisk po prawej, zaokrąglony, złoty */
 .login-button {
-  display: block;
-  width: 80%;
-  margin: 2rem auto 0 auto;
-  padding: 0.95rem;
-  background: #C9AC6D;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.6rem 1.4rem;
+  background: linear-gradient(180deg,#D8B879,#C9AC6D);
   color: #141313;
   border: none;
-  border-radius: 24px;
-  font-weight: bold;
+  border-radius: 999px;
+  font-weight: 700;
   font-family: 'Outfit', Arial, sans-serif;
-  font-size: 1.15rem;
+  font-size: 0.95rem;
   cursor: pointer;
-  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
-  box-shadow: 0 2px 8px rgba(201, 172, 109, 0.15);
-  letter-spacing: 1px;
+  transition: transform 0.12s ease, box-shadow 0.12s;
+  box-shadow: 0 6px 14px rgba(201,172,109,0.12);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
 }
 
-.login-button:focus,
 .login-button:hover {
-  outline: 2.5px solid #C9AC6D;
-  outline-offset: 2px;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px rgba(201,172,109,0.18);
 }
 
 .login-register {
   text-align: center;
-  margin-top: 2rem;
+  margin-top: 1.75rem;
   color: #C9AC6D;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-family: 'Outfit', Arial, sans-serif;
-  letter-spacing: 1px;
+  letter-spacing: 1.2px;
 }
 
 .register-link {

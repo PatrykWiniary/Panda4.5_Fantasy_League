@@ -29,16 +29,17 @@ export default function App() {
   return (
     <div className="login-container">
       <form className="login-form">
-        <h2 className="login-title">Zaloguj się</h2>
+        <h1 className="login-title">SUMMONER'S LEAGUE</h1>
+          <h1 className="login-title">SIGN IN</h1>
         <div className="login-field">
-          <label htmlFor="email" className="login-label">Email</label>
-          <input type="email" id="email" name="email" placeholder="Enter your email" className="login-input" />
+          <input type="email" id="email" name="email" placeholder="EMAIL" className="login-input" />
         </div>
         <div className="login-field">
-          <label htmlFor="password" className="login-label">Password</label>
-          <input type="password" id="password" name="password" placeholder="Enter your password" className="login-input" />
+          <input type="password" id="password" name="password" placeholder="PASSWORD" className="login-input" />
         </div>
-        <button type="submit" className="login-button">Login</button>
+        <div className="signin-field">
+          <button type="submit" className="login-button">SIGN IN</button>
+        </div>
         <div className="login-register">
           Nie masz konta?{' '}
       <Link to="/registration" className="register-link">
