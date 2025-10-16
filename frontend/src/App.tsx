@@ -3,6 +3,58 @@ import { FormEvent, useEffect, useState } from 'react';
 type Item = { id: number; name: string; qty: number };
 type User = { id: number; name: string; mail: string; currency: number };
 
+type DeckRole = 'Top' | 'Jgl' | 'Mid' | 'Adc' | 'Supp';
+
+type DeckCard = {
+  name: string;
+  role: DeckRole;
+  points: number;
+  value: number;
+  multiplier?: 'Captain' | 'Vice-captain';
+};
+
+type Deck = {
+  userId?: number;
+  slots: Record<DeckRole, DeckCard | null>;
+};
+
+type DeckSummary = {
+  complete: boolean;
+  missingRoles: DeckRole[];
+};
+
+type DeckResponse = {
+  deck: Deck;
+  summary: DeckSummary;
+};
+
+type DeckErrorResponse = {
+  error?: string;
+  message?: string;
+  missingRoles?: DeckRole[];
+  summary?: DeckSummary;
+  deck?: Deck;
+};
+
+type SampleCard = {
+  id: string;
+  name: string;
+  role: DeckRole;
+  description: string;
+  points: number;
+  value: number;
+  multiplier?: 'Captain' | 'Vice-captain';
+};
+
+type StoredDeckEntry = {
+  userId: number;
+  updatedAt: string;
+  deck: Deck;
+  summary: DeckSummary;
+};
+
+const deckRoles: DeckRole[] = ['Top', 'Jgl', 'Mid', 'Adc', 'Supp'];
+
 export default function App() {
   const [items, setItems] = useState<Item[]>([]);
   const [name, setName] = useState('');
@@ -17,6 +69,21 @@ export default function App() {
   const [loginMail, setLoginMail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginStatus, setLoginStatus] = useState<string | null>(null);
+  const [loggedInUser, setLoggedInUser] = useState<User | null>(null);
+
+  const [deckUserIdInput, setDeckUserIdInput] = useState('1');
+  const [deckData, setDeckData] = useState<Deck | null>(null);
+  const [deckSummary, setDeckSummary] = useState<DeckSummary | null>(null);
+  const [deckStatus, setDeckStatus] = useState<string | null>(null);
+  const [cardRole, setCardRole] = useState<DeckRole>('Top');
+  const [cardName, setCardName] = useState('');
+  const [cardPoints, setCardPoints] = useState('0');
+  const [cardValue, setCardValue] = useState('0');
+  const [cardMultiplier, setCardMultiplier] = useState<'None' | 'Captain' | 'Vice-captain'>('None');
+  const [sampleCards, setSampleCards] = useState<SampleCard[]>([]);
+  const [selectedSampleCard, setSelectedSampleCard] = useState<string>('');
+  const [storedDecks, setStoredDecks] = useState<StoredDeckEntry[]>([]);
+  const [storedDecksStatus, setStoredDecksStatus] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/items')
@@ -28,7 +95,16 @@ export default function App() {
       .then(r => r.json())
       .then(setUsers)
       .catch(console.error);
+
+    loadSampleCards();
+    refreshStoredDecks().catch(console.error);
   }, []);
+
+  useEffect(() => {
+    if (loggedInUser) {
+      setDeckUserIdInput(String(loggedInUser.id));
+    }
+  }, [loggedInUser]);
 
   const add = async () => {
     if (!name) return;
@@ -86,6 +162,7 @@ export default function App() {
     setRegisterPassword('');
     setRegisterCurrency('0');
     await refreshUsers();
+    setLoggedInUser({ id: user.id, name: user.name, mail: user.mail, currency: user.currency });
   };
 
   const login = async (event: FormEvent) => {
@@ -113,8 +190,229 @@ export default function App() {
 
     const user = await res.json();
     setLoginStatus(`Logged in as ${user.name}.`);
+    setLoggedInUser(user);
+    setDeckUserIdInput(String(user.id));
     setLoginMail('');
     setLoginPassword('');
+  };
+
+  const loadSampleCards = () => {
+    fetch('/api/cards')
+      .then(r => r.json())
+      .then((cards: SampleCard[]) => setSampleCards(cards))
+      .catch(console.error);
+  };
+
+  const refreshStoredDecks = async () => {
+    setStoredDecksStatus(null);
+    try {
+      const res = await fetch('/api/decks');
+      if (!res.ok) {
+        setStoredDecksStatus('Nie udało się pobrać zapisanych talii.');
+        return;
+      }
+      const payload: StoredDeckEntry[] = await res.json();
+      setStoredDecks(payload);
+      setStoredDecksStatus(`Załadowano ${payload.length} talii z bazy danych.`);
+    } catch (error) {
+      console.error(error);
+      setStoredDecksStatus('Błąd sieci podczas pobierania talii.');
+    }
+  };
+
+  const parsePositiveInt = (value: string) => {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      return null;
+    }
+    return parsed;
+  };
+
+  const applyDeckResponse = (payload: DeckResponse, forcedUserId?: number) => {
+    const userId = forcedUserId ?? payload.deck.userId ?? deckData?.userId;
+    const normalizedDeck: Deck = {
+      ...payload.deck,
+      userId,
+      slots: { ...payload.deck.slots }
+    };
+    setDeckData(normalizedDeck);
+    setDeckSummary(payload.summary);
+  };
+
+  const fetchDeckForUser = async () => {
+    setDeckStatus(null);
+    const userId = loggedInUser ? loggedInUser.id : parsePositiveInt(deckUserIdInput);
+    if (!userId) {
+      setDeckStatus('Podaj poprawne ID użytkownika (>0).');
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/decks/${userId}`);
+      if (!res.ok) {
+        const error: DeckErrorResponse = await res.json().catch(() => ({}));
+        setDeckStatus(error.message ?? 'Nie udało się pobrać talii.');
+        return;
+      }
+      const payload: DeckResponse = await res.json();
+      applyDeckResponse(payload, userId);
+      setDeckStatus(`Załadowano talię użytkownika ${userId}.`);
+    } catch (error) {
+      console.error(error);
+      setDeckStatus('Błąd sieci podczas pobierania talii.');
+    }
+  };
+
+  const startEmptyDeck = async () => {
+    setDeckStatus(null);
+    const userId = loggedInUser ? loggedInUser.id : parsePositiveInt(deckUserIdInput);
+    if (!userId) {
+      setDeckStatus('Podaj poprawne ID użytkownika (>0).');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/decks/empty', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (!res.ok) {
+        setDeckStatus('Nie udało się utworzyć pustej talii.');
+        return;
+      }
+      const payload: DeckResponse = await res.json();
+      applyDeckResponse(payload, userId);
+      setDeckStatus(`Rozpoczęto pustą talię dla użytkownika ${userId}.`);
+    } catch (error) {
+      console.error(error);
+      setDeckStatus('Błąd sieci podczas tworzenia talii.');
+    }
+  };
+
+  const ensureDeckLoaded = (): Deck | null => {
+    if (!deckData) {
+      setDeckStatus('Najpierw załaduj lub utwórz talię.');
+      return null;
+    }
+    return deckData;
+  };
+
+  const buildCardPayload = (): DeckCard => ({
+    name: cardName.trim(),
+    role: cardRole,
+    points: Number(cardPoints) || 0,
+    value: Number(cardValue) || 0,
+    ...(cardMultiplier === 'None' ? {} : { multiplier: cardMultiplier })
+  });
+
+  const mutateDeck = async (
+    endpoint: string,
+    body: Record<string, unknown>,
+    successMessage: string
+  ) => {
+    setDeckStatus(null);
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) {
+        const error: DeckErrorResponse = await res.json().catch(() => ({}));
+        setDeckStatus(error.message ?? error.error ?? 'Operacja na talii nie powiodła się.');
+        if (error.deck && error.summary) {
+          setDeckData(error.deck);
+          setDeckSummary(error.summary);
+        }
+        return;
+      }
+      const payload: DeckResponse = await res.json();
+      applyDeckResponse(payload);
+      setDeckStatus(successMessage);
+    } catch (error) {
+      console.error(error);
+      setDeckStatus('Błąd sieci podczas operacji na talii.');
+    }
+  };
+
+  const addCard = async () => {
+    const deck = ensureDeckLoaded();
+    if (!deck) return;
+    if (!cardName.trim()) {
+      setDeckStatus('Podaj nazwę karty.');
+      return;
+    }
+    await mutateDeck('/api/decks/add-card', { deck, card: buildCardPayload() }, 'Dodano kartę do talii.');
+  };
+
+  const replaceCard = async () => {
+    const deck = ensureDeckLoaded();
+    if (!deck) return;
+    if (!cardName.trim()) {
+      setDeckStatus('Podaj nazwę karty.');
+      return;
+    }
+    await mutateDeck(
+      '/api/decks/replace-card',
+      { deck, role: cardRole, card: buildCardPayload() },
+      'Zastąpiono kartę w talii.'
+    );
+  };
+
+  const removeCard = async (role: DeckRole) => {
+    const deck = ensureDeckLoaded();
+    if (!deck) return;
+    await mutateDeck('/api/decks/remove-card', { deck, role }, `Usunięto kartę z pozycji ${role}.`);
+  };
+
+  const saveDeck = async () => {
+    const deck = ensureDeckLoaded();
+    if (!deck) return;
+    const userId = deck.userId ?? (loggedInUser ? loggedInUser.id : parsePositiveInt(deckUserIdInput));
+    if (!userId) {
+      setDeckStatus('Brak ID użytkownika powiązanego z talią.');
+      return;
+    }
+    try {
+      const res = await fetch('/api/decks/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, deck: { ...deck, userId } })
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const error = payload as DeckErrorResponse;
+        setDeckStatus(error.message ?? 'Nie udało się zapisać talii.');
+        if (error.deck && error.summary) {
+          setDeckData(error.deck);
+          setDeckSummary(error.summary);
+        }
+        return;
+      }
+      applyDeckResponse(payload as DeckResponse, userId);
+      setDeckStatus('Talia zapisana poprawnie.');
+    } catch (error) {
+      console.error(error);
+      setDeckStatus('Błąd sieci podczas zapisywania talii.');
+    }
+  };
+
+  const applySampleCard = () => {
+    if (!selectedSampleCard) {
+      setDeckStatus('Wybierz kartę z listy przykładowych kart.');
+      return;
+    }
+    const card = sampleCards.find(c => c.id === selectedSampleCard);
+    if (!card) {
+      setDeckStatus('Nie znaleziono wybranej karty.');
+      return;
+    }
+    setCardRole(card.role);
+    setCardName(card.name);
+    setCardPoints(String(card.points));
+    setCardValue(String(card.value));
+    setCardMultiplier(card.multiplier ?? 'None');
+    setDeckStatus(`Załadowano przykładową kartę "${card.name}".`);
   };
 
   return (
@@ -183,6 +481,190 @@ export default function App() {
             ))}
           </tbody>
         </table>
+      </section>
+
+      <section>
+        <h2>Deck Tester</h2>
+        <div style={{ display: 'grid', gap: 12, maxWidth: 640 }}>
+          <div>
+            {loggedInUser ? (
+              <span>Zalogowany jako <strong>{loggedInUser.name}</strong> (ID {loggedInUser.id})</span>
+            ) : (
+              <span>Nie jesteś zalogowany – podaj ID użytkownika ręcznie lub zaloguj się.</span>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <label>
+              User ID:{' '}
+              <input
+                value={loggedInUser ? String(loggedInUser.id) : deckUserIdInput}
+                onChange={e => setDeckUserIdInput(e.target.value)}
+                disabled={Boolean(loggedInUser)}
+                style={{ width: 80 }}
+              />
+            </label>
+            <button onClick={fetchDeckForUser}>Load Deck</button>
+            <button onClick={startEmptyDeck}>New Empty Deck</button>
+            <button onClick={saveDeck} disabled={!deckData}>Save Deck</button>
+          </div>
+
+          {deckData && (
+            <>
+              <div style={{ display: 'grid', gap: 8, maxWidth: 360 }}>
+                <h3>Card Editor</h3>
+                {sampleCards.length > 0 && (
+                  <label>
+                    Sample card:
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <select
+                        value={selectedSampleCard}
+                        onChange={e => setSelectedSampleCard(e.target.value)}
+                      >
+                        <option value="">-- wybierz --</option>
+                        {sampleCards.map(card => (
+                          <option key={card.id} value={card.id}>
+                            {card.name} ({card.role})
+                          </option>
+                        ))}
+                      </select>
+                      <button onClick={applySampleCard}>Use</button>
+                    </div>
+                  </label>
+                )}
+                <label>
+                  Role:
+                  <select value={cardRole} onChange={e => setCardRole(e.target.value as DeckRole)}>
+                    {deckRoles.map(role => (
+                      <option key={role} value={role}>{role}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Name:
+                  <input value={cardName} onChange={e => setCardName(e.target.value)} />
+                </label>
+                <label>
+                  Points:
+                  <input value={cardPoints} onChange={e => setCardPoints(e.target.value)} type="number" />
+                </label>
+                <label>
+                  Value:
+                  <input value={cardValue} onChange={e => setCardValue(e.target.value)} type="number" />
+                </label>
+                <label>
+                  Multiplier:
+                  <select value={cardMultiplier} onChange={e => setCardMultiplier(e.target.value as typeof cardMultiplier)}>
+                    <option value="None">None</option>
+                    <option value="Captain">Captain</option>
+                    <option value="Vice-captain">Vice-captain</option>
+                  </select>
+                </label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={addCard}>Add Card</button>
+                  <button onClick={replaceCard}>Replace Card</button>
+                </div>
+              </div>
+
+              <div>
+                <h3>Deck Slots</h3>
+                <table style={{ borderCollapse: 'collapse', width: '100%', maxWidth: 640 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Role</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Card</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Points</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Value</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Multiplier</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deckRoles.map(role => {
+                      const card = deckData.slots[role];
+                      return (
+                        <tr key={role}>
+                          <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{role}</td>
+                          <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card ? card.name : '—'}</td>
+                          <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card ? card.points : '—'}</td>
+                          <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card ? card.value : '—'}</td>
+                          <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card?.multiplier ?? '—'}</td>
+                          <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>
+                            <button onClick={() => removeCard(role)} disabled={!card}>Remove</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div>
+                <h3>Summary</h3>
+                {deckSummary ? (
+                  <ul>
+                    <li>Complete: {deckSummary.complete ? 'Yes' : 'No'}</li>
+                    {!deckSummary.complete && (
+                      <li>
+                        Missing roles: {deckSummary.missingRoles.length > 0 ? deckSummary.missingRoles.join(', ') : '—'}
+                      </li>
+                    )}
+                  </ul>
+                ) : (
+                  <p>Brak danych podsumowania.</p>
+                )}
+              </div>
+            </>
+          )}
+
+          {deckStatus && <p>{deckStatus}</p>}
+        </div>
+      </section>
+
+      <section>
+        <h2>Zapisane talie</h2>
+        <div style={{ display: 'grid', gap: 12 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button onClick={() => refreshStoredDecks()}>Odśwież</button>
+            {storedDecksStatus && <span>{storedDecksStatus}</span>}
+          </div>
+          {storedDecks.length === 0 ? (
+            <p>Brak zapisanych talii w bazie danych.</p>
+          ) : (
+            <div style={{ display: 'grid', gap: 16 }}>
+              {storedDecks.map(entry => (
+                <div key={`${entry.userId}-${entry.updatedAt}`} style={{ border: '1px solid #ddd', padding: 12, borderRadius: 6 }}>
+                  <strong>Użytkownik #{entry.userId}</strong> — ostatnia aktualizacja: {new Date(entry.updatedAt).toLocaleString()}
+                  <div>Kompletna: {entry.summary.complete ? 'Tak' : `Nie (${entry.summary.missingRoles.join(', ') || 'brak danych'})`}</div>
+                  <table style={{ borderCollapse: 'collapse', marginTop: 8, width: '100%', maxWidth: 500 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Rola</th>
+                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Karta</th>
+                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Punkty</th>
+                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Wartość</th>
+                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Mnożnik</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {deckRoles.map(role => {
+                        const card = entry.deck.slots[role];
+                        return (
+                          <tr key={role}>
+                            <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{role}</td>
+                            <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card ? card.name : '—'}</td>
+                            <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card ? card.points : '—'}</td>
+                            <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card ? card.value : '—'}</td>
+                            <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card?.multiplier ?? '—'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );

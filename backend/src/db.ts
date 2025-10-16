@@ -2,7 +2,9 @@ import Database from 'better-sqlite3';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { User } from './Types';
+import { User, Deck, CompleteDeck, DeckSaveResult, DeckSummary } from './Types';
+import { createDeck, ensureDeckComplete, summarizeDeck, DeckError } from './deckManager';
+import { parseDeckPayload } from './deckIO';
 
 const DB_PATH = path.join(__dirname, '..', 'data', 'app.db');
 const INIT_SQL = path.join(__dirname, 'init.sql');
@@ -17,6 +19,49 @@ const PASSWORD_SALT_BYTES = 16;
 const PASSWORD_HASH_BYTES = 32;
 const PASSWORD_ITERATIONS = 310000;
 const PASSWORD_DIGEST = 'sha256';
+
+type TableColumn = {
+  cid: number;
+  name: string;
+  type: string;
+  notnull: number;
+  dflt_value: unknown;
+  pk: number;
+};
+
+function tableColumns(table: string): TableColumn[] {
+  return db.prepare(`PRAGMA table_info(${table})`).all() as TableColumn[];
+}
+
+function migrateDecksTable() {
+  const columns = tableColumns('decks');
+  if (columns.length === 0) {
+    return;
+  }
+
+  const hasDataColumn = columns.some(column => column.name === 'data');
+  const hasSlotsJsonColumn = columns.some(column => column.name === 'slots_json');
+  const hasUpdatedAtColumn = columns.some(column => column.name === 'updated_at');
+
+  // Older schema used slots_json column – rename to data for the new format.
+  if (!hasDataColumn && hasSlotsJsonColumn) {
+    db.prepare('ALTER TABLE decks RENAME COLUMN slots_json TO data').run();
+  }
+
+  // Ensure updated_at column exists.
+  if (!hasUpdatedAtColumn) {
+    db.prepare('ALTER TABLE decks ADD COLUMN updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP').run();
+  }
+}
+
+// Run lightweight migrations after loading schema.
+migrateDecksTable();
+
+type DeckRow = {
+  user_id: number;
+  data: string;
+  updated_at: string;
+};
 
 type DbUserRow = {
   id: number;
@@ -46,6 +91,97 @@ function verifyPassword(password: string, storedHash: string) {
     return false;
   }
   return crypto.timingSafeEqual(expectedHash, derivedHash);
+}
+
+function hydrateDeckFromRow(userId: number, row?: DeckRow): Deck {
+  if (!row) {
+    return createDeck({ userId });
+  }
+
+  try {
+    const slots = JSON.parse(row.data) as unknown;
+    return parseDeckPayload({ userId, slots });
+  } catch (error) {
+    console.error('Failed to parse persisted deck. Returning empty deck.', error);
+    return createDeck({ userId });
+  }
+}
+
+function persistCompleteDeck(userId: number, deck: CompleteDeck) {
+  const payload = JSON.stringify(deck.slots);
+  const stmt = db.prepare(`
+    INSERT INTO decks (user_id, data, updated_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(user_id) DO UPDATE SET
+      data = excluded.data,
+      updated_at = excluded.updated_at
+  `);
+  stmt.run(userId, payload);
+}
+
+function ensureUserExists(userId: number) {
+  const existing = db.prepare('SELECT 1 FROM users WHERE id = ?').get(userId);
+  if (!existing) {
+    throw new Error('USER_NOT_FOUND');
+  }
+}
+
+export type StoredDeck = {
+  userId: number;
+  deck: Deck;
+  summary: DeckSummary;
+  updatedAt: string;
+};
+
+export function getDeck(userId: number): Deck {
+  const row = db
+    .prepare('SELECT user_id, data, updated_at FROM decks WHERE user_id = ?')
+    .get(userId) as DeckRow | undefined;
+
+  return hydrateDeckFromRow(userId, row);
+}
+
+export function getAllDecks(): StoredDeck[] {
+  const rows = db
+    .prepare('SELECT user_id, data, updated_at FROM decks ORDER BY updated_at DESC')
+    .all() as DeckRow[];
+
+  return rows.map((row) => {
+    const deck = hydrateDeckFromRow(row.user_id, row);
+    const summary = summarizeDeck(deck);
+    return {
+      userId: row.user_id,
+      deck,
+      summary,
+      updatedAt: row.updated_at,
+    };
+  });
+}
+
+export function saveDeck(userId: number, deck: Deck): DeckSaveResult {
+  ensureUserExists(userId);
+
+  const deckWithOwner = createDeck({
+    userId,
+    slots: deck.slots,
+  });
+
+  try {
+    const completeDeck = ensureDeckComplete(deckWithOwner);
+    persistCompleteDeck(userId, completeDeck);
+    return { status: 'saved', deck: completeDeck };
+  } catch (error) {
+    if (error instanceof DeckError && error.code === 'ROLE_EMPTY') {
+      const summary = summarizeDeck(deckWithOwner);
+      return {
+        status: 'warning',
+        deck: deckWithOwner,
+        missingRoles: summary.missingRoles,
+        message: 'Deck is incomplete. Assign cards to all roles before saving.',
+      };
+    }
+    throw error;
+  }
 }
 
 export function getAllItems() {
