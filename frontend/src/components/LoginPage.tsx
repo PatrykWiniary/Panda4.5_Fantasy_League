@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-
+import { Link } from 'react-router-dom';
+import '../styles/LoginPage.css';
 type Item = { id: number; name: string; qty: number };
 
 export default function App() {
@@ -26,14 +27,25 @@ export default function App() {
   };
 
   return (
-    <div style={{ padding: 20 }}>
-      <h1>Items</h1>
-      <ul>
-        {items.map(i => <li key={i.id}>{i.name} ({i.qty})</li>)}
-      </ul>
-      <span> Haello! </span>
-      <input value={name} onChange={e => setName(e.target.value)} />
-      <button onClick={add}>Add</button>
+    <div className="login-container">
+      <form className="login-form">
+        <h2 className="login-title">Zaloguj się</h2>
+        <div className="login-field">
+          <label htmlFor="email" className="login-label">Email</label>
+          <input type="email" id="email" name="email" placeholder="Enter your email" className="login-input" />
+        </div>
+        <div className="login-field">
+          <label htmlFor="password" className="login-label">Password</label>
+          <input type="password" id="password" name="password" placeholder="Enter your password" className="login-input" />
+        </div>
+        <button type="submit" className="login-button">Login</button>
+        <div className="login-register">
+          Nie masz konta?{' '}
+      <Link to="/registration" className="register-link">
+      Zarejestruj się
+      </Link>
+        </div>
+      </form>
     </div>
   );
 }
