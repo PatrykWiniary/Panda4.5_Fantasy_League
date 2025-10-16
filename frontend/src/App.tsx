@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import LoginPage from './components/LoginPage';
 import RegistrationPage from './components/RegistrationPage';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 type Item = { id: number; name: string; qty: number };
 
 export default function App() {
@@ -27,9 +28,11 @@ export default function App() {
   };
 
   return (
-    <div style={{ padding: 20 }}>
-      <LoginPage /> 
-      <RegistrationPage />
-    </div>
+  <BrowserRouter>
+    <Routes>
+      <Route path="/" element={<LoginPage />} />
+      <Route path="/registration" element={<RegistrationPage />} />
+    </Routes>
+  </BrowserRouter>
   );
 }
