@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
-import LoginPage from './components/LoginPage';
-import RegistrationPage from './components/RegistrationPage';
-import HomePage from './components/HomePage';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import '../styles/LoginPage.css';
 type Item = { id: number; name: string; qty: number };
 
 export default function App() {
@@ -27,14 +25,17 @@ export default function App() {
     setItems(s => [...s, newItem]);
     setName('');
   };
-
-  return (
-  <BrowserRouter>
-    <Routes>
-      <Route path="/" element={<HomePage />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/registration" element={<RegistrationPage />} />
-    </Routes>
-  </BrowserRouter>
+ return (
+    <div>
+        <div className="login-container">
+                 <Link to="/login" className="login-link">
+      SIGN IN
+      </Link>
+                 <Link to="/registration" className="register-link">
+      REGISTER
+      </Link>
+        </div>
+        ELO ŻELO
+        </div>
   );
 }
