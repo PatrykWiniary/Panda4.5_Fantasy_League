@@ -55,3 +55,18 @@ export interface User {
     currency: number
     //deck: Deck
 }
+
+export interface Region{
+    id: number,
+    name: string
+}
+
+export interface Player {
+  id: number;
+  name: string;
+  kills: number;
+  deaths: number;
+  assists: number;
+  cs: number;
+  region_id: number;
+}

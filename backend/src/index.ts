@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import FootabalolGame from './API/FootbalolGame';
 import {
   getAllItems,
   addItem,
@@ -10,7 +11,9 @@ import {
   loginUser,
   getDeck,
   getAllDecks,
-  saveDeck
+  saveDeck,
+  simulateData,
+  simulateMatch
 } from './db';
 import {
   addCardToDeck,
@@ -241,13 +244,21 @@ app.post('/api/decks/save', (req, res) => {
   }
 });
 
-function test(){
-  clearUsers();
-  addUser({name: "nazwa",mail: "email",password: "password", currency: 3});
-  const users = getAllUsers();
-  console.log(users)
+
+function test() {
+  simulateData();
+  const game = new FootabalolGame();
+
+  game.setRegion(1);
+  console.log("Initial players in region:", game.getRegion().name);
+  game.logPlayerStats("Player1");
+
+  game.simulateMatch();
+
+  console.log("After simulation:");
+  game.logPlayerStats("Player1");
 }
-test()
+test();
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
