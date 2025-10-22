@@ -28,25 +28,31 @@ export default function App() {
 
   return (
     <div className="login-container">
-      <form className="login-form">
-        <h1 className="login-title">SUMMONER'S LEAGUE</h1>
-          <h1 className="login-title">SIGN IN</h1>
-        <div className="login-field">
-          <input type="email" id="email" name="email" placeholder="EMAIL" className="login-input" />
-        </div>
-        <div className="login-field">
-          <input type="password" id="password" name="password" placeholder="PASSWORD" className="login-input" />
-        </div>
-        <div className="signin-field">
-          <button type="submit" className="login-button">SIGN IN</button>
-        </div>
-        <div className="login-register">
-          Nie masz konta?{' '}
-      <Link to="/registration" className="register-link">
-      Zarejestruj się
-      </Link>
-        </div>
-      </form>
+      <h1 className="login-title login-title--main">SUMMONER'S LEAGUE</h1>
+      <h2 className="login-title login-title--sub">SIGN IN</h2>
+
+      <input
+        type="email"
+        placeholder="EMAIL"
+        className="login-input"
+        autoComplete="username"
+      />
+      <input
+        type="password"
+        placeholder="PASSWORD"
+        className="login-input"
+        autoComplete="current-password"
+      />
+<div class="login-actions">
+  <a class="login-forgot">Forgot Password?</a>
+  <button class="login-button">SIGN IN</button>
+</div>
+      <div className="login-register">
+       {' '}
+        <Link to="/registration" className="register-link">
+           Create account
+        </Link>
+      </div>
     </div>
   );
 }

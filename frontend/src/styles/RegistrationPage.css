@@ -81,26 +81,44 @@
   font-size: 1rem;
 }
 
-.login-button {
-  display: block;
-  width: 80%;
-  margin: 2rem auto 0 auto;
-  padding: 0.95rem;
-  background: #C9AC6D;
-  color: #141313;
-  border: none;
-  border-radius: 24px;
-  font-weight: bold;
-  font-family: 'Outfit', Arial, sans-serif;
-  font-size: 1.15rem;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
-  box-shadow: 0 2px 8px rgba(201, 172, 109, 0.15);
+.registration-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 12rem;           
+  height: 3.5rem;         
+  padding: 0 2rem;        
+
+  background: linear-gradient(to bottom, #D4B98D 0%, #AD9767 100%); 
+  color: var(--text-dark); 
+  border: none;             
+  border-radius: 10px;      
+
+  font-size: 1.2rem; 
+  font-weight: 700; 
   letter-spacing: 1px;
+  cursor: pointer;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5); 
+
+  line-height: 1; 
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.3s ease;
 }
 
-.login-button:focus,
 .login-button:hover {
+  transform: translateY(-1px); 
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6); 
+
+  /* Płynniejszy, bardziej estetyczny gradient */
+  background: linear-gradient(
+    to bottom, 
+    #C9AC6D 0%,    /* jasne złoto na górze */
+    #BFA96B 40%,   /* delikatne przyciemnienie środka */
+    #AD9767 80%    /* ciemniejszy dół */
+  );
+}
+
+.registration-button:focus,
+.registration-button:hover {
   outline: 2.5px solid #C9AC6D;
   outline-offset: 2px;
 }
