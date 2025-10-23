@@ -57,6 +57,14 @@ type StoredDeckEntry = {
 };
 
 const deckRoles: DeckRole[] = ['Top', 'Jgl', 'Mid', 'Adc', 'Supp'];
+const EMAIL_REGEX = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
+const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/;
+const PASSWORD_REQUIREMENTS_DESCRIPTION =
+  'Hasło musi mieć co najmniej 8 znaków, zawierać dużą i małą literę oraz cyfrę.';
+
+const isValidEmail = (value: string) => EMAIL_REGEX.test(value.trim());
+const isStrongPassword = (value: string) =>
+  value.length >= 8 && PASSWORD_PATTERN.test(value);
 
 export default function App() {
   const [items, setItems] = useState<Item[]>([]);
@@ -167,6 +175,16 @@ export default function App() {
       return;
     }
 
+    if (!isValidEmail(registerMail)) {
+      setRegisterStatus('Podaj poprawny adres e-mail.');
+      return;
+    }
+
+    if (!isStrongPassword(registerPassword)) {
+      setRegisterStatus(PASSWORD_REQUIREMENTS_DESCRIPTION);
+      return;
+    }
+
     const res = await fetch('/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -180,7 +198,13 @@ export default function App() {
 
     if (!res.ok) {
       const { error } = await res.json().catch(() => ({ error: 'REGISTER_FAILED' }));
-      setRegisterStatus(`Registration failed: ${error}`);
+      if (error === 'INVALID_EMAIL') {
+        setRegisterStatus('Podaj poprawny adres e-mail.');
+      } else if (error === 'WEAK_PASSWORD') {
+        setRegisterStatus(PASSWORD_REQUIREMENTS_DESCRIPTION);
+      } else {
+        setRegisterStatus(`Registration failed: ${error}`);
+      }
       return;
     }
 

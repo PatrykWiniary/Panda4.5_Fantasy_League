@@ -30,6 +30,7 @@ import {
   toDeckResponse
 } from './deckIO';
 import { getSampleCards } from './cards';
+import { isValidEmail, isPasswordStrong, PASSWORD_REQUIREMENTS_DESCRIPTION } from './validation';
 
 const app = express();
 app.use(cors());
@@ -67,6 +68,17 @@ app.post('/api/register', (req, res) => {
   const { name, mail, password, currency } = req.body;
   if (!name || !mail || !password) {
     return res.status(400).json({ error: 'MISSING_FIELDS' });
+  }
+
+  if (!isValidEmail(mail)) {
+    return res.status(400).json({ error: 'INVALID_EMAIL', message: 'Podaj poprawny adres e-mail.' });
+  }
+
+  if (!isPasswordStrong(password)) {
+    return res.status(400).json({
+      error: 'WEAK_PASSWORD',
+      message: PASSWORD_REQUIREMENTS_DESCRIPTION,
+    });
   }
 
   try {

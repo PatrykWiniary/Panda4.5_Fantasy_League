@@ -68,6 +68,8 @@ Najważniejsze ścieżki serwera (wszystkie zaczynają się od `/api`):
 | `POST` | `/decks/save` | Próbuje zapisać talię użytkownika. Zwraca błąd, jeśli talia jest niekompletna. |
 | `GET` / `POST` | `/items`, `/users`, `/register`, `/login` | Endpoints CRUD/testowe z poprzednich wersji projektu. |
 
+> Rejestracja (`POST /api/register`) odrzuca zgłoszenie, jeśli adres e-mail nie przejdzie podstawowej walidacji lub hasło nie spełnia wymagań bezpieczeństwa (minimum 8 znaków, mała i duża litera, cyfra). Backend zwraca odpowiednio `INVALID_EMAIL` lub `WEAK_PASSWORD`.
+
 Wszystkie operacje na talii zwracają strukturę `{ deck, summary }`, co pozwala frontendowi w prosty sposób aktualizować interfejs użytkownika.
 
 ---
@@ -144,7 +146,11 @@ docker-compose up      # uruchomienie frontu i backendu w kontenerach
    - `POST /api/decks/save` powinien zwrócić 200 oraz `summary.complete === true`.  
    - `GET /api/decks` powinno zawierać nowo zapisaną talię.
 
-4. **Frontend Deck Tester:**  
+4. **Rejestracja użytkownika z walidacją:**  
+   - Spróbuj zarejestrować konto z hasłem pozbawionym cyfr – API zwróci `WEAK_PASSWORD`.  
+   - Popraw dane (np. `Fantasy8Pass`) i powtórz zgłoszenie – użytkownik zostanie zapisany, a frontend automatycznie ustawi go jako aktywnego.
+
+5. **Frontend Deck Tester:**  
    - Załaduj użytkownika (np. ID 1), dodaj karty z listy przykładowej i zapisz.  
    - Sprawdź, czy sekcja „Zapisane talie” wyświetla aktualne dane.
 
