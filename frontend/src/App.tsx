@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import LoginPage from './components/LoginPage';
 import RegistrationPage from './components/RegistrationPage';
 import HomePage from './components/HomePage';
+import '../styles/App.css';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 type Item = { id: number; name: string; qty: number };
 
