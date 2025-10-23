@@ -2,7 +2,7 @@ import { Card, CompleteDeck, Deck, DeckSlots, DeckSummary, Role, RoleInput } fro
 
 export const REQUIRED_ROLES: Role[] = ["Top", "Jgl", "Mid", "Adc", "Supp"];
 
-const ROLE_ALIAS_MAP: Record<string, Role> = {
+const ROLE_ALIAS_MAP: Record<string, Role> = { //Not used roles can be deleted, for now only roles from REQUIRED_ROLES are valid
     top: "Top",
     jg: "Jgl",
     jgl: "Jgl",
@@ -121,7 +121,7 @@ export function replaceCardInDeck(deck: Deck, roleInput: RoleInput, newCard: Car
     slots[role] = newCard;
     return nextDeck;
 }
-
+//todo: remove if not used in future
 export function upsertCardInDeck(deck: Deck, roleInput: RoleInput, card: Card): Deck {
     const role = normalizeRole(roleInput);
     validateCardRole(card, role);

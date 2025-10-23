@@ -6,10 +6,7 @@ export type Role = "Mid" | "Top" | "Jgl" | "Adc" | "Supp";
 
 export type RoleInput =
     | Role
-    | Lowercase<Role>
-    | "jg"
-    | "bot"
-    | "sup";
+    | Lowercase<Role>;
 
 export interface Card {
     name: string;

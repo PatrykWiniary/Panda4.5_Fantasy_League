@@ -48,14 +48,14 @@ Plik `backend/src/db.ts` kapsułkuje interakcję z SQLite. Kluczowe funkcje:
 Moduł `backend/src/deckManager.ts` zapewnia spójne operacje na talii:
 - Normalizacja ról (`normalizeRole`) oraz obsługa aliasów.  
 - Tworzenie i klonowanie talii (`createDeck`, `cloneDeck`).  
-- Operacje na slotach: `addCardToDeck`, `removeCardFromDeck`, `replaceCardInDeck`, `upsertCardInDeck`.  
+- Operacje na slotach: `addCardToDeck`, `removeCardFromDeck`, `replaceCardInDeck`, `upsertCardInDeck`(do usunięcia).  
 - Walidacje kompletności (`ensureDeckComplete`, `summarizeDeck`) zgłaszające błędy `DeckError` z kodami (`ROLE_EMPTY`, `ROLE_ALREADY_OCCUPIED`, itd.).  
 
 Moduł `backend/src/deckIO.ts` odpowiada za parsowanie/serializację payloadów HTTP (karty, talie, identyfikatory użytkowników) oraz generowanie odpowiedzi (`toDeckResponse`). Dzięki temu serwer ma jedno źródło walidacji wejścia.
 
 ### Endpointy REST
 Najważniejsze ścieżki serwera (wszystkie zaczynają się od `/api`):
-
+## make better table in the future xD
 | Metoda | Ścieżka | Opis |
 | ------ | ------- | ---- |
 | `GET` | `/cards` | Zwraca tablicę przykładowych kart z opisami. |
@@ -73,7 +73,7 @@ Wszystkie operacje na talii zwracają strukturę `{ deck, summary }`, co pozwala
 ---
 
 ## Frontend
-
+# do uzupełnienia przez front end albo jak dostaniemy frontend to mogę to zrobić jak będzie czas
 ### Sekcja Deck Tester
 Plik `frontend/src/App.tsx` zawiera dodatkową sekcję „Deck Tester”, umożliwiającą manualne testowanie talii:
 - Podanie ID użytkownika, załadowanie istniejącej talii (lub utworzenie pustej).  
@@ -91,7 +91,7 @@ Na dole aplikacji znajduje się sekcja „Zapisane talie”, pobierająca `GET /
 ---
 
 ## Przykładowe karty
-
+# SampleCards pewnie do usunięcia, albo zastąpienia danymi mockowymi, te wymyślone są przez AI bo nie chciało mi się szukać graczy LoLa xD
 Moduł `backend/src/cards.ts` udostępnia listę kart referencyjnych (funkcja `getSampleCards`). Każda karta ma:
 - identyfikator (`id`),  
 - nazwę, rolę, punkty i wartość,  
