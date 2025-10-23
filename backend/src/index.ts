@@ -10,14 +10,16 @@ import {
   loginUser,
   getDeck,
   getAllDecks,
-  saveDeck
+  saveDeck,
+  getUserCurrency
 } from './db';
 import {
   addCardToDeck,
   removeCardFromDeck,
   replaceCardInDeck,
   createDeck,
-  DeckError
+  DeckError,
+  calculateDeckValue
 } from './deckManager';
 import { Deck, RoleInput } from './Types';
 import {
@@ -123,8 +125,29 @@ function handleDeckError(res: express.Response, error: unknown) {
   return res.status(500).json({ error: 'DECK_OPERATION_FAILED' });
 }
 
-function sendDeck(res: express.Response, deck: Deck) {
-  res.json(toDeckResponse(deck));
+// Currency lookup helper that suppresses missing-user errors when we only need a hint.
+function safeGetUserCurrency(userId: number): number | undefined {
+  try {
+    return getUserCurrency(userId);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'USER_NOT_FOUND') {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+function sendDeck(res: express.Response, deck: Deck, options: { currency?: number } = {}) {
+  const payload = toDeckResponse(deck);
+  const currency =
+    options.currency ?? (deck.userId !== undefined ? safeGetUserCurrency(deck.userId) : undefined);
+
+  if (currency !== undefined) {
+    // Propagate the spending cap so the client can display remaining budget.
+    payload.summary.currencyCap = currency;
+  }
+
+  res.json(payload);
 }
 
 app.get('/api/decks', (_req, res) => {
@@ -133,7 +156,12 @@ app.get('/api/decks', (_req, res) => {
       userId: entry.userId,
       updatedAt: entry.updatedAt,
       deck: entry.deck,
-      summary: entry.summary,
+      summary: {
+        ...entry.summary,
+        ...(entry.summary.currencyCap !== undefined
+          ? {}
+          : { currencyCap: safeGetUserCurrency(entry.userId) }),
+      },
     }));
     res.json(decks);
   } catch (error) {
@@ -156,7 +184,25 @@ app.get('/api/decks/:userId', (req, res) => {
   }
 });
 
-app.post('/api/decks/empty', (_req, res) => {
+app.post('/api/decks/empty', (req, res) => {
+  try {
+    const rawUserId = req.body?.userId;
+    if (rawUserId !== undefined) {
+      const userId = parseUserId(rawUserId);
+      const deck = createDeck({ userId });
+      return sendDeck(res, deck);
+    }
+  } catch (error) {
+    if (error instanceof DeckPayloadError && error.code === 'INVALID_USER_ID') {
+      return res.status(400).json({ error: 'INVALID_USER_ID' });
+    }
+    if (error instanceof Error && error.message === 'USER_NOT_FOUND') {
+      return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'User must exist before creating a deck.' });
+    }
+    console.error(error);
+    return res.status(500).json({ error: 'DECK_OPERATION_FAILED' });
+  }
+
   const deck = createDeck();
   sendDeck(res, deck);
 });
@@ -168,11 +214,37 @@ app.post('/api/decks/add-card', (req, res) => {
   }
 
   try {
-    const deck = parseDeckPayload(deckPayload);
+    let deck = parseDeckPayload(deckPayload);
     const card = parseCardPayload(cardPayload);
+    // Resolve owning user so we can validate wallet limits for the mutation.
+    const rawUserId =
+      deck.userId ??
+      (typeof (deckPayload as { userId?: unknown }).userId !== 'undefined'
+        ? (deckPayload as { userId?: unknown }).userId
+        : req.body?.userId);
+    const userId = parseUserId(rawUserId);
+
+    if (deck.userId !== userId) {
+      deck = createDeck({ userId, slots: deck.slots });
+    }
+
+    const currency = getUserCurrency(userId);
     const updatedDeck = addCardToDeck(deck, card);
-    sendDeck(res, updatedDeck);
+    const totalValue = calculateDeckValue(updatedDeck);
+
+    if (totalValue > currency) {
+      throw new DeckError('CURRENCY_LIMIT_EXCEEDED', 'Adding this card exceeds available currency.', {
+        totalValue,
+        currency,
+        overBudgetBy: totalValue - currency,
+      });
+    }
+
+    sendDeck(res, updatedDeck, { currency });
   } catch (error) {
+    if (error instanceof Error && error.message === 'USER_NOT_FOUND') {
+      return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'User must exist before modifying a deck.' });
+    }
     handleDeckError(res, error);
   }
 });
@@ -184,10 +256,26 @@ app.post('/api/decks/remove-card', (req, res) => {
   }
 
   try {
-    const deck = parseDeckPayload(deckPayload);
+    let deck = parseDeckPayload(deckPayload);
+    // Resolve owning user so we can validate wallet limits for the mutation.
+    const rawUserId =
+      deck.userId ??
+      (typeof (deckPayload as { userId?: unknown }).userId !== 'undefined'
+        ? (deckPayload as { userId?: unknown }).userId
+        : req.body?.userId);
+    const userId = parseUserId(rawUserId);
+
+    if (deck.userId !== userId) {
+      deck = createDeck({ userId, slots: deck.slots });
+    }
+
+    const currency = getUserCurrency(userId);
     const updatedDeck = removeCardFromDeck(deck, role as RoleInput);
-    sendDeck(res, updatedDeck);
+    sendDeck(res, updatedDeck, { currency });
   } catch (error) {
+    if (error instanceof Error && error.message === 'USER_NOT_FOUND') {
+      return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'User must exist before modifying a deck.' });
+    }
     handleDeckError(res, error);
   }
 });
@@ -199,11 +287,37 @@ app.post('/api/decks/replace-card', (req, res) => {
   }
 
   try {
-    const deck = parseDeckPayload(deckPayload);
+    let deck = parseDeckPayload(deckPayload);
     const card = parseCardPayload({ ...cardPayload, role }, role as RoleInput);
+    // Resolve owning user so we can fetch the available currency.
+    const rawUserId =
+      deck.userId ??
+      (typeof (deckPayload as { userId?: unknown }).userId !== 'undefined'
+        ? (deckPayload as { userId?: unknown }).userId
+        : req.body?.userId);
+    const userId = parseUserId(rawUserId);
+
+    if (deck.userId !== userId) {
+      deck = createDeck({ userId, slots: deck.slots });
+    }
+
+    const currency = getUserCurrency(userId);
     const updatedDeck = replaceCardInDeck(deck, role as RoleInput, card);
-    sendDeck(res, updatedDeck);
+    const totalValue = calculateDeckValue(updatedDeck);
+
+    if (totalValue > currency) {
+      throw new DeckError('CURRENCY_LIMIT_EXCEEDED', 'Replacing this card exceeds available currency.', {
+        totalValue,
+        currency,
+        overBudgetBy: totalValue - currency,
+      });
+    }
+
+    sendDeck(res, updatedDeck, { currency });
   } catch (error) {
+    if (error instanceof Error && error.message === 'USER_NOT_FOUND') {
+      return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'User must exist before modifying a deck.' });
+    }
     handleDeckError(res, error);
   }
 });
@@ -217,18 +331,22 @@ app.post('/api/decks/save', (req, res) => {
   try {
     const userId = parseUserId(rawUserId);
     const deck = parseDeckPayload({ ...deckPayload, userId });
+    const currency = getUserCurrency(userId);
     const result = saveDeck(userId, deck);
 
     if (result.status === 'saved') {
-      return sendDeck(res, { ...result.deck, userId });
+      return sendDeck(res, { ...result.deck, userId }, { currency });
     }
+
+    const response = toDeckResponse(result.deck);
+    response.summary.currencyCap = currency;
 
     return res.status(400).json({
       error: 'DECK_INCOMPLETE',
       message: result.message,
       missingRoles: result.missingRoles,
       deck: result.deck,
-      summary: toDeckResponse(result.deck).summary
+      summary: response.summary
     });
   } catch (error) {
     if (error instanceof DeckPayloadError && error.code === 'INVALID_USER_ID') {

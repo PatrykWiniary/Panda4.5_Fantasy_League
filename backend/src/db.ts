@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { User, Deck, CompleteDeck, DeckSaveResult, DeckSummary } from './Types';
-import { createDeck, ensureDeckComplete, summarizeDeck, DeckError } from './deckManager';
+import { createDeck, ensureDeckComplete, summarizeDeck, DeckError, calculateDeckValue, ensureUniqueMultipliers } from './deckManager';
 import { parseDeckPayload } from './deckIO';
 
 const DB_PATH = path.join(__dirname, '..', 'data', 'app.db');
@@ -119,11 +119,17 @@ function persistCompleteDeck(userId: number, deck: CompleteDeck) {
   stmt.run(userId, payload);
 }
 
-function ensureUserExists(userId: number) {
-  const existing = db.prepare('SELECT 1 FROM users WHERE id = ?').get(userId);
-  if (!existing) {
+// Fetch only the currency column; throws when the user does not exist.
+export function getUserCurrency(userId: number): number {
+  const row = db
+    .prepare('SELECT currency FROM users WHERE id = ?')
+    .get(userId) as { currency: number } | undefined;
+
+  if (!row) {
     throw new Error('USER_NOT_FOUND');
   }
+
+  return row.currency;
 }
 
 export type StoredDeck = {
@@ -159,12 +165,24 @@ export function getAllDecks(): StoredDeck[] {
 }
 
 export function saveDeck(userId: number, deck: Deck): DeckSaveResult {
-  ensureUserExists(userId);
+  const currency = getUserCurrency(userId);
 
   const deckWithOwner = createDeck({
     userId,
     slots: deck.slots,
   });
+
+  ensureUniqueMultipliers(deckWithOwner);
+
+  const deckValue = calculateDeckValue(deckWithOwner);
+  if (deckValue > currency) {
+    // Make overspending a hard failure so client callers can surface the deficit.
+    throw new DeckError('CURRENCY_LIMIT_EXCEEDED', 'Deck exceeds available currency.', {
+      totalValue: deckValue,
+      currency,
+      overBudgetBy: deckValue - currency,
+    });
+  }
 
   try {
     const completeDeck = ensureDeckComplete(deckWithOwner);

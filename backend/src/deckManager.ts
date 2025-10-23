@@ -1,6 +1,7 @@
 import { Card, CompleteDeck, Deck, DeckSlots, DeckSummary, Role, RoleInput } from "./Types";
 
 export const REQUIRED_ROLES: Role[] = ["Top", "Jgl", "Mid", "Adc", "Supp"];
+const UNIQUE_MULTIPLIERS: Array<NonNullable<Card["multiplier"]>> = ["Captain", "Vice-captain"];
 
 const ROLE_ALIAS_MAP: Record<string, Role> = { //Not used roles can be deleted, for now only roles from REQUIRED_ROLES are valid
     top: "Top",
@@ -21,7 +22,9 @@ export type DeckErrorCode =
     | "ROLE_NOT_FOUND"
     | "ROLE_ALREADY_OCCUPIED"
     | "ROLE_EMPTY"
-    | "ROLE_MISMATCH";
+    | "ROLE_MISMATCH"
+    | "CURRENCY_LIMIT_EXCEEDED"
+    | "MULTIPLIER_CONFLICT";
 
 export class DeckError extends Error {
     constructor(
@@ -81,6 +84,7 @@ export function cloneDeck(deck: Deck): Deck {
 export function addCardToDeck(deck: Deck, card: Card): Deck {
     const role = normalizeRole(card.role);
     validateCardRole(card, role);
+    assertMultiplierAvailability(deck, card.multiplier);
     const nextDeck = cloneDeck(deck);
     const slots = nextDeck.slots;
 
@@ -111,6 +115,7 @@ export function removeCardFromDeck(deck: Deck, roleInput: RoleInput): Deck {
 export function replaceCardInDeck(deck: Deck, roleInput: RoleInput, newCard: Card): Deck {
     const role = normalizeRole(roleInput);
     validateCardRole(newCard, role);
+    assertMultiplierAvailability(deck, newCard.multiplier, role);
     const nextDeck = cloneDeck(deck);
     const slots = nextDeck.slots;
 
@@ -125,6 +130,7 @@ export function replaceCardInDeck(deck: Deck, roleInput: RoleInput, newCard: Car
 export function upsertCardInDeck(deck: Deck, roleInput: RoleInput, card: Card): Deck {
     const role = normalizeRole(roleInput);
     validateCardRole(card, role);
+    assertMultiplierAvailability(deck, card.multiplier, role);
     const nextDeck = cloneDeck(deck);
     const slots = nextDeck.slots;
 
@@ -140,19 +146,37 @@ export function getMissingRoles(deck: Deck): Role[] {
     return REQUIRED_ROLES.filter((role) => !deck.slots[role]);
 }
 
+export function calculateDeckValue(deck: Deck): number {
+    // Sum the value of every assigned card; empty slots contribute nothing.
+    return REQUIRED_ROLES.reduce((total, role) => {
+        const card = deck.slots[role];
+        return card ? total + card.value : total;
+    }, 0);
+}
+
 export function summarizeDeck(deck: Deck): DeckSummary {
     const missingRoles = getMissingRoles(deck);
     return {
         complete: missingRoles.length === 0,
         missingRoles,
+        totalValue: calculateDeckValue(deck),
     };
+}
+
+export function ensureUniqueMultipliers(deck: Deck): void {
+    for (const role of REQUIRED_ROLES) {
+        const card = deck.slots[role];
+        if (card?.multiplier) {
+            assertMultiplierAvailability(deck, card.multiplier, role);
+        }
+    }
 }
 
 export function ensureDeckComplete(deck: Deck): CompleteDeck {
     if (!isDeckComplete(deck)) {
         throw new DeckError(
             "ROLE_EMPTY",
-            "Deck is incomplete – every role must have a card before saving.",
+            "Deck is incomplete - every role must have a card before saving.",
             { missingRoles: getMissingRoles(deck) }
         );
     }
@@ -176,6 +200,28 @@ export function ensureDeckComplete(deck: Deck): CompleteDeck {
     };
 }
 
+function assertMultiplierAvailability(deck: Deck, multiplier?: Card["multiplier"], ignoredRole?: Role) {
+    if (!multiplier || !UNIQUE_MULTIPLIERS.includes(multiplier)) {
+        return;
+    }
+
+    const conflictRole = REQUIRED_ROLES.find((role) => {
+        if (role === ignoredRole) {
+            return false;
+        }
+        const existing = deck.slots[role];
+        return existing?.multiplier === multiplier;
+    });
+
+    if (conflictRole) {
+        throw new DeckError(
+            "MULTIPLIER_CONFLICT",
+            `Only one ${multiplier.toLowerCase()} card is allowed per deck.`,
+            { multiplier, conflictRole }
+        );
+    }
+}
+
 function validateCardRole(card: Card, role: Role) {
     if (normalizeRole(card.role) !== role) {
         throw new DeckError(
@@ -185,3 +231,4 @@ function validateCardRole(card: Card, role: Role) {
         );
     }
 }
+

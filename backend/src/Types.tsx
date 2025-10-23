@@ -31,6 +31,9 @@ export type CompleteDeck = {
 export type DeckSummary = {
     complete: boolean;
     missingRoles: Role[];
+    totalValue: number;
+    // Optional snapshot of the currency cap used during validation.
+    currencyCap?: number;
 };
 
 export type DeckSaveResult =
@@ -43,6 +46,7 @@ export type DeckSaveResult =
         deck: Deck;
         missingRoles: Role[];
         message: string;
+        overBudgetBy?: number;
     };
 
 export interface User {

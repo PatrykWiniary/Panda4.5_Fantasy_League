@@ -21,6 +21,8 @@ type Deck = {
 type DeckSummary = {
   complete: boolean;
   missingRoles: DeckRole[];
+  totalValue: number;
+  currencyCap?: number;
 };
 
 type DeckResponse = {
@@ -34,6 +36,7 @@ type DeckErrorResponse = {
   missingRoles?: DeckRole[];
   summary?: DeckSummary;
   deck?: Deck;
+  meta?: Record<string, unknown>;
 };
 
 type SampleCard = {
@@ -85,6 +88,23 @@ export default function App() {
   const [storedDecks, setStoredDecks] = useState<StoredDeckEntry[]>([]);
   const [storedDecksStatus, setStoredDecksStatus] = useState<string | null>(null);
 
+  function isMultiplierAllowed(multiplier: 'Captain' | 'Vice-captain', targetRole: DeckRole): boolean {
+    if (!deckData) {
+      return true;
+    }
+    return deckRoles.every(role => {
+      const card = deckData.slots[role];
+      if (!card || card.multiplier !== multiplier) {
+        return true;
+      }
+      return role === targetRole;
+    });
+  }
+
+  const blockedMultipliers = deckData
+    ? (['Captain', 'Vice-captain'] as const).filter(multiplier => !isMultiplierAllowed(multiplier, cardRole))
+    : [];
+
   useEffect(() => {
     fetch('/api/items')
       .then(r => r.json())
@@ -105,6 +125,15 @@ export default function App() {
       setDeckUserIdInput(String(loggedInUser.id));
     }
   }, [loggedInUser]);
+
+  useEffect(() => {
+    if (cardMultiplier === 'None') {
+      return;
+    }
+    if (!isMultiplierAllowed(cardMultiplier, cardRole)) {
+      setCardMultiplier('None');
+    }
+  }, [cardMultiplier, cardRole, deckData]);
 
   const add = async () => {
     if (!name) return;
@@ -274,7 +303,8 @@ export default function App() {
     try {
       const res = await fetch('/api/decks/empty', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId })
       });
       if (!res.ok) {
         setDeckStatus('Nie udało się utworzyć pustej talii.');
@@ -319,7 +349,32 @@ export default function App() {
       });
       if (!res.ok) {
         const error: DeckErrorResponse = await res.json().catch(() => ({}));
-        setDeckStatus(error.message ?? error.error ?? 'Operacja na talii nie powiodła się.');
+        let message = error.message ?? error.error ?? 'Operacja na talii nie powiodła się.';
+        if (error.error === 'CURRENCY_LIMIT_EXCEEDED' && error.meta) {
+          const total = typeof error.meta.totalValue === 'number' ? error.meta.totalValue : undefined;
+          const cap = typeof error.meta.currency === 'number' ? error.meta.currency : undefined;
+          const over = typeof error.meta.overBudgetBy === 'number' ? error.meta.overBudgetBy : undefined;
+          const details: string[] = [];
+          if (total !== undefined) {
+            details.push(`koszt talii ${total}`);
+          }
+          if (cap !== undefined) {
+            details.push(`limit ${cap}`);
+          }
+          if (over !== undefined) {
+            details.push(`przekroczono o ${over}`);
+          }
+          if (details.length > 0) {
+            message += ` (${details.join(', ')})`;
+          }
+        } else if (error.error === 'MULTIPLIER_CONFLICT' && error.meta) {
+          const multiplier = typeof error.meta.multiplier === 'string' ? error.meta.multiplier : null;
+          const conflictRole = typeof error.meta.conflictRole === 'string' ? error.meta.conflictRole : null;
+          if (multiplier) {
+            message += ` (${multiplier}${conflictRole ? ` zajęty na roli ${conflictRole}` : ' zajęty'})`;
+          }
+        }
+        setDeckStatus(message);
         if (error.deck && error.summary) {
           setDeckData(error.deck);
           setDeckSummary(error.summary);
@@ -382,7 +437,26 @@ export default function App() {
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
         const error = payload as DeckErrorResponse;
-        setDeckStatus(error.message ?? 'Nie udało się zapisać talii.');
+        let message = error.message ?? 'Nie udało się zapisać talii.';
+        if (error.error === 'CURRENCY_LIMIT_EXCEEDED' && error.meta) {
+          const total = typeof error.meta.totalValue === 'number' ? error.meta.totalValue : undefined;
+          const cap = typeof error.meta.currency === 'number' ? error.meta.currency : undefined;
+          const over = typeof error.meta.overBudgetBy === 'number' ? error.meta.overBudgetBy : undefined;
+          const details: string[] = [];
+          if (total !== undefined) {
+            details.push(`koszt talii ${total}`);
+          }
+          if (cap !== undefined) {
+            details.push(`limit ${cap}`);
+          }
+          if (over !== undefined) {
+            details.push(`przekroczono o ${over}`);
+          }
+          if (details.length > 0) {
+            message += ` (${details.join(', ')})`;
+          }
+        }
+        setDeckStatus(message);
         if (error.deck && error.summary) {
           setDeckData(error.deck);
           setDeckSummary(error.summary);
@@ -411,8 +485,13 @@ export default function App() {
     setCardName(card.name);
     setCardPoints(String(card.points));
     setCardValue(String(card.value));
-    setCardMultiplier(card.multiplier ?? 'None');
-    setDeckStatus(`Załadowano przykładową kartę "${card.name}".`);
+    if (card.multiplier && !isMultiplierAllowed(card.multiplier, card.role)) {
+      setCardMultiplier('None');
+      setDeckStatus(`Załadowano kartę "${card.name}", ale mnożnik ${card.multiplier} jest już zajęty.`);
+    } else {
+      setCardMultiplier(card.multiplier ?? 'None');
+      setDeckStatus(`Załadowano przykładową kartę "${card.name}".`);
+    }
   };
 
   return (
@@ -555,9 +634,14 @@ export default function App() {
                   Multiplier:
                   <select value={cardMultiplier} onChange={e => setCardMultiplier(e.target.value as typeof cardMultiplier)}>
                     <option value="None">None</option>
-                    <option value="Captain">Captain</option>
-                    <option value="Vice-captain">Vice-captain</option>
+                    <option value="Captain" disabled={!isMultiplierAllowed('Captain', cardRole)}>Captain</option>
+                    <option value="Vice-captain" disabled={!isMultiplierAllowed('Vice-captain', cardRole)}>Vice-captain</option>
                   </select>
+                  {blockedMultipliers.length > 0 && (
+                    <small style={{ display: 'block', color: '#666' }}>
+                      Zajęte mnożniki: {blockedMultipliers.join(', ')}.
+                    </small>
+                  )}
                 </label>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={addCard}>Add Card</button>
@@ -603,9 +687,15 @@ export default function App() {
                 {deckSummary ? (
                   <ul>
                     <li>Complete: {deckSummary.complete ? 'Yes' : 'No'}</li>
+                    <li>Total value: {deckSummary.totalValue}</li>
+                    {deckSummary.currencyCap !== undefined && (
+                      <li>
+                        Currency cap: {deckSummary.currencyCap} (Remaining: {deckSummary.currencyCap - deckSummary.totalValue})
+                      </li>
+                    )}
                     {!deckSummary.complete && (
                       <li>
-                        Missing roles: {deckSummary.missingRoles.length > 0 ? deckSummary.missingRoles.join(', ') : '—'}
+                        Missing roles: {deckSummary.missingRoles.length > 0 ? deckSummary.missingRoles.join(', ') : '-'}
                       </li>
                     )}
                   </ul>
@@ -633,8 +723,12 @@ export default function App() {
             <div style={{ display: 'grid', gap: 16 }}>
               {storedDecks.map(entry => (
                 <div key={`${entry.userId}-${entry.updatedAt}`} style={{ border: '1px solid #ddd', padding: 12, borderRadius: 6 }}>
-                  <strong>Użytkownik #{entry.userId}</strong> — ostatnia aktualizacja: {new Date(entry.updatedAt).toLocaleString()}
+                  <strong>Użytkownik #{entry.userId}</strong> - ostatnia aktualizacja: {new Date(entry.updatedAt).toLocaleString()}
                   <div>Kompletna: {entry.summary.complete ? 'Tak' : `Nie (${entry.summary.missingRoles.join(', ') || 'brak danych'})`}</div>
+                  <div>Wartość talii: {entry.summary.totalValue}</div>
+                  {entry.summary.currencyCap !== undefined && (
+                    <div>Limit waluty: {entry.summary.currencyCap}</div>
+                  )}
                   <table style={{ borderCollapse: 'collapse', marginTop: 8, width: '100%', maxWidth: 500 }}>
                     <thead>
                       <tr>
