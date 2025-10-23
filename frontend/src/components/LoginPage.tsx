@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import '../styles/LoginPage.css';
+import '../styles/LogReg.css';
 type Item = { id: number; name: string; qty: number };
 
 export default function App() {
@@ -26,8 +26,9 @@ export default function App() {
     setName('');
   };
 
-  return (
-    <div className="login-container">
+ return (
+  <div className="login-container">
+    <div className="login-form">
       <h1 className="login-title login-title--main">SUMMONER'S LEAGUE</h1>
       <h2 className="login-title login-title--sub">SIGN IN</h2>
 
@@ -43,16 +44,18 @@ export default function App() {
         className="login-input"
         autoComplete="current-password"
       />
-<div class="login-actions">
-  <a class="login-forgot">Forgot Password?</a>
-  <button class="login-button">SIGN IN</button>
-</div>
+
+      <div className="login-actions">
+        <a className="login-forgot">Forgot password?</a>
+        <button className="login-button">SIGN IN</button>
+      </div>
+
       <div className="login-register">
-       {' '}
         <Link to="/registration" className="register-link">
-           Create account
+          Create account
         </Link>
       </div>
     </div>
-  );
+  </div>
+);
 }

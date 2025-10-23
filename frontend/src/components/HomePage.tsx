@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import '../styles/LoginPage.css';
+import '../styles/LogReg.css';
 type Item = { id: number; name: string; qty: number };
 
 export default function App() {

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import '../styles/RegistrationPage.css';
+import '../styles/LogReg.css';
 
 export default function RegistrationPage() {
   return (
