@@ -68,5 +68,6 @@ export interface Player {
   deaths: number;
   assists: number;
   cs: number;
+  gold: number;
   region_id: number;
 }

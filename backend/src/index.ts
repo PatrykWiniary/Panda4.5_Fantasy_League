@@ -248,15 +248,16 @@ app.post('/api/decks/save', (req, res) => {
 function test() {
   simulateData();
   const game = new FootabalolGame();
-
   game.setRegion(1);
-  console.log("Initial players in region:", game.getRegion().name);
-  game.logPlayerStats("Player1");
 
-  game.simulateMatch();
-
-  console.log("After simulation:");
-  game.logPlayerStats("Player1");
+  const tournament = game.simulateTournament(1, 5);
+  // console.log(tournament.next().done); //check if generator finished
+  console.log(tournament.next().value);//1st game
+  console.log(tournament.next().value);//2nd game
+  console.log(tournament.next().value);//3rd game
+  console.log(tournament.next().value);//4th game
+  console.log(tournament.next().value);//5th game
+  console.log(tournament.next().value);//results
 }
 test();
 

@@ -301,23 +301,22 @@ export function simulateData() {
   `);
 
   for (let i = 1; i <= 10; i++) {
-    const name = `Player${i}`;
-    const kills = Math.floor(Math.random() * 20);
-    const deaths = Math.floor(Math.random() * 10);
-    const assists = Math.floor(Math.random() * 15);
-    const cs = Math.floor(Math.random() * 300);
+    const name = `Faker${i}`;
+    const kills = 0;
+    const deaths = 0;
+    const assists = 0;
+    const cs = 0;
     const region_id = regionIds[Math.floor(Math.random() * regionIds.length)];
     playerStmt.run(name, kills, deaths, assists, cs, 1);
   }
 }
-
 
 export function simulateMatch(players: Player[], regionName: string) {
     for (const player of players) {
       const deltaKills = Math.floor(Math.random() * 5);
       const deltaDeaths = Math.floor(Math.random() * 3);
       const deltaAssists = Math.floor(Math.random() * 4);
-      const deltaCs = Math.floor(Math.random() * 50);
+      const deltaCs = Math.floor(Math.random() * 200);
 
       player.kills += deltaKills;
       player.deaths += deltaDeaths;
@@ -339,7 +338,7 @@ export function fetchRegionNameById(regionId: number): string {
   return row ? row.name : "Unknown";
 }
 
-export function fetchAllPlayers(regionId: number){
+export function fetchAllPlayers(regionId: number):Player[]{
   const stmt = db.prepare("SELECT * FROM players WHERE region_id = ?");
-  return stmt.all(regionId);
+  return stmt.all(regionId) as Player[];
 }
