@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import FootabalolGame from './API/FootbalolGame';
 import {
   getAllItems,
   addItem,
@@ -11,7 +12,9 @@ import {
   getDeck,
   getAllDecks,
   saveDeck,
-  getUserCurrency
+  getUserCurrency,
+  simulateData,
+  simulateMatch
 } from './db';
 import {
   addCardToDeck,
@@ -371,13 +374,22 @@ app.post('/api/decks/save', (req, res) => {
   }
 });
 
-function test(){
-  clearUsers();
-  addUser({name: "nazwa",mail: "email",password: "password", currency: 3});
-  const users = getAllUsers();
-  console.log(users)
+
+function test() {
+  simulateData();
+  const game = new FootabalolGame();
+  game.setRegion(1);
+
+  const tournament = game.simulateTournament(1, 5);
+  // console.log(tournament.next().done); //check if generator finished
+  console.log(tournament.next().value);//1st game
+  console.log(tournament.next().value);//2nd game
+  console.log(tournament.next().value);//3rd game
+  console.log(tournament.next().value);//4th game
+  console.log(tournament.next().value);//5th game
+  console.log(tournament.next().value);//results
 }
-test()
+test();
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
