@@ -21,8 +21,8 @@ body {
   color: var(--accent);
 }
 
-/* --- LOGIN CONTAINER --- */
-.login-container {
+.login-container,
+.registration-container {
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -33,25 +33,23 @@ body {
   background: var(--bg);
 }
 
-/* --- LOGIN FORM --- */
-.login-form {
-  background: transparent; /* brak tła */
-  padding: 2rem 3rem;
-  border-radius: 0;
-  box-shadow: none;
+/* --- FORM --- */
+.login-form,
+.registration-form {
   width: 100%;
-  max-width: 400px;
-  border: none;
+  max-width: 500px;
   display: flex;
   flex-direction: column;
   align-items: center;
+  padding: 2rem 3rem;
 }
+
 
 /* --- MAIN TITLES --- */
 .login-title--main,
 .login-title {
   white-space: nowrap;
-  font-size: 3.2rem;
+  font-size: 3.5rem;
   font-weight: 700;
   line-height: 1.3;
   margin-bottom: 0.5rem;
@@ -68,7 +66,7 @@ body {
 
 .login-title--sub {
   white-space: nowrap;
-  font-size: 2rem;
+  font-size: 2.2rem;
   font-weight: 700;
   letter-spacing: 4px;
   margin-bottom: 2rem;
@@ -80,33 +78,37 @@ body {
   text-shadow: 0 0 5px rgba(0, 0, 0, 0.4);
 }
 
-
-
-/* --- INPUT FIELDS --- */
-.login-input {
+.login-container .login-input,
+.registration-container .login-input {
   width: 100%;
-  padding: 0.9rem 1rem;
-  border-radius: 10px;
+  max-width: 500px;
+  padding: 1.2rem 1.5rem;
+  border-radius: 19px;
   border: 1.5px solid var(--accent-dark);
-  background-color: var(--bg); /* takie samo tło jak strona */
-  color: var(--accent); /* złoty tekst */
-  font-size: 1.05rem;
+  background-color: var(--bg);
+  color: var(--accent);
+  font-size: 1.3rem;
   outline: none;
-  transition: border 0.2s, box-shadow 0.2s;
-  margin-bottom: 1.2rem;
-  text-align: center; /* <-- WYŚRODKOWANIE TEKSTU */
+  margin-bottom: 1.5rem;
+  text-align: center;
+    display: flex;
+  justify-content: center;
 }
 
-.login-input::placeholder {
+
+.login-container .login-input::placeholder,
+.registration-container .login-input::placeholder {
+  
   color: var(--accent-dark);
   opacity: 0.8;
-  font-size: 1rem;
-  text-align: center; /* <-- WYŚRODKOWANIE TEKSTU W PLACEHOLDERZE */
+  font-size: 1.2rem;
+  text-align: center;
 }
 
-.login-input:focus {
+.login-container .login-input:focus,
+.registration-container .login-input:focus {
   border: 2px solid var(--accent);
-  box-shadow: 0 0 10px rgba(201, 172, 109, 0.4);
+  box-shadow: 0 0 12px rgba(201, 172, 109, 0.4);
 }
 
 /* --- ACTIONS (BUTTONS & LINKS) --- */
@@ -115,30 +117,37 @@ body {
   justify-content: center;
   align-items: center;
   width: 100%;
-  margin-top: 1rem;
+  margin-top: 1.5rem;
   gap: 1.5rem;
 }
-
-/* LOGIN / REGISTER BUTTONS */
 .login-button,
 .registration-button {
+  white-space: nowrap;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 12rem;
-  height: 3.5rem;
+  width: 14rem;
+  height: 4rem;
   padding: 0 2rem;
-  background: linear-gradient(to bottom, #D4B98D 0%, #AD9767 100%);
+  background-color: var(--accent); /* normalny kolor */
   color: var(--text-dark);
   border: none;
-  border-radius: 10px;
-  font-size: 1.2rem;
+  border-radius: 24px;
+  font-size: 1.3rem;
   font-weight: 700;
   letter-spacing: 1px;
   cursor: pointer;
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
   transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.3s ease;
 }
+
+.login-button:hover,
+.registration-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6);
+  background: linear-gradient(to bottom, #C9AC6D 0%, #FFFFFF 20%);
+}
+
 
 .login-button:hover,
 .registration-button:hover {
@@ -151,7 +160,7 @@ body {
 .login-forgot,
 .register-link {
   white-space: nowrap;
-  font-size: 1rem;
+  font-size: 1.1rem;
   color: var(--accent);
   cursor: pointer;
   text-decoration: none;
@@ -168,14 +177,157 @@ body {
   text-align: center;
   margin-top: 2rem;
   color: var(--accent);
-  font-size: 1rem;
+  font-size: 1.1rem;
   letter-spacing: 1px;
 }
+
+/* --- HOMEPAGE --- */
+.homepage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  min-height: 100vh;
+  width: 100vw;
+  background: var(--bg);
+  color: var(--accent);
+}
+
+/* Tytuł główny */
+.homepage-title {
+  font-size: 3.5rem;
+  font-weight: 700;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  margin-bottom: 3rem;
+  background: radial-gradient(circle at 50% 40%, var(--accent) 20%, var(--accent-dark) 80%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 5px rgba(0, 0, 0, 0.4);
+}
+
+/* Sekcja przycisków */
+.homepage-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+/* Przyciski homepage */
+.homepage-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 420px; 
+  height: 75px;
+  font-size: 1.3rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  border: 1.5px solid var(--accent);
+  border-radius: 12px;
+  color: var(--accent);
+  background: transparent;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+
+.homepage-button:hover { background: var(--accent); color: var(--text-dark); box-shadow: 0 0 12px rgba(201, 172, 109, 0.4); transform: translateY(-2px); }
+
+
+/* --- IKONY WSZĘDZIE --- */
+.page-icons {
+  display: flex;
+  gap: 1.5rem;
+}
+
+/* Pozycjonowanie ikon */
+.homepage .page-icons {
+  position: absolute;
+  top: 1.5rem;
+  right: 2rem;
+}
+
+.login-container .page-icons,
+.registration-container .page-icons {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+}
+
+.page-icons {
+  display: flex;
+  gap: 1.5rem;
+  position: absolute;
+  top: 1.5rem;
+  right: 2rem;
+}
+
+.page-icon img.icon-image {
+  height: 32px;
+  width: auto;
+  object-fit: contain;
+  cursor: pointer;
+  transition: transform 0.2s ease, filter 0.3s ease;
+}
+
+/* Hovery */
+.page-icon.home-icon img.icon-image:hover {
+  filter: brightness(0) saturate(100%) invert(77%) sepia(25%) saturate(500%) hue-rotate(1deg) brightness(95%) contrast(90%);
+  transform: scale(1.1);
+}
+
+.page-icon.user-icon img.icon-image:hover {
+  transform: scale(1.1);
+  filter: drop-shadow(0 0 6px #000) drop-shadow(0 0 12px #C9AC6D);
+}
+
+/* --- HOMEPAGE BUTTON DISABLED --- */
+.homepage-button.disabled {
+  background: #1E1E1E;
+  color: #555;
+  border: 1.5px solid #1E1E1E;
+  pointer-events: none;
+  box-shadow: none;
+  transform: none;
+  cursor: default;
+}
+.profile-avatar{
+  width: 236px;
+  height: 236px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 1.5rem;
+}
+
+.champion-card{
+  width: 120px;
+  height: 120px;
+  border-radius: 12px;
+  object-fit: cover;
+  margin: 0.5rem;
+  border: 2px solid var(--accent);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+.profile-champions{
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
 
 /* --- RESPONSIVE --- */
 @media (max-width: 480px) {
   .login-title--main,
-  .login-title {
+  .login-title,
+  .homepage-title {
     font-size: 2.4rem;
     letter-spacing: 3px;
   }
@@ -184,17 +336,22 @@ body {
     font-size: 1.4rem;
   }
 
-  .login-form {
+  .login-form,
+  .registration-form {
     padding: 1.5rem;
   }
 
   .login-button,
-  .registration-button {
+  .registration-button,
+  .homepage-button {
     width: 100%;
     height: 3rem;
+    font-size: 1rem;
+    
   }
 
-  .login-forgot {
-    margin-top: 0.5rem;
+  .page-icon img.icon-image {
+    height: 28px;
   }
+  
 }
