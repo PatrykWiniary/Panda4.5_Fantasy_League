@@ -12,6 +12,10 @@
    - [Sekcja Deck Tester](#sekcja-deck-tester)
    - [Sekcja zapisanych talii](#sekcja-zapisanych-talii)
 4. [Jak dziala aplikacja](#jak-dziala-aplikacja)
+   - [Szybki przeglad krok po kroku](#szybki-przeglad-krok-po-kroku)
+   - [Najczesciej wykorzystywane widoki](#najczesciej-wykorzystywane-widoki)
+   - [Gdzie trafiaja dane](#gdzie-trafiaja-dane)
+   - [Rejestracja i logowanie](#rejestracja-i-logowanie)
 5. [System punktacji](#system-punktacji)
 6. [Przykladowe karty](#przykladowe-karty)
 7. [Uruchomienie i build](#uruchomienie-i-build)
@@ -140,6 +144,13 @@ Projekt ma charakter warsztatowy: pozwala tworzyc talie zawodnikow League of Leg
 - Dane stale (uzytkownicy, talie, statystyki turniejowe) przechowywane sa w SQLite (`backend/data/app.db`).
 - Frontend komunikuje sie z backendem JSON-owymi endpointami REST (opis w sekcji [Endpointy REST](#endpointy-rest)).
 - Aktualny uzytkownik jest zapisywany w `localStorage` przegladarki (`fantasy-league.loggedUser`).
+
+### Rejestracja i logowanie
+- **Walidacja po stronie klienta i serwera.** Formularz "Register" sprawdza wstepnie poprawnosc e-maila (`EMAIL_REGEX`) oraz sile hasla (min. 8 znakow, mala i duza litera, cyfra). Te same reguly sa egzekwowane w backendzie (`backend/src/validation.ts`), wiec nie mozna ich ominac przez wyslanie zapytania recznie.
+- **Hashowanie hasel.** Przy rejestracji backend nigdy nie zapisuje hasla w postaci jawnej. Funkcja `hashPassword` w `backend/src/db.ts` generuje losowa sol (16 bajtow) i wylicza hash PBKDF2 (`sha256`) z 310000 iteracji i dlugoscia 32 bajtow. W bazie przechowywany jest tylko ciag `salt:hash`.
+- **Logowanie.** Podczas logowania rekord uzytkownika jest wyszukiwany po adresie e-mail, a nastepnie haslo porownywane z zapisanym hashem funkcja `verifyPassword`, ktora ponownie liczy PBKDF2 i uzywa `crypto.timingSafeEqual`, aby uniknac atakow czasowych.
+- **Obsluga bledow.** Gdy konto o wskazanym e-mailu juz istnieje, rejestracja zwraca `USER_ALREADY_EXISTS`. Bledne dane logowania odpowiadaja komunikatem `INVALID_CREDENTIALS`.
+- **Przechowywanie sesji.** Po udanym logowaniu frontend zapisuje niesekretne dane uzytkownika (ID, imie, budzet, punktacje) w `localStorage`. Informacje te sluza jedynie do wypelniania formularzy; haslo ani tokeny sesyjne nie sa przechowywane w przegladarce.
 
 ---
 
