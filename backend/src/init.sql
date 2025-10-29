@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   mail TEXT,
   password TEXT NOT NULL,
-  currency NUMBER NOT NULL
+  currency NUMBER NOT NULL,
+  score NUMBER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS decks (
@@ -39,6 +40,8 @@ CREATE TABLE IF NOT EXISTS players (
   deaths INTEGER NOT NULL,
   assists INTEGER NOT NULL,
   cs INTEGER NOT NULL,
+  role TEXT NOT NULL,
+  gold INTEGER NOT NULL DEFAULT 0,
   region_id INTEGER NOT NULL,
   FOREIGN KEY (region_id) REFERENCES regions(id) ON DELETE CASCADE
 )

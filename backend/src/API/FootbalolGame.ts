@@ -1,5 +1,5 @@
 import { fetchAllPlayers, fetchRegionNameById, simulateMatch } from "../db";
-import { Player, TournamentData } from "../Types";
+import { Player } from "../Types";
 
 export default class FootabalolGame {
   regionId: number = -1;

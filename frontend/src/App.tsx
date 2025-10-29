@@ -1,7 +1,8 @@
-import { FormEvent, useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
+import { useEffect, useState } from 'react';
 
 type Item = { id: number; name: string; qty: number };
-type User = { id: number; name: string; mail: string; currency: number };
+type User = { id: number; name: string; mail: string; currency: number; score?: number };
 
 type DeckRole = 'Top' | 'Jgl' | 'Mid' | 'Adc' | 'Supp';
 
@@ -11,6 +12,8 @@ type DeckCard = {
   points: number;
   value: number;
   multiplier?: 'Captain' | 'Vice-captain';
+  playerId?: number;
+  tournamentPoints?: number;
 };
 
 type Deck = {
@@ -47,6 +50,7 @@ type SampleCard = {
   points: number;
   value: number;
   multiplier?: 'Captain' | 'Vice-captain';
+  playerId?: number;
 };
 
 type StoredDeckEntry = {
@@ -56,11 +60,71 @@ type StoredDeckEntry = {
   summary: DeckSummary;
 };
 
+type TournamentPlayer = {
+  id: number;
+  name: string;
+  kills: number;
+  deaths: number;
+  assists: number;
+  cs: number;
+  gold?: number;
+  region_id: number;
+  role: DeckRole;
+};
+
+type TournamentRound = {
+  region: number;
+  players: TournamentPlayer[];
+  gameNumber: number;
+};
+
+type TournamentFinal = {
+  region: number;
+  players: TournamentPlayer[];
+  winner: string;
+};
+
+type DeckScoreBreakdownEntry = {
+  role: DeckRole;
+  playerId?: number;
+  playerName: string;
+  baseScore: number;
+  multiplier: number;
+  multiplierLabel?: 'Captain' | 'Vice-captain';
+  totalScore: number;
+};
+
+type TournamentSimulationResult = {
+  tournament: {
+    region: { id: number; name: string };
+    rounds: TournamentRound[];
+    final: TournamentFinal;
+    games: number;
+    resetPerformed: boolean;
+  };
+  deck: Deck;
+  deckSummary: DeckSummary;
+  deckScore: {
+    total: number;
+    awarded: number;
+    breakdown: DeckScoreBreakdownEntry[];
+    missingRoles: DeckRole[];
+  };
+  user: {
+    id: number;
+    score: number;
+    awardedPoints: number;
+    currency?: number;
+  };
+};
+
+const LOCAL_STORAGE_KEY = 'fantasy-league.loggedUser';
+
 const deckRoles: DeckRole[] = ['Top', 'Jgl', 'Mid', 'Adc', 'Supp'];
 const EMAIL_REGEX = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
 const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/;
 const PASSWORD_REQUIREMENTS_DESCRIPTION =
-  'Has≈Ço musi mieƒá co najmniej 8 znak√≥w, zawieraƒá du≈ºƒÖ i ma≈ÇƒÖ literƒô oraz cyfrƒô.';
+  'Has≥o musi mieÊ co najmniej 8 znakÛw, zawieraÊ duø± i ma≥± literÍ oraz cyfrÍ.';
 
 const isValidEmail = (value: string) => EMAIL_REGEX.test(value.trim());
 const isStrongPassword = (value: string) =>
@@ -80,9 +144,23 @@ export default function App() {
   const [loginMail, setLoginMail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginStatus, setLoginStatus] = useState<string | null>(null);
-  const [loggedInUser, setLoggedInUser] = useState<User | null>(null);
+  const [loggedInUser, setLoggedInUser] = useState<User | null>(() => {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+    try {
+      return JSON.parse(raw) as User;
+    } catch {
+      window.localStorage.removeItem(LOCAL_STORAGE_KEY);
+      return null;
+    }
+  });
 
-  const [deckUserIdInput, setDeckUserIdInput] = useState('1');
+  const [deckUserIdInput, setDeckUserIdInput] = useState(() => (loggedInUser ? String(loggedInUser.id) : '1'));
   const [deckData, setDeckData] = useState<Deck | null>(null);
   const [deckSummary, setDeckSummary] = useState<DeckSummary | null>(null);
   const [deckStatus, setDeckStatus] = useState<string | null>(null);
@@ -91,10 +169,45 @@ export default function App() {
   const [cardPoints, setCardPoints] = useState('0');
   const [cardValue, setCardValue] = useState('0');
   const [cardMultiplier, setCardMultiplier] = useState<'None' | 'Captain' | 'Vice-captain'>('None');
+  const [cardPlayerId, setCardPlayerId] = useState('');
   const [sampleCards, setSampleCards] = useState<SampleCard[]>([]);
   const [selectedSampleCard, setSelectedSampleCard] = useState<string>('');
   const [storedDecks, setStoredDecks] = useState<StoredDeckEntry[]>([]);
   const [storedDecksStatus, setStoredDecksStatus] = useState<string | null>(null);
+  const [simulationUserId, setSimulationUserId] = useState(() => (loggedInUser ? String(loggedInUser.id) : '1'));
+  const [simulationRegionId, setSimulationRegionId] = useState('1');
+  const [simulationGames, setSimulationGames] = useState('5');
+  const [simulationReset, setSimulationReset] = useState(true);
+  const [simulationStatus, setSimulationStatus] = useState<string | null>(null);
+  const [simulationResult, setSimulationResult] = useState<TournamentSimulationResult | null>(null);
+  const [simulationLoading, setSimulationLoading] = useState(false);
+
+  const persistLoggedInUser = (user: User | null) => {
+    setLoggedInUser(user);
+    if (typeof window !== 'undefined') {
+      if (user) {
+        window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(user));
+      } else {
+        window.localStorage.removeItem(LOCAL_STORAGE_KEY);
+      }
+    }
+  };
+
+  const handleUserLogin = (user: User) => {
+    persistLoggedInUser(user);
+    setDeckUserIdInput(String(user.id));
+    setSimulationUserId(String(user.id));
+  };
+
+  const handleLogout = () => {
+    persistLoggedInUser(null);
+    setDeckUserIdInput('1');
+    setSimulationUserId('1');
+    setDeckData(null);
+    setDeckSummary(null);
+    setDeckStatus(null);
+    setLoginStatus(null);
+  };
 
   function isMultiplierAllowed(multiplier: 'Captain' | 'Vice-captain', targetRole: DeckRole): boolean {
     if (!deckData) {
@@ -128,11 +241,12 @@ export default function App() {
     refreshStoredDecks().catch(console.error);
   }, []);
 
-  useEffect(() => {
-    if (loggedInUser) {
-      setDeckUserIdInput(String(loggedInUser.id));
-    }
-  }, [loggedInUser]);
+useEffect(() => {
+  if (loggedInUser) {
+    setDeckUserIdInput(String(loggedInUser.id));
+    setSimulationUserId(String(loggedInUser.id));
+  }
+}, [loggedInUser]);
 
   useEffect(() => {
     if (cardMultiplier === 'None') {
@@ -163,8 +277,14 @@ export default function App() {
     if (!res.ok) {
       throw new Error('Failed to load users');
     }
-    const list = await res.json();
+    const list: User[] = await res.json();
     setUsers(list);
+    if (loggedInUser) {
+      const updated = list.find(user => user.id === loggedInUser.id);
+      if (updated) {
+        persistLoggedInUser({ ...loggedInUser, ...updated });
+      }
+    }
   };
 
   const register = async (event: FormEvent) => {
@@ -215,7 +335,13 @@ export default function App() {
     setRegisterPassword('');
     setRegisterCurrency('0');
     await refreshUsers();
-    setLoggedInUser({ id: user.id, name: user.name, mail: user.mail, currency: user.currency });
+    handleUserLogin({
+      id: user.id,
+      name: user.name,
+      mail: user.mail,
+      currency: user.currency,
+      score: user.score ?? 0,
+    });
   };
 
   const login = async (event: FormEvent) => {
@@ -243,8 +369,13 @@ export default function App() {
 
     const user = await res.json();
     setLoginStatus(`Logged in as ${user.name}.`);
-    setLoggedInUser(user);
-    setDeckUserIdInput(String(user.id));
+    handleUserLogin({
+      id: user.id,
+      name: user.name,
+      mail: user.mail,
+      currency: user.currency,
+      score: user.score ?? 0,
+    });
     setLoginMail('');
     setLoginPassword('');
   };
@@ -261,15 +392,15 @@ export default function App() {
     try {
       const res = await fetch('/api/decks');
       if (!res.ok) {
-        setStoredDecksStatus('Nie uda≈Ço siƒô pobraƒá zapisanych talii.');
+        setStoredDecksStatus('Nie uda≈?o siƒ? pobraƒ? zapisanych talii.');
         return;
       }
       const payload: StoredDeckEntry[] = await res.json();
       setStoredDecks(payload);
-      setStoredDecksStatus(`Za≈Çadowano ${payload.length} talii z bazy danych.`);
+      setStoredDecksStatus(`Za≈?adowano ${payload.length} talii z bazy danych.`);
     } catch (error) {
       console.error(error);
-      setStoredDecksStatus('B≈ÇƒÖd sieci podczas pobierania talii.');
+      setStoredDecksStatus('B≈?ƒ?d sieci podczas pobierania talii.');
     }
   };
 
@@ -290,13 +421,16 @@ export default function App() {
     };
     setDeckData(normalizedDeck);
     setDeckSummary(payload.summary);
+    if (userId) {
+      setSimulationUserId(String(userId));
+    }
   };
 
   const fetchDeckForUser = async () => {
     setDeckStatus(null);
     const userId = loggedInUser ? loggedInUser.id : parsePositiveInt(deckUserIdInput);
     if (!userId) {
-      setDeckStatus('Podaj poprawne ID u≈ºytkownika (>0).');
+    setDeckStatus('Podaj poprawne ID u≈•ytkownika (>0).');
       return;
     }
 
@@ -304,15 +438,15 @@ export default function App() {
       const res = await fetch(`/api/decks/${userId}`);
       if (!res.ok) {
         const error: DeckErrorResponse = await res.json().catch(() => ({}));
-        setDeckStatus(error.message ?? 'Nie uda≈Ço siƒô pobraƒá talii.');
+        setDeckStatus(error.message ?? 'Nie uda≈?o siƒ? pobraƒ? talii.');
         return;
       }
       const payload: DeckResponse = await res.json();
       applyDeckResponse(payload, userId);
-      setDeckStatus(`Za≈Çadowano taliƒô u≈ºytkownika ${userId}.`);
+      setDeckStatus(`Za≈?adowano taliƒ? u≈•ytkownika ${userId}.`);
     } catch (error) {
       console.error(error);
-      setDeckStatus('B≈ÇƒÖd sieci podczas pobierania talii.');
+      setDeckStatus('B≈?ƒ?d sieci podczas pobierania talii.');
     }
   };
 
@@ -320,7 +454,7 @@ export default function App() {
     setDeckStatus(null);
     const userId = loggedInUser ? loggedInUser.id : parsePositiveInt(deckUserIdInput);
     if (!userId) {
-      setDeckStatus('Podaj poprawne ID u≈ºytkownika (>0).');
+    setDeckStatus('Podaj poprawne ID u≈•ytkownika (>0).');
       return;
     }
 
@@ -331,21 +465,21 @@ export default function App() {
         body: JSON.stringify({ userId })
       });
       if (!res.ok) {
-        setDeckStatus('Nie uda≈Ço siƒô utworzyƒá pustej talii.');
+      setDeckStatus('Nie uda≈?o siƒ? utworzyƒ? pustej talii.');
         return;
       }
       const payload: DeckResponse = await res.json();
       applyDeckResponse(payload, userId);
-      setDeckStatus(`Rozpoczƒôto pustƒÖ taliƒô dla u≈ºytkownika ${userId}.`);
+      setDeckStatus(`Rozpoczƒ?to pustƒ? taliƒ? dla u≈•ytkownika ${userId}.`);
     } catch (error) {
       console.error(error);
-      setDeckStatus('B≈ÇƒÖd sieci podczas tworzenia talii.');
+      setDeckStatus('B≈?ƒ?d sieci podczas tworzenia talii.');
     }
   };
 
   const ensureDeckLoaded = (): Deck | null => {
     if (!deckData) {
-      setDeckStatus('Najpierw za≈Çaduj lub utw√≥rz taliƒô.');
+      setDeckStatus('Najpierw za≈?aduj lub utw√≥rz taliƒ?.');
       return null;
     }
     return deckData;
@@ -356,7 +490,11 @@ export default function App() {
     role: cardRole,
     points: Number(cardPoints) || 0,
     value: Number(cardValue) || 0,
-    ...(cardMultiplier === 'None' ? {} : { multiplier: cardMultiplier })
+    ...(cardMultiplier === 'None' ? {} : { multiplier: cardMultiplier }),
+    ...(() => {
+      const parsed = parsePositiveInt(cardPlayerId);
+      return parsed ? { playerId: parsed } : {};
+    })()
   });
 
   const mutateDeck = async (
@@ -373,7 +511,7 @@ export default function App() {
       });
       if (!res.ok) {
         const error: DeckErrorResponse = await res.json().catch(() => ({}));
-        let message = error.message ?? error.error ?? 'Operacja na talii nie powiod≈Ça siƒô.';
+        let message = error.message ?? error.error ?? 'Operacja na talii nie powiod≈?a siƒ?.';
         if (error.error === 'CURRENCY_LIMIT_EXCEEDED' && error.meta) {
           const total = typeof error.meta.totalValue === 'number' ? error.meta.totalValue : undefined;
           const cap = typeof error.meta.currency === 'number' ? error.meta.currency : undefined;
@@ -395,7 +533,7 @@ export default function App() {
           const multiplier = typeof error.meta.multiplier === 'string' ? error.meta.multiplier : null;
           const conflictRole = typeof error.meta.conflictRole === 'string' ? error.meta.conflictRole : null;
           if (multiplier) {
-            message += ` (${multiplier}${conflictRole ? ` zajƒôty na roli ${conflictRole}` : ' zajƒôty'})`;
+            message += ` (${multiplier}${conflictRole ? ` zajƒ?ty na roli ${conflictRole}` : ' zajƒ?ty'})`;
           }
         }
         setDeckStatus(message);
@@ -410,7 +548,7 @@ export default function App() {
       setDeckStatus(successMessage);
     } catch (error) {
       console.error(error);
-      setDeckStatus('B≈ÇƒÖd sieci podczas operacji na talii.');
+      setDeckStatus('B≈?ƒ?d sieci podczas operacji na talii.');
     }
   };
 
@@ -418,30 +556,30 @@ export default function App() {
     const deck = ensureDeckLoaded();
     if (!deck) return;
     if (!cardName.trim()) {
-      setDeckStatus('Podaj nazwƒô karty.');
+      setDeckStatus('Podaj nazwƒ? karty.');
       return;
     }
-    await mutateDeck('/api/decks/add-card', { deck, card: buildCardPayload() }, 'Dodano kartƒô do talii.');
+    await mutateDeck('/api/decks/add-card', { deck, card: buildCardPayload() }, 'Dodano kartƒ? do talii.');
   };
 
   const replaceCard = async () => {
     const deck = ensureDeckLoaded();
     if (!deck) return;
     if (!cardName.trim()) {
-      setDeckStatus('Podaj nazwƒô karty.');
+      setDeckStatus('Podaj nazwƒ? karty.');
       return;
     }
     await mutateDeck(
       '/api/decks/replace-card',
       { deck, role: cardRole, card: buildCardPayload() },
-      'ZastƒÖpiono kartƒô w talii.'
+      'Zastƒ?piono kartƒ? w talii.'
     );
   };
 
   const removeCard = async (role: DeckRole) => {
     const deck = ensureDeckLoaded();
     if (!deck) return;
-    await mutateDeck('/api/decks/remove-card', { deck, role }, `Usuniƒôto kartƒô z pozycji ${role}.`);
+    await mutateDeck('/api/decks/remove-card', { deck, role }, `Usuniƒ?to kartƒ? z pozycji ${role}.`);
   };
 
   const saveDeck = async () => {
@@ -449,7 +587,7 @@ export default function App() {
     if (!deck) return;
     const userId = deck.userId ?? (loggedInUser ? loggedInUser.id : parsePositiveInt(deckUserIdInput));
     if (!userId) {
-      setDeckStatus('Brak ID u≈ºytkownika powiƒÖzanego z taliƒÖ.');
+      setDeckStatus('Brak ID u≈•ytkownika powiƒ?zanego z taliƒ?.');
       return;
     }
     try {
@@ -461,7 +599,7 @@ export default function App() {
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
         const error = payload as DeckErrorResponse;
-        let message = error.message ?? 'Nie uda≈Ço siƒô zapisaƒá talii.';
+        let message = error.message ?? 'Nie uda≈?o siƒ? zapisaƒ? talii.';
         if (error.error === 'CURRENCY_LIMIT_EXCEEDED' && error.meta) {
           const total = typeof error.meta.totalValue === 'number' ? error.meta.totalValue : undefined;
           const cap = typeof error.meta.currency === 'number' ? error.meta.currency : undefined;
@@ -491,16 +629,16 @@ export default function App() {
       setDeckStatus('Talia zapisana poprawnie.');
     } catch (error) {
       console.error(error);
-      setDeckStatus('B≈ÇƒÖd sieci podczas zapisywania talii.');
+      setDeckStatus('B≈?ƒ?d sieci podczas zapisywania talii.');
     }
   };
 
   const applySampleCard = () => {
     if (!selectedSampleCard) {
-      setDeckStatus('Wybierz kartƒô z listy przyk≈Çadowych kart.');
+      setDeckStatus('Wybierz kartÍ z listy przyk≥adowych kart.');
       return;
     }
-    const card = sampleCards.find(c => c.id === selectedSampleCard);
+    const card = sampleCards.find((c) => c.id === selectedSampleCard);
     if (!card) {
       setDeckStatus('Nie znaleziono wybranej karty.');
       return;
@@ -509,12 +647,79 @@ export default function App() {
     setCardName(card.name);
     setCardPoints(String(card.points));
     setCardValue(String(card.value));
+    setCardPlayerId(card.playerId ? String(card.playerId) : '');
     if (card.multiplier && !isMultiplierAllowed(card.multiplier, card.role)) {
       setCardMultiplier('None');
-      setDeckStatus(`Za≈Çadowano kartƒô "${card.name}", ale mno≈ºnik ${card.multiplier} jest ju≈º zajƒôty.`);
+      setDeckStatus(`Za≥adowano kartÍ "${card.name}", ale mnoønik ${card.multiplier} jest juø zajÍty.`);
     } else {
       setCardMultiplier(card.multiplier ?? 'None');
-      setDeckStatus(`Za≈Çadowano przyk≈ÇadowƒÖ kartƒô "${card.name}".`);
+      setDeckStatus(`Za≥adowano przyk≥adow± kartÍ "${card.name}".`);
+    }
+  };
+
+  const runTournamentSimulation = async () => {
+    setSimulationStatus(null);
+    setSimulationResult(null);
+
+    const fallbackUserId = deckData?.userId ?? (loggedInUser ? loggedInUser.id : null);
+    const parsedUserId = simulationUserId.trim() ? parsePositiveInt(simulationUserId) : null;
+    const userId = parsedUserId ?? fallbackUserId;
+
+    if (!userId) {
+      setSimulationStatus('Podaj poprawne ID u≈•ytkownika do symulacji.');
+      return;
+    }
+
+    const parsedRegionId = simulationRegionId.trim() ? parsePositiveInt(simulationRegionId) : null;
+    const regionId = parsedRegionId ?? 1;
+    if (!parsedRegionId) {
+      setSimulationRegionId(String(regionId));
+    }
+
+    const parsedGames = simulationGames.trim() ? parsePositiveInt(simulationGames) : null;
+    const games = parsedGames ?? 5;
+    if (!parsedGames) {
+      setSimulationGames(String(games));
+    }
+
+    setSimulationLoading(true);
+    try {
+      const res = await fetch('/api/tournaments/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          regionId,
+          games,
+          resetData: simulationReset,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorBody = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
+        setSimulationStatus(errorBody.message ?? errorBody.error ?? 'Symulacja nie powiod≈?a siƒ?.');
+        return;
+      }
+
+      const data = (await res.json()) as TournamentSimulationResult;
+      setSimulationResult(data);
+      applyDeckResponse({ deck: data.deck, summary: data.deckSummary }, data.user.id);
+      setSimulationUserId(String(data.user.id));
+      setSimulationStatus(`Przyznano ${data.deckScore.awarded} punkt√≥w. ≈Åƒ?czny wynik u≈•ytkownika: ${data.user.score}.`);
+      setDeckStatus(`Deck updated after simulation. Awarded ${data.deckScore.awarded} points.`);
+      if (loggedInUser && loggedInUser.id === data.user.id) {
+        handleUserLogin({
+          ...loggedInUser,
+          ...data.user,
+        });
+      }
+      refreshStoredDecks().catch(console.error);
+      refreshUsers().catch(console.error);
+    } catch (error) {
+      console.error(error);
+      setSimulationStatus('B≈?ƒ?d sieci podczas symulacji.');
+    } finally {
+      setSimulationLoading(false);
     }
   };
 
@@ -553,11 +758,22 @@ export default function App() {
 
       <section>
         <h2>Login</h2>
-        <form onSubmit={login} style={{ display: 'grid', gap: 8, maxWidth: 320 }}>
-          <input value={loginMail} onChange={e => setLoginMail(e.target.value)} placeholder="Email" />
-          <input value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Password" type="password" />
-          <button type="submit">Login</button>
-        </form>
+        {loggedInUser ? (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span>
+              Zalogowany jako <strong>{loggedInUser.name}</strong> (ID {loggedInUser.id})
+              {typeof loggedInUser.score === 'number' ? ` | Punkty: ${loggedInUser.score}` : ''}
+              {typeof loggedInUser.currency === 'number' ? ` | Waluta: ${loggedInUser.currency}` : ''}
+            </span>
+            <button type="button" onClick={handleLogout}>Wyloguj</button>
+          </div>
+        ) : (
+          <form onSubmit={login} style={{ display: 'grid', gap: 8, maxWidth: 320 }}>
+            <input value={loginMail} onChange={e => setLoginMail(e.target.value)} placeholder="Email" />
+            <input value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Password" type="password" />
+            <button type="submit">Login</button>
+          </form>
+        )}
         {loginStatus && <p>{loginStatus}</p>}
       </section>
 
@@ -571,6 +787,7 @@ export default function App() {
               <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Name</th>
               <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Email</th>
               <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Currency</th>
+              <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Score</th>
             </tr>
           </thead>
           <tbody>
@@ -580,6 +797,7 @@ export default function App() {
                 <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{user.name}</td>
                 <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{user.mail}</td>
                 <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{user.currency}</td>
+                <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{user.score ?? '-'}</td>
               </tr>
             ))}
           </tbody>
@@ -593,7 +811,7 @@ export default function App() {
             {loggedInUser ? (
               <span>Zalogowany jako <strong>{loggedInUser.name}</strong> (ID {loggedInUser.id})</span>
             ) : (
-              <span>Nie jeste≈õ zalogowany ‚Äì podaj ID u≈ºytkownika rƒôcznie lub zaloguj siƒô.</span>
+              <span>Nie jeste≈? zalogowany ‚?? podaj ID u≈•ytkownika rƒ?≈?ƒ?cznie lub zaloguj siƒ?.</span>
             )}
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -655,6 +873,16 @@ export default function App() {
                   <input value={cardValue} onChange={e => setCardValue(e.target.value)} type="number" />
                 </label>
                 <label>
+                  Player ID:
+                  <input
+                    value={cardPlayerId}
+                    onChange={e => setCardPlayerId(e.target.value)}
+                    type="number"
+                    min={1}
+                    placeholder="powiƒ?≈• kartƒ? z graczem"
+                  />
+                </label>
+                <label>
                   Multiplier:
                   <select value={cardMultiplier} onChange={e => setCardMultiplier(e.target.value as typeof cardMultiplier)}>
                     <option value="None">None</option>
@@ -663,7 +891,7 @@ export default function App() {
                   </select>
                   {blockedMultipliers.length > 0 && (
                     <small style={{ display: 'block', color: '#666' }}>
-                      Zajƒôte mno≈ºniki: {blockedMultipliers.join(', ')}.
+                      Zajƒ?te mno≈•niki: {blockedMultipliers.join(', ')}.
                     </small>
                   )}
                 </label>
@@ -683,6 +911,8 @@ export default function App() {
                       <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Points</th>
                       <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Value</th>
                       <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Multiplier</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Player ID</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Last score</th>
                       <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Actions</th>
                     </tr>
                   </thead>
@@ -692,11 +922,28 @@ export default function App() {
                       return (
                         <tr key={role}>
                           <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{role}</td>
-                          <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card ? card.name : '‚Äî'}</td>
-                          <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card ? card.points : '‚Äî'}</td>
-                          <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card ? card.value : '‚Äî'}</td>
-                          <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card?.multiplier ?? '‚Äî'}</td>
+                          <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card ? card.name : '-'}</td>
+                          <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card ? card.points : '-'}</td>
+                          <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card ? card.value : '-'}</td>
+                          <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card?.multiplier ?? '-'}</td>
+                          <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card?.playerId ?? '-'}</td>
+                          <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card?.tournamentPoints ?? '-'}</td>
                           <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>
+                            <button
+                              onClick={() => {
+                                setCardRole(role);
+                                if (card) {
+                                  setCardName(card.name);
+                                  setCardPoints(String(card.points));
+                                  setCardValue(String(card.value));
+                                  setCardMultiplier(card.multiplier ?? 'None');
+                                  setCardPlayerId(card.playerId ? String(card.playerId) : '');
+                                }
+                              }}
+                              disabled={!card}
+                            >
+                              Edit
+                            </button>{' '}
                             <button onClick={() => removeCard(role)} disabled={!card}>Remove</button>
                           </td>
                         </tr>
@@ -734,11 +981,146 @@ export default function App() {
         </div>
       </section>
 
+
       <section>
+        <h2>Symulacja turnieju</h2>
+        <div style={{ display: 'grid', gap: 12, maxWidth: 720 }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <label style={{ display: 'grid', gap: 4 }}>
+              User ID
+              <input
+                value={simulationUserId}
+                onChange={e => setSimulationUserId(e.target.value)}
+                placeholder="np. 1"
+                style={{ width: 80 }}
+              />
+            </label>
+            <label style={{ display: 'grid', gap: 4 }}>
+              Region ID
+              <input
+                value={simulationRegionId}
+                onChange={e => setSimulationRegionId(e.target.value)}
+                type="number"
+                min={1}
+                style={{ width: 80 }}
+              />
+            </label>
+            <label style={{ display: 'grid', gap: 4 }}>
+              Games
+              <input
+                value={simulationGames}
+                onChange={e => setSimulationGames(e.target.value)}
+                type="number"
+                min={1}
+                max={50}
+                style={{ width: 80 }}
+              />
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <input
+                type="checkbox"
+                checked={simulationReset}
+                onChange={e => setSimulationReset(e.target.checked)}
+              />
+              Reset danych przed symulacjƒ?
+            </label>
+            <button onClick={runTournamentSimulation} disabled={simulationLoading}>
+              {simulationLoading ? 'Symulacja‚??' : 'Uruchom symulacjƒ?'}
+            </button>
+          </div>
+          {simulationStatus && <p>{simulationStatus}</p>}
+
+          {simulationResult && (
+            <div style={{ display: 'grid', gap: 12 }}>
+              <div>
+                <strong>Region:</strong> {simulationResult.tournament.region.name} (ID {simulationResult.tournament.region.id})<br />
+                <strong>Liczba gier:</strong> {simulationResult.tournament.games}{' '}
+                {simulationResult.tournament.resetPerformed ? '(dane zresetowane przed startem)' : '(bez resetu)'}<br />
+                <strong>Zwyciƒ?zca fina≈?u:</strong> {simulationResult.tournament.final.winner}
+              </div>
+
+              <div>
+                <strong>Punkty talii:</strong> {simulationResult.deckScore.awarded} (suma bazowa {simulationResult.deckScore.total})<br />
+                <strong>Nowy wynik u≈•ytkownika:</strong> {simulationResult.user.score}
+                {simulationResult.user.currency !== undefined ? ` | Waluta: ${simulationResult.user.currency}` : ''}
+              </div>
+
+              {simulationResult.deckScore.missingRoles.length > 0 && (
+                <div style={{ color: '#b71c1c' }}>
+                  Brak danych dla r√≥l: {simulationResult.deckScore.missingRoles.join(', ')}
+                </div>
+              )}
+
+              <div>
+                <h3>Rozk≈?ad punkt√≥w w talii</h3>
+                <table style={{ borderCollapse: 'collapse', width: '100%', maxWidth: 720 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Rola</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Gracz</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Player ID</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Punkty bazowe</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Mnoønik</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>£±cznie</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {simulationResult.deckScore.breakdown.map(entry => (
+                      <tr key={entry.role}>
+                        <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{entry.role}</td>
+                        <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{entry.playerName}</td>
+                        <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{entry.playerId ?? '-'}</td>
+                        <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{entry.baseScore}</td>
+                        <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>
+                          {entry.multiplierLabel ? `${entry.multiplierLabel} (${entry.multiplier}x)` : entry.multiplier}
+                        </td>
+                        <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{entry.totalScore}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div>
+                <h3>Statystyki po turnieju</h3>
+                <p>
+                  Poni≈•ej ostatnia lista graczy dla regionu {simulationResult.tournament.final.region}.
+                </p>
+                <table style={{ borderCollapse: 'collapse', width: '100%', maxWidth: 720 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Gracz</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Rola</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Kills</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Deaths</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Assists</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>CS</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Gold</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {simulationResult.tournament.final.players.map(player => (
+                      <tr key={player.id}>
+                        <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{player.name}</td>
+                        <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{player.role}</td>
+                        <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{player.kills}</td>
+                        <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{player.deaths}</td>
+                        <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{player.assists}</td>
+                        <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{player.cs}</td>
+                        <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{player.gold ?? '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>      <section>
         <h2>Zapisane talie</h2>
         <div style={{ display: 'grid', gap: 12 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button onClick={() => refreshStoredDecks()}>Od≈õwie≈º</button>
+            <button onClick={() => refreshStoredDecks()}>Od≈?wie≈•</button>
             {storedDecksStatus && <span>{storedDecksStatus}</span>}
           </div>
           {storedDecks.length === 0 ? (
@@ -747,9 +1129,9 @@ export default function App() {
             <div style={{ display: 'grid', gap: 16 }}>
               {storedDecks.map(entry => (
                 <div key={`${entry.userId}-${entry.updatedAt}`} style={{ border: '1px solid #ddd', padding: 12, borderRadius: 6 }}>
-                  <strong>U≈ºytkownik #{entry.userId}</strong> - ostatnia aktualizacja: {new Date(entry.updatedAt).toLocaleString()}
+                  <strong>U≈•ytkownik #{entry.userId}</strong> - ostatnia aktualizacja: {new Date(entry.updatedAt).toLocaleString()}
                   <div>Kompletna: {entry.summary.complete ? 'Tak' : `Nie (${entry.summary.missingRoles.join(', ') || 'brak danych'})`}</div>
-                  <div>Warto≈õƒá talii: {entry.summary.totalValue}</div>
+                  <div>Warto≈?ƒ? talii: {entry.summary.totalValue}</div>
                   {entry.summary.currencyCap !== undefined && (
                     <div>Limit waluty: {entry.summary.currencyCap}</div>
                   )}
@@ -759,8 +1141,10 @@ export default function App() {
                         <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Rola</th>
                         <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Karta</th>
                         <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Punkty</th>
-                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Warto≈õƒá</th>
-                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Mno≈ºnik</th>
+                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Warto≈?ƒ?</th>
+                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Warto∂Ê</th>
+                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Mnoønik</th>
+                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Ostatni wynik</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -769,10 +1153,12 @@ export default function App() {
                         return (
                           <tr key={role}>
                             <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{role}</td>
-                            <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card ? card.name : '‚Äî'}</td>
-                            <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card ? card.points : '‚Äî'}</td>
-                            <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card ? card.value : '‚Äî'}</td>
-                            <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card?.multiplier ?? '‚Äî'}</td>
+                            <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card ? card.name : '-'}</td>
+                            <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card ? card.points : '-'}</td>
+                            <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card ? card.value : '-'}</td>
+                            <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card?.multiplier ?? '-'}</td>
+                            <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card?.playerId ?? '-'}</td>
+                            <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{card?.tournamentPoints ?? '-'}</td>
                           </tr>
                         );
                       })}
@@ -787,3 +1173,16 @@ export default function App() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+

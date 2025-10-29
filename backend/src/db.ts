@@ -2,12 +2,22 @@ import Database from "better-sqlite3";
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import { User, Deck, CompleteDeck, DeckSaveResult, DeckSummary, Player } from "./Types";
+import {
+  User,
+  Deck,
+  CompleteDeck,
+  DeckSaveResult,
+  DeckSummary,
+  Player,
+  Role,
+} from "./Types";
 import {
   createDeck,
   ensureDeckComplete,
   summarizeDeck,
-  DeckError, calculateDeckValue, ensureUniqueMultipliers,
+  DeckError,
+  calculateDeckValue,
+  ensureUniqueMultipliers,
 } from "./deckManager";
 import { parseDeckPayload } from "./deckIO";
 
@@ -65,8 +75,46 @@ function migrateDecksTable() {
   }
 }
 
+function migrateUsersTable() {
+  const columns = tableColumns("users");
+  if (columns.length === 0) {
+    return;
+  }
+
+  const hasScoreColumn = columns.some((column) => column.name === "score");
+
+  if (!hasScoreColumn) {
+    db.prepare(
+      "ALTER TABLE users ADD COLUMN score NUMBER NOT NULL DEFAULT 0"
+    ).run();
+  }
+}
+
+function migratePlayersTable() {
+  const columns = tableColumns("players");
+  if (columns.length === 0) {
+    return;
+  }
+
+  const hasRoleColumn = columns.some((column) => column.name === "role");
+  if (!hasRoleColumn) {
+    db.prepare(
+      "ALTER TABLE players ADD COLUMN role TEXT NOT NULL DEFAULT 'Top'"
+    ).run();
+  }
+
+  const hasGoldColumn = columns.some((column) => column.name === "gold");
+  if (!hasGoldColumn) {
+    db.prepare(
+      "ALTER TABLE players ADD COLUMN gold INTEGER NOT NULL DEFAULT 0"
+    ).run();
+  }
+}
+
 // Run lightweight migrations after loading schema.
 migrateDecksTable();
+migrateUsersTable();
+migratePlayersTable();
 
 type DeckRow = {
   user_id: number;
@@ -80,6 +128,7 @@ type DbUserRow = {
   mail: string;
   password: string;
   currency: number;
+  score: number;
 };
 
 function hashPassword(password: string) {
@@ -147,14 +196,43 @@ function persistCompleteDeck(userId: number, deck: CompleteDeck) {
 // Fetch only the currency column; throws when the user does not exist.
 export function getUserCurrency(userId: number): number {
   const row = db
-    .prepare('SELECT currency FROM users WHERE id = ?')
+    .prepare("SELECT currency FROM users WHERE id = ?")
     .get(userId) as { currency: number } | undefined;
 
   if (!row) {
-    throw new Error('USER_NOT_FOUND');
+    throw new Error("USER_NOT_FOUND");
   }
 
   return row.currency;
+}
+
+export function getUserScore(userId: number): number {
+  const row = db
+    .prepare("SELECT score FROM users WHERE id = ?")
+    .get(userId) as { score: number } | undefined;
+
+  if (!row) {
+    throw new Error("USER_NOT_FOUND");
+  }
+
+  return row.score;
+}
+
+export function addUserScore(userId: number, delta: number): number {
+  const increment = Number(delta);
+  if (!Number.isFinite(increment)) {
+    throw new Error("SCORE_DELTA_INVALID");
+  }
+
+  const result = db
+    .prepare("UPDATE users SET score = score + ? WHERE id = ?")
+    .run(increment, userId);
+
+  if (result.changes === 0) {
+    throw new Error("USER_NOT_FOUND");
+  }
+
+  return getUserScore(userId);
 }
 
 export type StoredDeck = {
@@ -204,11 +282,15 @@ export function saveDeck(userId: number, deck: Deck): DeckSaveResult {
   const deckValue = calculateDeckValue(deckWithOwner);
   if (deckValue > currency) {
     // Make overspending a hard failure so client callers can surface the deficit.
-    throw new DeckError('CURRENCY_LIMIT_EXCEEDED', 'Deck exceeds available currency.', {
-      totalValue: deckValue,
-      currency,
-      overBudgetBy: deckValue - currency,
-    });
+    throw new DeckError(
+      "CURRENCY_LIMIT_EXCEEDED",
+      "Deck exceeds available currency.",
+      {
+        totalValue: deckValue,
+        currency,
+        overBudgetBy: deckValue - currency,
+      }
+    );
   }
 
   try {
@@ -240,18 +322,21 @@ export function addItem(name: string, qty = 0) {
   return { id: info.lastInsertRowid, name, qty };
 }
 
-export function addUser({ name, mail, password, currency }: User) {
+export function addUser({ name, mail, password, currency, score }: User) {
   const hashedPassword = hashPassword(password);
+  const normalizedScore =
+    typeof score === "number" && Number.isFinite(score) ? score : 0;
   const stmt = db.prepare(
-    "INSERT INTO users (name, mail, password, currency) VALUES (?, ?, ?, ?)"
+    "INSERT INTO users (name, mail, password, currency, score) VALUES (?, ?, ?, ?, ?)"
   );
-  const info = stmt.run(name, mail, hashedPassword, currency);
+  const info = stmt.run(name, mail, hashedPassword, currency, normalizedScore);
   return {
     id: Number(info.lastInsertRowid),
     name,
     mail,
     password: hashedPassword,
     currency,
+    score: normalizedScore,
   };
 }
 
@@ -282,7 +367,7 @@ export function registerUser(user: User) {
 export function loginUser(mail: string, password: string) {
   const storedUser = db
     .prepare(
-      "SELECT id, name, mail, password, currency FROM users WHERE mail = ?"
+      "SELECT id, name, mail, password, currency, score FROM users WHERE mail = ?"
     )
     .get(mail) as DbUserRow | undefined;
 
@@ -302,7 +387,9 @@ export function simulateData() {
   db.prepare("DELETE FROM players").run();
   db.prepare("DELETE FROM matches").run();
   db.prepare("DELETE FROM regions").run();
-  db.prepare("DELETE FROM sqlite_sequence WHERE name IN ('players', 'matches', 'regions')").run();
+  db.prepare(
+    "DELETE FROM sqlite_sequence WHERE name IN ('players', 'matches', 'regions')"
+  ).run();
 
   const regionArr = ["Korea", "North America", "Europe"];
   const regionStmt = db.prepare("INSERT INTO regions (name) VALUES (?)");
@@ -313,40 +400,58 @@ export function simulateData() {
     regionIds.push(Number(info.lastInsertRowid));
   }
 
+  const primaryRegionId = regionIds[0] ?? 1;
+  const samplePlayers: Array<{ name: string; role: Role }> = [
+    { name: "Stonewall", role: "Top" },
+    { name: "FlayMaster", role: "Jgl" },
+    { name: "Arcana", role: "Mid" },
+    { name: "Skybolt", role: "Adc" },
+    { name: "Emberlight", role: "Supp" },
+    { name: "Riftbreaker", role: "Top" },
+    { name: "Phantom V", role: "Jgl" },
+    { name: "Sage of Dawn", role: "Mid" },
+    { name: "Scarlet Viper", role: "Adc" },
+    { name: "Warden Sol", role: "Supp" },
+  ];
+
   const playerStmt = db.prepare(`
-    INSERT INTO players (name, kills, deaths, assists, cs, region_id)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO players (name, kills, deaths, assists, cs, region_id, role, gold)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  for (let i = 1; i <= 10; i++) {
-    const name = `Faker${i}`;
-    const kills = 0;
-    const deaths = 0;
-    const assists = 0;
-    const cs = 0;
-    const region_id = regionIds[Math.floor(Math.random() * regionIds.length)];
-    playerStmt.run(name, kills, deaths, assists, cs, 1);
+  for (const { name, role } of samplePlayers) {
+    playerStmt.run(name, 0, 0, 0, 0, primaryRegionId, role, 0);
   }
 }
 
 export function simulateMatch(players: Player[], regionName: string) {
-    for (const player of players) {
-      const deltaKills = Math.floor(Math.random() * 5);
-      const deltaDeaths = Math.floor(Math.random() * 3);
-      const deltaAssists = Math.floor(Math.random() * 4);
-      const deltaCs = Math.floor(Math.random() * 200);
+  for (const player of players) {
+    const deltaKills = Math.floor(Math.random() * 5);
+    const deltaDeaths = Math.floor(Math.random() * 3);
+    const deltaAssists = Math.floor(Math.random() * 4);
+    const deltaCs = Math.floor(Math.random() * 200);
+    const deltaGold = Math.floor(Math.random() * 1500);
 
-      player.kills += deltaKills;
-      player.deaths += deltaDeaths;
-      player.assists += deltaAssists;
-      player.cs += deltaCs;
+    player.kills += deltaKills;
+    player.deaths += deltaDeaths;
+    player.assists += deltaAssists;
+    player.cs += deltaCs;
+    player.gold = (player.gold ?? 0) + deltaGold;
 
-      db.prepare(
-        "UPDATE players SET kills = ?, deaths = ?, assists = ?, cs = ?, region_id = ? WHERE id = ?"
-      ).run(player.kills, player.deaths, player.assists, player.cs, player.region_id, player.id);
-    }
+    db.prepare(
+      "UPDATE players SET kills = ?, deaths = ?, assists = ?, cs = ?, gold = ?, region_id = ? WHERE id = ?"
+    ).run(
+      player.kills,
+      player.deaths,
+      player.assists,
+      player.cs,
+      player.gold,
+      player.region_id,
+      player.id
+    );
+  }
 
-    console.log(`Simulated match in ${regionName}`);
+  console.log(`Simulated match in ${regionName}`);
 }
 
 export function fetchRegionNameById(regionId: number): string {
@@ -356,7 +461,7 @@ export function fetchRegionNameById(regionId: number): string {
   return row ? row.name : "Unknown";
 }
 
-export function fetchAllPlayers(regionId: number):Player[]{
+export function fetchAllPlayers(regionId: number): Player[] {
   const stmt = db.prepare("SELECT * FROM players WHERE region_id = ?");
   return stmt.all(regionId) as Player[];
 }

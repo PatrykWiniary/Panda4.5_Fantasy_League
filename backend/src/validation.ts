@@ -1,5 +1,4 @@
-const EMAIL_REGEX =
-  /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
+const EMAIL_REGEX = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
 
 const PASSWORD_REQUIREMENTS = {
   minLength: 8,
@@ -19,4 +18,4 @@ export function isPasswordStrong(password: string): boolean {
 }
 
 export const PASSWORD_REQUIREMENTS_DESCRIPTION =
-  'Hasło musi mieć co najmniej 8 znaków, zawierać dużą i małą literę oraz cyfrę.';
+  "Hasło musi mieć co najmniej 8 znaków, zawierać dużą i małą literę oraz cyfrę.";
