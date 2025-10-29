@@ -21,6 +21,7 @@
 6. [Przykladowe karty](#przykladowe-karty)
 7. [Uruchomienie i build](#uruchomienie-i-build)
 8. [Scenariusze testowe](#scenariusze-testowe)
+9. [Przewodnik dla nowych deweloperów(dla osób niewiedzących co robimy na backendzie xD)](#przewodnik-dla-nowych-deweloperow)
 
 ---
 
@@ -270,3 +271,52 @@ docker-compose up      # uruchomienie frontu i backendu w kontenerach
 ---
 
 W razie pytan dotyczacych dalszej rozbudowy (np. integracja z prawdziwa baza kart lub systemem scoringowym) komentarze w kodzie wskazuja miejsca rozszerzen. Powodzenia!
+
+---
+
+## Przewodnik dla nowych deweloperów
+
+Ta sekcja zbiera najwazniejsze elementy kodu, tak aby osoba mogla szybko zorientowac sie w strukturze repozytorium.
+
+### Najwazniejsze typy (TypeScript)
+- `backend/src/Types.ts`
+  - `DeckRole` / `Role` – dozwolone role na kartach (`Top`, `Jgl`, `Mid`, `Adc`, `Supp`).
+  - `Card` – przebieg pojedynczej karty (nazwa, punkty, wartosc, mnoznik). Uzywana w calej aplikacji.
+  - `Deck` – talia jako mapa rola → karta (`slots`), dzieki czemu latwo przetwarzac dane na backendzie i froncie.
+  - `DeckSummary` – wynik walidacji talii (kompletnosc, brakujace role, koszt).
+  - `TournamentSimulationResult` – odpowiedz backendu po symulacji (gry, wyniki, zaktualizowany uzytkownik).
+- `frontend/src/App.tsx` ma lokalne definicje typow zgrane z backendem. Przy zmianach w `Types.ts` warto zachowac spojnosc pomiedzy obiema stronami.
+
+### Kluczowe moduły backendu
+- `db.ts` – warstwa dostepu do danych (SQLite). Odpowiada za:
+  - rejestracje/logowanie (`registerUser`, `loginUser`),
+  - operacje na talii (`getDeck`, `saveDeck`),
+  - symulacje (reset danych, pobieranie graczy).
+- `deckManager.ts` – cala logika biznesowa talii: dodawanie kart, walidacja, kontrola kosztu, pilnowanie mnoznikow kapitanów.
+- `deckIO.ts` – funkcje parsujace payloady HTTP oraz budujace odpowiedzi (wspolne miejsce walidacji danych wejsciowych).
+- `simulationScoring.ts` – naliczanie punktow na podstawie statystyk graczy.
+- `API/FootbalolGame.ts` – prosty silnik rozgrywek, generujacy kolejne rundy i finalny wynik.
+- `validation.ts` – reguly walidacji formularzy (adres e-mail, sila hasła).
+- `index.ts` – konfiguracja serwera Express (middleware, endpointy REST, limity, naglowki bezpieczeństwa).
+
+### Moduly frontendu
+- `frontend/src/App.tsx` – pojedyncza aplikacja Reacta z kilkoma sekcjami:
+  - formularze rejestracji/logowania,
+  - panel "Deck Tester" (edycja talii i komunikaty),
+  - tabelki z uzytkownikami i zapisanymi taliami,
+  - kontrolka do uruchamiania symulacji.
+- `frontend/src` nie ma routingów ani zlozonego stanu – logika znajduje sie glownie w `App.tsx` oraz w lokalnych `useState`.
+
+### Jak szukac logiki
+- Operacje na kartach: `deckManager.ts` (backend) oraz funkcje `addCard`, `replaceCard`, `removeCard` w `App.tsx`.
+- Zapisywanie talii: `POST /api/decks/save` – parsowanie w `deckIO.ts`, walidacja w `deckManager.ts`, zapis w `db.ts`.
+- Symulacja: `POST /api/tournaments/simulate` – wejscie w `index.ts`, obsluga w `FootbalolGame`, naliczanie punktów w `simulationScoring.ts`.
+
+### Wskazówki rozwojowe
+- Przy dodawaniu nowych pól w kartach/taliach: zaktualizuj `Types.ts`, `deckManager.ts`, `deckIO.ts` oraz odpowiadajace fragmenty frontendu.
+- Sensowne miejsca na rozszerzenia API:
+  - `index.ts` – dopisz nowy endpoint i wykorzystaj istniejace funkcje z `db.ts`.
+  - `db.ts` – trzymaj operacje bazodanowe w osobnych, czystych funkcjach (łatwiej testowac).
+- Przy zmianach w hashowaniu/bezpieczenstwie: parametry PBKDF2 sa konfigurowalne zmiennymi srodowiskowymi (opisane w sekcji [Rejestracja i logowanie](#rejestracja-i-logowanie)).
+
+Ten rozdział ma byc rozwijany na bieżąco – jezeli dodajesz wiekszy modul, dopisz tu 1-2 zdania, aby nastepne osoby wiedzialy, gdzie szukac kodu.***
