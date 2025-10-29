@@ -11,9 +11,11 @@
 3. [Frontend](#frontend)
    - [Sekcja Deck Tester](#sekcja-deck-tester)
    - [Sekcja zapisanych talii](#sekcja-zapisanych-talii)
-4. [Przykladowe karty](#przykladowe-karty)
-5. [Uruchomienie i build](#uruchomienie-i-build)
-6. [Scenariusze testowe](#scenariusze-testowe)
+4. [Jak dziala aplikacja](#jak-dziala-aplikacja)
+5. [System punktacji](#system-punktacji)
+6. [Przykladowe karty](#przykladowe-karty)
+7. [Uruchomienie i build](#uruchomienie-i-build)
+8. [Scenariusze testowe](#scenariusze-testowe)
 
 ---
 
@@ -108,6 +110,76 @@ Na dole aplikacji znajduje sie sekcja "Zapisane talie", pobierajaca `GET /api/de
 - ID uzytkownika i date ostatniej aktualizacji,
 - informacje o kompletności talii i limicie waluty,
 - szczegolowa tabele kart wraz z ostatnimi wynikami turniejowymi.
+
+---
+
+## Jak dziala aplikacja
+
+Projekt ma charakter warsztatowy: pozwala tworzyc talie zawodnikow League of Legends, zapisywac je w bazie, a nastepnie uruchamiac symulacje turniejowe i obserwowac zdobyte punkty.
+
+### Szybki przeglad krok po kroku
+1. **Uruchom backend i frontend.** Najprosciej przez `npm run dev` w obu katalogach lub `docker-compose up`.
+2. **Zarejestruj uzytkownika** w formularzu "Register" (podaj nazwe, e-mail, haslo spelniace wymagania i budzet startowy).
+3. **Zaloguj sie** po stronie frontendu. Panel "Login" zapamieta aktywnego uzytkownika w `localStorage`.
+4. **Zaladuj lub utworz talie** w sekcji "Deck Tester". Mozesz:
+   - wpisac ID uzytkownika i pobrac istniejaca konfiguracje (`Load Deck`),
+   - albo utworzyc pusty szablon (`New Empty Deck`).
+5. **Uzupelnij sloty kart** recznie lub korzystajac z przykladowej listy (`Sample card` + przycisk `Use`). Dodawaj i podmieniaj karty przyciskami `Add Card` i `Replace Card`.
+6. **Zapisz talie** (`Save Deck`). Backend sprawdzi kompletność oraz limit waluty, a wynik widoczny jest w komunikatach stanu.
+7. **Podejrzyj zapisane konfiguracje** w sekcji "Saved Decks" i upewnij sie, ze kazdy slot ma przypisana karte.
+8. **Uruchom symulacje turnieju** w sekcji "Tournament Simulation": podaj ID uzytkownika, region, ilosc gier oraz czy chcesz zresetowac dane meczowe. Po symulacji zobaczysz podsumowanie, wynik decku oraz zaktualizowany stan konta.
+
+### Najczesciej wykorzystywane widoki
+- **Items**: prosta lista kontrolna (pozostalosci z var. edukacyjnych).
+- **Users**: przeglad uzytkownikow z bazy, wraz z waluta i liczba punktow.
+- **Deck Tester**: najwazniejsza czesc panelu testowego (edytor kart, podsumowanie talii, komunikaty o bledach).
+- **Saved Decks**: historyczne talie wraz z ostatnimi wynikami (`tournamentPoints`).
+- **Tournament Simulation**: kreator symulacji, w ktorym backend nalicza punkty i zapisuje nowe statystyki.
+
+### Gdzie trafiaja dane
+- Dane stale (uzytkownicy, talie, statystyki turniejowe) przechowywane sa w SQLite (`backend/data/app.db`).
+- Frontend komunikuje sie z backendem JSON-owymi endpointami REST (opis w sekcji [Endpointy REST](#endpointy-rest)).
+- Aktualny uzytkownik jest zapisywany w `localStorage` przegladarki (`fantasy-league.loggedUser`).
+
+---
+
+## System punktacji
+
+Symulacja turniejowa laczy zapisane talie z wygenerowanymi statystykami graczy. Kluczowe obliczenia znajduja sie w `backend/src/simulationScoring.ts` i przebiegaja wedlug ponizszych zasad.
+
+### Dane wejsciowe
+- Statystyki graczy (`kills`, `deaths`, `assists`, `cs`, `gold`, `role`) pochodza z tabeli `players`. W trakcie symulacji sa aktualizowane przez `FootabalolGame`.
+- Kazda karta w talii moze wskazywac gracza po `playerId`. Jezeli pole jest puste, system porownuje nazwe karty z nazwa gracza (bez wielkosci liter).
+- Gdy karta nie zostanie dopasowana do zadnego gracza, slot trafia na liste brakow (`missingRoles`), a karta dostaje 0 punktow i `tournamentPoints` nie sa ustawione.
+
+### Wzor podstawowy
+Dla dopasowanej karty obliczany jest wynik bazowy:
+
+```
+score = kills * 3 + assists * 2 - deaths + floor(cs / 10) + floor(gold / 500)
+```
+
+- `kills`, `assists`, `deaths` pochodza bezposrednio z meczu.
+- `cs` (creep score) wzbogaca wynik co 10 zabitych stworow.
+- `gold` (zloto) dodaje 1 punkt za kazde pelne 500 jednostek.
+
+### Mnozniki kapitanow
+Karty moga miec znacznik `Captain` lub `Vice-captain`. System zamienia je na mnozniki:
+
+| Mnoznik | Wartosc | Opis |
+| --- | --- | --- |
+| brak | 1.0 | standardowa karta |
+| `Captain` | 2.0 | podwaja wynik bazowy |
+| `Vice-captain` | 1.5 | zwieksza wynik o 50% |
+
+Wynik calkowity to `round(score * multiplier)` (zaokraglenie do najblizszej liczby calkowitej).
+
+### Podsumowanie talii i konta
+- Wszystkie wyniki kart sa sumowane; powstaje `deckScore.total`.
+- Ujemny wynik laczny jest obcinany do 0 przy naliczaniu nagrody (`awarded = max(total, 0)`).
+- Punkty sa dopisywane do kolumny `users.score`, a aktualna talia otrzymuje `tournamentPoints` zapisane przy kazdej karcie.
+- W odpowiedzi API znajdziesz tez `deckScore.breakdown` z tabela (rola, gracz, punkty bazowe, mnoznik, wynik) oraz `deckScore.missingRoles` z brakujacymi slotami.
+- Sekcja "Saved Decks" prezentuje te dane przy kolejnych odswiezeniach, co pozwala sledzic historie wynikow po symulacjach.
 
 ---
 

@@ -124,7 +124,7 @@ const deckRoles: DeckRole[] = ['Top', 'Jgl', 'Mid', 'Adc', 'Supp'];
 const EMAIL_REGEX = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
 const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/;
 const PASSWORD_REQUIREMENTS_DESCRIPTION =
-  'Has≥o musi mieÊ co najmniej 8 znakÛw, zawieraÊ duø± i ma≥± literÍ oraz cyfrÍ.';
+  'Password must contain at least 8 characters, including uppercase, lowercase, and a digit.';
 
 const isValidEmail = (value: string) => EMAIL_REGEX.test(value.trim());
 const isStrongPassword = (value: string) =>
@@ -296,7 +296,7 @@ useEffect(() => {
     }
 
     if (!isValidEmail(registerMail)) {
-      setRegisterStatus('Podaj poprawny adres e-mail.');
+      setRegisterStatus('Enter a valid email address.');
       return;
     }
 
@@ -319,7 +319,7 @@ useEffect(() => {
     if (!res.ok) {
       const { error } = await res.json().catch(() => ({ error: 'REGISTER_FAILED' }));
       if (error === 'INVALID_EMAIL') {
-        setRegisterStatus('Podaj poprawny adres e-mail.');
+        setRegisterStatus('Enter a valid email address.');
       } else if (error === 'WEAK_PASSWORD') {
         setRegisterStatus(PASSWORD_REQUIREMENTS_DESCRIPTION);
       } else {
@@ -392,15 +392,15 @@ useEffect(() => {
     try {
       const res = await fetch('/api/decks');
       if (!res.ok) {
-        setStoredDecksStatus('Nie uda≈?o siƒ? pobraƒ? zapisanych talii.');
+        setStoredDecksStatus('Failed to fetch saved decks.');
         return;
       }
       const payload: StoredDeckEntry[] = await res.json();
       setStoredDecks(payload);
-      setStoredDecksStatus(`Za≈?adowano ${payload.length} talii z bazy danych.`);
+      setStoredDecksStatus(`Loaded ${payload.length} decks from the database.`);
     } catch (error) {
       console.error(error);
-      setStoredDecksStatus('B≈?ƒ?d sieci podczas pobierania talii.');
+      setStoredDecksStatus('Network error while fetching decks.');
     }
   };
 
@@ -430,7 +430,7 @@ useEffect(() => {
     setDeckStatus(null);
     const userId = loggedInUser ? loggedInUser.id : parsePositiveInt(deckUserIdInput);
     if (!userId) {
-    setDeckStatus('Podaj poprawne ID u≈•ytkownika (>0).');
+      setDeckStatus('Provide a valid user ID (>0).');
       return;
     }
 
@@ -438,15 +438,15 @@ useEffect(() => {
       const res = await fetch(`/api/decks/${userId}`);
       if (!res.ok) {
         const error: DeckErrorResponse = await res.json().catch(() => ({}));
-        setDeckStatus(error.message ?? 'Nie uda≈?o siƒ? pobraƒ? talii.');
+        setDeckStatus(error.message ?? 'Failed to load deck.');
         return;
       }
       const payload: DeckResponse = await res.json();
       applyDeckResponse(payload, userId);
-      setDeckStatus(`Za≈?adowano taliƒ? u≈•ytkownika ${userId}.`);
+      setDeckStatus(`Loaded deck for user ${userId}.`);
     } catch (error) {
       console.error(error);
-      setDeckStatus('B≈?ƒ?d sieci podczas pobierania talii.');
+      setDeckStatus('Network error while fetching deck.');
     }
   };
 
@@ -454,7 +454,7 @@ useEffect(() => {
     setDeckStatus(null);
     const userId = loggedInUser ? loggedInUser.id : parsePositiveInt(deckUserIdInput);
     if (!userId) {
-    setDeckStatus('Podaj poprawne ID u≈•ytkownika (>0).');
+      setDeckStatus('Provide a valid user ID (>0).');
       return;
     }
 
@@ -465,21 +465,21 @@ useEffect(() => {
         body: JSON.stringify({ userId })
       });
       if (!res.ok) {
-      setDeckStatus('Nie uda≈?o siƒ? utworzyƒ? pustej talii.');
+        setDeckStatus('Failed to create an empty deck.');
         return;
       }
       const payload: DeckResponse = await res.json();
       applyDeckResponse(payload, userId);
-      setDeckStatus(`Rozpoczƒ?to pustƒ? taliƒ? dla u≈•ytkownika ${userId}.`);
+      setDeckStatus(`Started an empty deck for user ${userId}.`);
     } catch (error) {
       console.error(error);
-      setDeckStatus('B≈?ƒ?d sieci podczas tworzenia talii.');
+      setDeckStatus('Network error while creating deck.');
     }
   };
 
   const ensureDeckLoaded = (): Deck | null => {
     if (!deckData) {
-      setDeckStatus('Najpierw za≈?aduj lub utw√≥rz taliƒ?.');
+      setDeckStatus('Please load or create a deck first.');
       return null;
     }
     return deckData;
@@ -511,20 +511,20 @@ useEffect(() => {
       });
       if (!res.ok) {
         const error: DeckErrorResponse = await res.json().catch(() => ({}));
-        let message = error.message ?? error.error ?? 'Operacja na talii nie powiod≈?a siƒ?.';
+        let message = error.message ?? error.error ?? 'Deck operation failed.';
         if (error.error === 'CURRENCY_LIMIT_EXCEEDED' && error.meta) {
           const total = typeof error.meta.totalValue === 'number' ? error.meta.totalValue : undefined;
           const cap = typeof error.meta.currency === 'number' ? error.meta.currency : undefined;
           const over = typeof error.meta.overBudgetBy === 'number' ? error.meta.overBudgetBy : undefined;
           const details: string[] = [];
           if (total !== undefined) {
-            details.push(`koszt talii ${total}`);
+            details.push(`deck cost ${total}`);
           }
           if (cap !== undefined) {
             details.push(`limit ${cap}`);
           }
           if (over !== undefined) {
-            details.push(`przekroczono o ${over}`);
+            details.push(`exceeded by ${over}`);
           }
           if (details.length > 0) {
             message += ` (${details.join(', ')})`;
@@ -533,7 +533,7 @@ useEffect(() => {
           const multiplier = typeof error.meta.multiplier === 'string' ? error.meta.multiplier : null;
           const conflictRole = typeof error.meta.conflictRole === 'string' ? error.meta.conflictRole : null;
           if (multiplier) {
-            message += ` (${multiplier}${conflictRole ? ` zajƒ?ty na roli ${conflictRole}` : ' zajƒ?ty'})`;
+            message += ` (${multiplier}${conflictRole ? ` already assigned to the ${conflictRole} slot` : ' already assigned'})`;
           }
         }
         setDeckStatus(message);
@@ -548,7 +548,7 @@ useEffect(() => {
       setDeckStatus(successMessage);
     } catch (error) {
       console.error(error);
-      setDeckStatus('B≈?ƒ?d sieci podczas operacji na talii.');
+      setDeckStatus('Network error while performing deck operation.');
     }
   };
 
@@ -556,30 +556,30 @@ useEffect(() => {
     const deck = ensureDeckLoaded();
     if (!deck) return;
     if (!cardName.trim()) {
-      setDeckStatus('Podaj nazwƒ? karty.');
+      setDeckStatus('Enter a card name.');
       return;
     }
-    await mutateDeck('/api/decks/add-card', { deck, card: buildCardPayload() }, 'Dodano kartƒ? do talii.');
+    await mutateDeck('/api/decks/add-card', { deck, card: buildCardPayload() }, 'Card added to deck.');
   };
 
   const replaceCard = async () => {
     const deck = ensureDeckLoaded();
     if (!deck) return;
     if (!cardName.trim()) {
-      setDeckStatus('Podaj nazwƒ? karty.');
+      setDeckStatus('Enter a card name.');
       return;
     }
     await mutateDeck(
       '/api/decks/replace-card',
       { deck, role: cardRole, card: buildCardPayload() },
-      'Zastƒ?piono kartƒ? w talii.'
+      'Card replaced in deck.'
     );
   };
 
   const removeCard = async (role: DeckRole) => {
     const deck = ensureDeckLoaded();
     if (!deck) return;
-    await mutateDeck('/api/decks/remove-card', { deck, role }, `Usuniƒ?to kartƒ? z pozycji ${role}.`);
+    await mutateDeck('/api/decks/remove-card', { deck, role }, `Removed card from the ${role} slot.`);
   };
 
   const saveDeck = async () => {
@@ -587,7 +587,7 @@ useEffect(() => {
     if (!deck) return;
     const userId = deck.userId ?? (loggedInUser ? loggedInUser.id : parsePositiveInt(deckUserIdInput));
     if (!userId) {
-      setDeckStatus('Brak ID u≈•ytkownika powiƒ?zanego z taliƒ?.');
+      setDeckStatus('A deck must be associated with a user ID.');
       return;
     }
     try {
@@ -599,20 +599,20 @@ useEffect(() => {
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
         const error = payload as DeckErrorResponse;
-        let message = error.message ?? 'Nie uda≈?o siƒ? zapisaƒ? talii.';
+        let message = error.message ?? 'Failed to save deck.';
         if (error.error === 'CURRENCY_LIMIT_EXCEEDED' && error.meta) {
           const total = typeof error.meta.totalValue === 'number' ? error.meta.totalValue : undefined;
           const cap = typeof error.meta.currency === 'number' ? error.meta.currency : undefined;
           const over = typeof error.meta.overBudgetBy === 'number' ? error.meta.overBudgetBy : undefined;
           const details: string[] = [];
           if (total !== undefined) {
-            details.push(`koszt talii ${total}`);
+            details.push(`deck cost ${total}`);
           }
           if (cap !== undefined) {
             details.push(`limit ${cap}`);
           }
           if (over !== undefined) {
-            details.push(`przekroczono o ${over}`);
+            details.push(`exceeded by ${over}`);
           }
           if (details.length > 0) {
             message += ` (${details.join(', ')})`;
@@ -626,21 +626,21 @@ useEffect(() => {
         return;
       }
       applyDeckResponse(payload as DeckResponse, userId);
-      setDeckStatus('Talia zapisana poprawnie.');
+      setDeckStatus('Deck saved successfully.');
     } catch (error) {
       console.error(error);
-      setDeckStatus('B≈?ƒ?d sieci podczas zapisywania talii.');
+      setDeckStatus('Network error while saving deck.');
     }
   };
 
   const applySampleCard = () => {
     if (!selectedSampleCard) {
-      setDeckStatus('Wybierz kartÍ z listy przyk≥adowych kart.');
+      setDeckStatus('Select a card from the sample list.');
       return;
     }
     const card = sampleCards.find((c) => c.id === selectedSampleCard);
     if (!card) {
-      setDeckStatus('Nie znaleziono wybranej karty.');
+      setDeckStatus('Selected card not found.');
       return;
     }
     setCardRole(card.role);
@@ -650,10 +650,10 @@ useEffect(() => {
     setCardPlayerId(card.playerId ? String(card.playerId) : '');
     if (card.multiplier && !isMultiplierAllowed(card.multiplier, card.role)) {
       setCardMultiplier('None');
-      setDeckStatus(`Za≥adowano kartÍ "${card.name}", ale mnoønik ${card.multiplier} jest juø zajÍty.`);
+      setDeckStatus(`Loaded card "${card.name}", but multiplier ${card.multiplier} is already in use.`);
     } else {
       setCardMultiplier(card.multiplier ?? 'None');
-      setDeckStatus(`Za≥adowano przyk≥adow± kartÍ "${card.name}".`);
+      setDeckStatus(`Loaded sample card "${card.name}".`);
     }
   };
 
@@ -666,7 +666,7 @@ useEffect(() => {
     const userId = parsedUserId ?? fallbackUserId;
 
     if (!userId) {
-      setSimulationStatus('Podaj poprawne ID u≈•ytkownika do symulacji.');
+      setSimulationStatus('Provide a valid user ID for the simulation.');
       return;
     }
 
@@ -697,7 +697,7 @@ useEffect(() => {
 
       if (!res.ok) {
         const errorBody = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
-        setSimulationStatus(errorBody.message ?? errorBody.error ?? 'Symulacja nie powiod≈?a siƒ?.');
+        setSimulationStatus(errorBody.message ?? errorBody.error ?? 'Simulation failed.');
         return;
       }
 
@@ -705,7 +705,7 @@ useEffect(() => {
       setSimulationResult(data);
       applyDeckResponse({ deck: data.deck, summary: data.deckSummary }, data.user.id);
       setSimulationUserId(String(data.user.id));
-      setSimulationStatus(`Przyznano ${data.deckScore.awarded} punkt√≥w. ≈Åƒ?czny wynik u≈•ytkownika: ${data.user.score}.`);
+      setSimulationStatus(`Awarded ${data.deckScore.awarded} points. User total score: ${data.user.score}.`);
       setDeckStatus(`Deck updated after simulation. Awarded ${data.deckScore.awarded} points.`);
       if (loggedInUser && loggedInUser.id === data.user.id) {
         handleUserLogin({
@@ -717,7 +717,7 @@ useEffect(() => {
       refreshUsers().catch(console.error);
     } catch (error) {
       console.error(error);
-      setSimulationStatus('B≈?ƒ?d sieci podczas symulacji.');
+      setSimulationStatus('Network error during simulation.');
     } finally {
       setSimulationLoading(false);
     }
@@ -761,11 +761,11 @@ useEffect(() => {
         {loggedInUser ? (
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             <span>
-              Zalogowany jako <strong>{loggedInUser.name}</strong> (ID {loggedInUser.id})
-              {typeof loggedInUser.score === 'number' ? ` | Punkty: ${loggedInUser.score}` : ''}
-              {typeof loggedInUser.currency === 'number' ? ` | Waluta: ${loggedInUser.currency}` : ''}
+              Signed in as <strong>{loggedInUser.name}</strong> (ID {loggedInUser.id})
+              {typeof loggedInUser.score === 'number' ? ` | Score: ${loggedInUser.score}` : ''}
+              {typeof loggedInUser.currency === 'number' ? ` | Currency: ${loggedInUser.currency}` : ''}
             </span>
-            <button type="button" onClick={handleLogout}>Wyloguj</button>
+            <button type="button" onClick={handleLogout}>Log out</button>
           </div>
         ) : (
           <form onSubmit={login} style={{ display: 'grid', gap: 8, maxWidth: 320 }}>
@@ -809,9 +809,9 @@ useEffect(() => {
         <div style={{ display: 'grid', gap: 12, maxWidth: 640 }}>
           <div>
             {loggedInUser ? (
-              <span>Zalogowany jako <strong>{loggedInUser.name}</strong> (ID {loggedInUser.id})</span>
+              <span>Signed in as <strong>{loggedInUser.name}</strong> (ID {loggedInUser.id})</span>
             ) : (
-              <span>Nie jeste≈? zalogowany ‚?? podaj ID u≈•ytkownika rƒ?≈?ƒ?cznie lub zaloguj siƒ?.</span>
+              <span>You are not signed in -- enter a user ID manually or sign in.</span>
             )}
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -841,7 +841,7 @@ useEffect(() => {
                         value={selectedSampleCard}
                         onChange={e => setSelectedSampleCard(e.target.value)}
                       >
-                        <option value="">-- wybierz --</option>
+                        <option value="">-- select --</option>
                         {sampleCards.map(card => (
                           <option key={card.id} value={card.id}>
                             {card.name} ({card.role})
@@ -879,7 +879,7 @@ useEffect(() => {
                     onChange={e => setCardPlayerId(e.target.value)}
                     type="number"
                     min={1}
-                    placeholder="powiƒ?≈• kartƒ? z graczem"
+                    placeholder="Link card to player"
                   />
                 </label>
                 <label>
@@ -891,7 +891,7 @@ useEffect(() => {
                   </select>
                   {blockedMultipliers.length > 0 && (
                     <small style={{ display: 'block', color: '#666' }}>
-                      Zajƒ?te mno≈•niki: {blockedMultipliers.join(', ')}.
+                      Multipliers already used: {blockedMultipliers.join(', ')}.
                     </small>
                   )}
                 </label>
@@ -971,7 +971,7 @@ useEffect(() => {
                     )}
                   </ul>
                 ) : (
-                  <p>Brak danych podsumowania.</p>
+                  <p>No summary data available.</p>
                 )}
               </div>
             </>
@@ -983,7 +983,7 @@ useEffect(() => {
 
 
       <section>
-        <h2>Symulacja turnieju</h2>
+        <h2>Tournament Simulation</h2>
         <div style={{ display: 'grid', gap: 12, maxWidth: 720 }}>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <label style={{ display: 'grid', gap: 4 }}>
@@ -991,7 +991,7 @@ useEffect(() => {
               <input
                 value={simulationUserId}
                 onChange={e => setSimulationUserId(e.target.value)}
-                placeholder="np. 1"
+                placeholder="e.g. 1"
                 style={{ width: 80 }}
               />
             </label>
@@ -1022,10 +1022,10 @@ useEffect(() => {
                 checked={simulationReset}
                 onChange={e => setSimulationReset(e.target.checked)}
               />
-              Reset danych przed symulacjƒ?
+              Reset data before simulation
             </label>
             <button onClick={runTournamentSimulation} disabled={simulationLoading}>
-              {simulationLoading ? 'Symulacja‚??' : 'Uruchom symulacjƒ?'}
+              {simulationLoading ? 'Simulating...' : 'Run simulation'}
             </button>
           </div>
           {simulationStatus && <p>{simulationStatus}</p>}
@@ -1034,34 +1034,34 @@ useEffect(() => {
             <div style={{ display: 'grid', gap: 12 }}>
               <div>
                 <strong>Region:</strong> {simulationResult.tournament.region.name} (ID {simulationResult.tournament.region.id})<br />
-                <strong>Liczba gier:</strong> {simulationResult.tournament.games}{' '}
-                {simulationResult.tournament.resetPerformed ? '(dane zresetowane przed startem)' : '(bez resetu)'}<br />
-                <strong>Zwyciƒ?zca fina≈?u:</strong> {simulationResult.tournament.final.winner}
+                <strong>Number of games:</strong> {simulationResult.tournament.games}{' '}
+                {simulationResult.tournament.resetPerformed ? '(data reset before start)' : '(no reset)'}<br />
+                <strong>Final winner:</strong> {simulationResult.tournament.final.winner}
               </div>
 
               <div>
-                <strong>Punkty talii:</strong> {simulationResult.deckScore.awarded} (suma bazowa {simulationResult.deckScore.total})<br />
-                <strong>Nowy wynik u≈•ytkownika:</strong> {simulationResult.user.score}
-                {simulationResult.user.currency !== undefined ? ` | Waluta: ${simulationResult.user.currency}` : ''}
+                <strong>Deck points:</strong> {simulationResult.deckScore.awarded} (base total {simulationResult.deckScore.total})<br />
+                <strong>Updated user score:</strong> {simulationResult.user.score}
+                {simulationResult.user.currency !== undefined ? ` | Currency: ${simulationResult.user.currency}` : ''}
               </div>
 
               {simulationResult.deckScore.missingRoles.length > 0 && (
                 <div style={{ color: '#b71c1c' }}>
-                  Brak danych dla r√≥l: {simulationResult.deckScore.missingRoles.join(', ')}
+                  Missing data for roles: {simulationResult.deckScore.missingRoles.join(', ')}
                 </div>
               )}
 
               <div>
-                <h3>Rozk≈?ad punkt√≥w w talii</h3>
+                <h3>Deck score breakdown</h3>
                 <table style={{ borderCollapse: 'collapse', width: '100%', maxWidth: 720 }}>
                   <thead>
                     <tr>
-                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Rola</th>
-                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Gracz</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Role</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Player</th>
                       <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Player ID</th>
-                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Punkty bazowe</th>
-                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Mnoønik</th>
-                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>£±cznie</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Base points</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Multiplier</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Total</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1082,15 +1082,15 @@ useEffect(() => {
               </div>
 
               <div>
-                <h3>Statystyki po turnieju</h3>
+                <h3>Post-tournament Statistics</h3>
                 <p>
-                  Poni≈•ej ostatnia lista graczy dla regionu {simulationResult.tournament.final.region}.
+                  Below is the latest list of players for region {simulationResult.tournament.final.region}.
                 </p>
                 <table style={{ borderCollapse: 'collapse', width: '100%', maxWidth: 720 }}>
                   <thead>
                     <tr>
-                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Gracz</th>
-                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Rola</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Player</th>
+                      <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Role</th>
                       <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Kills</th>
                       <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Deaths</th>
                       <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Assists</th>
@@ -1116,35 +1116,37 @@ useEffect(() => {
             </div>
           )}
         </div>
-      </section>      <section>
-        <h2>Zapisane talie</h2>
+      </section>
+
+      <section>
+        <h2>Saved Decks</h2>
         <div style={{ display: 'grid', gap: 12 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button onClick={() => refreshStoredDecks()}>Od≈?wie≈•</button>
+            <button onClick={() => refreshStoredDecks()}>Refresh</button>
             {storedDecksStatus && <span>{storedDecksStatus}</span>}
           </div>
           {storedDecks.length === 0 ? (
-            <p>Brak zapisanych talii w bazie danych.</p>
+            <p>No saved decks in the database.</p>
           ) : (
             <div style={{ display: 'grid', gap: 16 }}>
               {storedDecks.map(entry => (
                 <div key={`${entry.userId}-${entry.updatedAt}`} style={{ border: '1px solid #ddd', padding: 12, borderRadius: 6 }}>
-                  <strong>U≈•ytkownik #{entry.userId}</strong> - ostatnia aktualizacja: {new Date(entry.updatedAt).toLocaleString()}
-                  <div>Kompletna: {entry.summary.complete ? 'Tak' : `Nie (${entry.summary.missingRoles.join(', ') || 'brak danych'})`}</div>
-                  <div>Warto≈?ƒ? talii: {entry.summary.totalValue}</div>
+                  <strong>User #{entry.userId}</strong> - last updated: {new Date(entry.updatedAt).toLocaleString()}
+                  <div>Complete: {entry.summary.complete ? 'Yes' : `No (${entry.summary.missingRoles.join(', ') || 'no data'})`}</div>
+                  <div>Deck value: {entry.summary.totalValue}</div>
                   {entry.summary.currencyCap !== undefined && (
-                    <div>Limit waluty: {entry.summary.currencyCap}</div>
+                    <div>Currency limit: {entry.summary.currencyCap}</div>
                   )}
                   <table style={{ borderCollapse: 'collapse', marginTop: 8, width: '100%', maxWidth: 500 }}>
                     <thead>
                       <tr>
-                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Rola</th>
-                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Karta</th>
-                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Punkty</th>
-                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Warto≈?ƒ?</th>
-                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Warto∂Ê</th>
-                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Mnoønik</th>
-                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Ostatni wynik</th>
+                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Role</th>
+                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Card</th>
+                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Points</th>
+                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Value</th>
+                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Multiplier</th>
+                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Player ID</th>
+                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Latest result</th>
                       </tr>
                     </thead>
                     <tbody>
