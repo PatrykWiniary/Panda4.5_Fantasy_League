@@ -30,10 +30,33 @@ const db = new Database(DB_PATH);
 const initSql = fs.readFileSync(INIT_SQL, "utf8");
 db.exec(initSql);
 
-const PASSWORD_SALT_BYTES = 16;
-const PASSWORD_HASH_BYTES = 32;
-const PASSWORD_ITERATIONS = 310000;
-const PASSWORD_DIGEST = "sha256";
+const parsePositiveIntOrFallback = (
+  value: string | undefined,
+  fallback: number
+) => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const parseStringOrFallback = (value: string | undefined, fallback: string) =>
+  value && value.trim().length > 0 ? value.trim() : fallback;
+
+const PASSWORD_SALT_BYTES = parsePositiveIntOrFallback(
+  process.env.PASSWORD_SALT_BYTES,
+  16
+);
+const PASSWORD_HASH_BYTES = parsePositiveIntOrFallback(
+  process.env.PASSWORD_HASH_BYTES,
+  32
+);
+const PASSWORD_ITERATIONS = parsePositiveIntOrFallback(
+  process.env.PASSWORD_HASH_ITERATIONS ?? process.env.PASSWORD_ITERATIONS,
+  310000
+);
+const PASSWORD_DIGEST = parseStringOrFallback(
+  process.env.PASSWORD_DIGEST,
+  "sha256"
+);
 
 type TableColumn = {
   cid: number;

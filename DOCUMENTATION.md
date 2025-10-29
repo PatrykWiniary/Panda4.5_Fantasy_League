@@ -16,6 +16,7 @@
    - [Najczesciej wykorzystywane widoki](#najczesciej-wykorzystywane-widoki)
    - [Gdzie trafiaja dane](#gdzie-trafiaja-dane)
    - [Rejestracja i logowanie](#rejestracja-i-logowanie)
+   - [Obecne zabezpieczenia](#obecne-zabezpieczenia)
 5. [System punktacji](#system-punktacji)
 6. [Przykladowe karty](#przykladowe-karty)
 7. [Uruchomienie i build](#uruchomienie-i-build)
@@ -147,11 +148,16 @@ Projekt ma charakter warsztatowy: pozwala tworzyc talie zawodnikow League of Leg
 
 ### Rejestracja i logowanie
 - **Walidacja po stronie klienta i serwera.** Formularz "Register" sprawdza wstepnie poprawnosc e-maila (`EMAIL_REGEX`) oraz sile hasla (min. 8 znakow, mala i duza litera, cyfra). Te same reguly sa egzekwowane w backendzie (`backend/src/validation.ts`), wiec nie mozna ich ominac przez wyslanie zapytania recznie.
-- **Hashowanie hasel.** Przy rejestracji backend nigdy nie zapisuje hasla w postaci jawnej. Funkcja `hashPassword` w `backend/src/db.ts` generuje losowa sol (16 bajtow) i wylicza hash PBKDF2 (`sha256`) z 310000 iteracji i dlugoscia 32 bajtow. W bazie przechowywany jest tylko ciag `salt:hash`.
+- **Hashowanie hasel.** Przy rejestracji backend nigdy nie zapisuje hasla w postaci jawnej. Funkcja `hashPassword` w `backend/src/db.ts` generuje losowa sol i wylicza hash PBKDF2 (`sha256`) z domyslnymi parametrami 16B soli, 32B hashy i 310000 iteracji. Kazdy z tych parametrow mozna zmienic zmiennymi srodowiskowymi (`PASSWORD_SALT_BYTES`, `PASSWORD_HASH_BYTES`, `PASSWORD_HASH_ITERATIONS`, `PASSWORD_DIGEST`).
 - **Logowanie.** Podczas logowania rekord uzytkownika jest wyszukiwany po adresie e-mail, a nastepnie haslo porownywane z zapisanym hashem funkcja `verifyPassword`, ktora ponownie liczy PBKDF2 i uzywa `crypto.timingSafeEqual`, aby uniknac atakow czasowych.
 - **Obsluga bledow.** Gdy konto o wskazanym e-mailu juz istnieje, rejestracja zwraca `USER_ALREADY_EXISTS`. Bledne dane logowania odpowiadaja komunikatem `INVALID_CREDENTIALS`.
 - **Przechowywanie sesji.** Po udanym logowaniu frontend zapisuje niesekretne dane uzytkownika (ID, imie, budzet, punktacje) w `localStorage`. Informacje te sluza jedynie do wypelniania formularzy; haslo ani tokeny sesyjne nie sa przechowywane w przegladarce.
 
+### Obecne zabezpieczenia
+- **Naglowki ochronne (helmet).** Serwer dopisuje zestaw dodatkowych naglowkow HTTP, dzieki czemu przegladarka blokuje czesc niebezpiecznych zachowan. W praktyce utrudnia to osadzenie naszej strony w cudzej ramce (clickjacking) albo odczytywanie danych przez blednie ustawione typy MIME.
+- **Ograniczenie liczby prob logowania.** Kazdy adres IP ma domyslnie 10 podejsc do logowania/rejestracji na minute. Gdy ktos probuje zgadnac haslo metoda brute force, kolejne zapytania dostaje zablokowane. Administrator moze latwo zmienic limit w zmiennych `AUTH_RATE_LIMIT_WINDOW_MS` (okno czasowe) i `AUTH_RATE_LIMIT_MAX_ATTEMPTS` (liczba prob).
+- **Ustawienia kryptografii przez zmienne srodowiskowe.** Metoda PBKDF2, ktora haszuje hasla, korzysta z parametrow z `process.env`. To pozwala zwiekszyc liczbe iteracji (czyli czas potrzebny napasnikowi na zlamanie hasla) bez modyfikowania kodu. Domyslne wartosci sa bezpieczne dla srodowiska demo.
+- **Poprawna wspolpraca z reverse proxy.** Flaga `TRUST_PROXY=true` wylacza sie tylko wtedy, gdy aplikacja stoi za serwerem takim jak nginx lub load balancer. Pozwala to prawidlowo odczytywac oryginalne IP klienta i korzystac z ograniczenia liczby prob.
 ---
 
 ## System punktacji

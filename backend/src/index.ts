@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import FootabalolGame from "./API/FootbalolGame";
 import {
   getAllItems,
@@ -41,7 +43,32 @@ import {
   PASSWORD_REQUIREMENTS_DESCRIPTION,
 } from "./validation";
 
+const parsePositiveIntFromEnv = (value: string | undefined, fallback: number) => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const AUTH_RATE_LIMIT_WINDOW_MS = parsePositiveIntFromEnv(
+  process.env.AUTH_RATE_LIMIT_WINDOW_MS,
+  60_000
+);
+const AUTH_RATE_LIMIT_MAX = parsePositiveIntFromEnv(
+  process.env.AUTH_RATE_LIMIT_MAX_ATTEMPTS ?? process.env.AUTH_RATE_LIMIT_MAX,
+  10
+);
+
+const authLimiter = rateLimit({
+  windowMs: AUTH_RATE_LIMIT_WINDOW_MS,
+  max: AUTH_RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 const app = express();
+if (process.env.TRUST_PROXY === "true") {
+  app.set("trust proxy", 1);
+}
+app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
@@ -73,7 +100,7 @@ app.get("/api/cards", (_req, res) => {
   res.json(getSampleCards());
 });
 
-app.post("/api/register", (req, res) => {
+app.post("/api/register", authLimiter, (req, res) => {
   const { name, mail, password, currency } = req.body;
   if (!name || !mail || !password) {
     return res.status(400).json({ error: "MISSING_FIELDS" });
@@ -112,7 +139,7 @@ app.post("/api/register", (req, res) => {
   }
 });
 
-app.post("/api/login", (req, res) => {
+app.post("/api/login", authLimiter, (req, res) => {
   const { mail, password } = req.body;
   if (!mail || !password) {
     return res.status(400).json({ error: "MISSING_FIELDS" });
