@@ -240,18 +240,8 @@ body {
 .homepage-button:hover { background: var(--accent); color: var(--text-dark); box-shadow: 0 0 12px rgba(201, 172, 109, 0.4); transform: translateY(-2px); }
 
 
-/* --- IKONY WSZĘDZIE --- */
-.page-icons {
-  display: flex;
-  gap: 1.5rem;
-}
 
-/* Pozycjonowanie ikon */
-.homepage .page-icons {
-  position: absolute;
-  top: 1.5rem;
-  right: 2rem;
-}
+
 
 .login-container .page-icons,
 .registration-container .page-icons {
@@ -261,12 +251,15 @@ body {
 }
 
 .page-icons {
+  position: fixed;       
+  top: 1rem;            
+  right: 1rem;          
   display: flex;
   gap: 1.5rem;
-  position: absolute;
-  top: 1.5rem;
-  right: 2rem;
+  z-index: 1000;        
 }
+
+
 
 .page-icon img.icon-image {
   height: 32px;
@@ -276,15 +269,23 @@ body {
   transition: transform 0.2s ease, filter 0.3s ease;
 }
 
+
 /* Hovery */
-.page-icon.home-icon img.icon-image:hover {
-  filter: brightness(0) saturate(100%) invert(77%) sepia(25%) saturate(500%) hue-rotate(1deg) brightness(95%) contrast(90%);
-  transform: scale(1.1);
+/* Domyślny kolor ikony home */
+.page-icon.home-icon img.icon-image {
+  filter: invert(79%) sepia(35%) saturate(630%) hue-rotate(2deg) brightness(95%) contrast(90%);
+  transition: transform 0.2s ease, filter 0.3s ease;
 }
+
+/* Efekt hover */
+.page-icon.home-icon img.icon-image:hover {
+  transform: scale(1.1);
+  filter: brightness(0) saturate(100%) invert(77%) sepia(25%) saturate(500%) hue-rotate(1deg) brightness(95%) contrast(90%);
+}
+
 
 .page-icon.user-icon img.icon-image:hover {
   transform: scale(1.1);
-  filter: drop-shadow(0 0 6px #000) drop-shadow(0 0 12px #C9AC6D);
 }
 
 /* --- HOMEPAGE BUTTON DISABLED --- */
