@@ -270,17 +270,11 @@ body {
 }
 
 
-/* Hovery */
-/* Domyślny kolor ikony home */
-.page-icon.home-icon img.icon-image {
-  filter: invert(79%) sepia(35%) saturate(630%) hue-rotate(2deg) brightness(95%) contrast(90%);
-  transition: transform 0.2s ease, filter 0.3s ease;
-}
+
 
 /* Efekt hover */
 .page-icon.home-icon img.icon-image:hover {
   transform: scale(1.1);
-  filter: brightness(0) saturate(100%) invert(77%) sepia(25%) saturate(500%) hue-rotate(1deg) brightness(95%) contrast(90%);
 }
 
 

@@ -29,13 +29,14 @@ export default function App() {
     setName('');
   };
 
-
+//Zrobić że icony są szare jak są na danej stronie, 
+// czyli jak na homepage to homeicon jest wyszarowna i nie działa i vice versa dla profile
  const hasOngoingLeague = false;  // trwająca liga (false - nie ma ligi, true - jest liga)
-
    return (
     <div className="homepage">
       <div className="page-icons">
         <Link to="/" className="page-icon home-icon">
+        
           <img src={homeIcon} alt="Home" className="icon-image" />
         </Link>
         <Link to="/profile" className="page-icon user-icon">
