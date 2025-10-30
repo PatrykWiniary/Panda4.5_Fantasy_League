@@ -135,6 +135,12 @@ Projekt ma charakter warsztatowy: pozwala tworzyc talie zawodnikow League of Leg
 7. **Podejrzyj zapisane konfiguracje** w sekcji "Saved Decks" i upewnij sie, ze kazdy slot ma przypisana karte.
 8. **Uruchom symulacje turnieju** w sekcji "Tournament Simulation": podaj ID uzytkownika, region, ilosc gier oraz czy chcesz zresetowac dane meczowe. Po symulacji zobaczysz podsumowanie, wynik decku oraz zaktualizowany stan konta.
 
+### Tryb demo i funkcje debugowe
+- Backend przy starcie utrzymuje dwoch przykładowych uzytkownikow: **Mia Analyst** (`mia.analyst@example.com`) oraz **Erik Strategist** (`erik.strategist@example.com`). Oba konta maja haslo `Debug123!`, kompletne talie oraz budzet odpowiadajacy wartosci kart.
+- Symulacja nalicza punkty dla kazdej talii zapisanej w bazie (nie tylko dla zalogowanego konta). Wyniki widac w tabelach debugowych sekcji "Tournament Simulation" oraz w podgladzie "Saved Decks".
+- Endpoint `/api/users/leaderboard` oraz sekcja "Leaderboard" na froncie prezentuja **Top 10** graczy, a jesli aktywny uzytkownik wypada poza czolowke, dodatkowo pokazuje jego pozycje ponizej listy (styl znany z serwisow sportowych) <jeszcze nie testowane teehee>.
+- W tabelach rankingowych zalogowany uzytkownik jest podkreslany ciemniejszym tlem, dzieki czemu latwo go odszukac.
+
 ### Najczesciej wykorzystywane widoki
 - **Items**: prosta lista kontrolna (pozostalosci z var. edukacyjnych).
 - **Users**: przeglad uzytkownikow z bazy, wraz z waluta i liczba punktow.

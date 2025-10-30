@@ -94,6 +94,31 @@ type DeckScoreBreakdownEntry = {
   totalScore: number;
 };
 
+type TournamentDeckScore = {
+  userId: number;
+  deck: Deck;
+  summary: DeckSummary;
+  score: number;
+  awarded: number;
+  breakdown: DeckScoreBreakdownEntry[];
+  missingRoles: DeckRole[];
+};
+
+type LeaderboardEntry = {
+  id: number;
+  name: string;
+  score: number;
+  currency: number;
+  position: number;
+};
+
+type LeaderboardResponse = {
+  top: LeaderboardEntry[];
+  userEntry: LeaderboardEntry | null;
+  userInTop: boolean;
+  totalUsers: number;
+};
+
 type TournamentSimulationResult = {
   tournament: {
     region: { id: number; name: string };
@@ -116,6 +141,7 @@ type TournamentSimulationResult = {
     awardedPoints: number;
     currency?: number;
   };
+  allDeckScores: TournamentDeckScore[];
 };
 
 const LOCAL_STORAGE_KEY = 'fantasy-league.loggedUser';
@@ -180,6 +206,12 @@ export default function App() {
   const [simulationReset, setSimulationReset] = useState(true);
   const [simulationStatus, setSimulationStatus] = useState<string | null>(null);
   const [simulationResult, setSimulationResult] = useState<TournamentSimulationResult | null>(null);
+  const [selectedDebugUserId, setSelectedDebugUserId] = useState<number | null>(null);
+  const [leaderboardTop, setLeaderboardTop] = useState<LeaderboardEntry[]>([]);
+  const [leaderboardUserEntry, setLeaderboardUserEntry] = useState<LeaderboardEntry | null>(null);
+  const [leaderboardUserInTop, setLeaderboardUserInTop] = useState(false);
+  const [leaderboardTotalUsers, setLeaderboardTotalUsers] = useState(0);
+  const [leaderboardStatus, setLeaderboardStatus] = useState<string | null>(null);
   const [simulationLoading, setSimulationLoading] = useState(false);
 
   const persistLoggedInUser = (user: User | null) => {
@@ -197,6 +229,7 @@ export default function App() {
     persistLoggedInUser(user);
     setDeckUserIdInput(String(user.id));
     setSimulationUserId(String(user.id));
+    refreshLeaderboard(user.id).catch(console.error);
   };
 
   const handleLogout = () => {
@@ -207,6 +240,43 @@ export default function App() {
     setDeckSummary(null);
     setDeckStatus(null);
     setLoginStatus(null);
+    setSelectedDebugUserId(null);
+    refreshLeaderboard(null).catch(console.error);
+  };
+
+  const refreshLeaderboard = async (userIdOverride?: number | null) => {
+    const targetUserId =
+      typeof userIdOverride === 'number'
+        ? userIdOverride
+        : userIdOverride === null
+        ? null
+        : loggedInUser
+        ? loggedInUser.id
+        : null;
+
+    const query =
+      typeof targetUserId === 'number' ? `?userId=${targetUserId}` : '';
+
+    try {
+      const res = await fetch(`/api/users/leaderboard${query}`);
+      if (!res.ok) {
+        throw new Error('Failed to load leaderboard');
+      }
+      const payload = (await res.json()) as LeaderboardResponse;
+      setLeaderboardTop(payload.top ?? []);
+      setLeaderboardUserEntry(payload.userEntry ?? null);
+      setLeaderboardUserInTop(Boolean(payload.userInTop));
+      setLeaderboardTotalUsers(payload.totalUsers ?? 0);
+      const hasEntries = (payload.top ?? []).length > 0;
+      setLeaderboardStatus(hasEntries ? null : 'No players ranked yet.');
+    } catch (error) {
+      console.error(error);
+      setLeaderboardStatus('Failed to load leaderboard.');
+      setLeaderboardTop([]);
+      setLeaderboardUserEntry(null);
+      setLeaderboardUserInTop(false);
+      setLeaderboardTotalUsers(0);
+    }
   };
 
   function isMultiplierAllowed(multiplier: 'Captain' | 'Vice-captain', targetRole: DeckRole): boolean {
@@ -232,10 +302,7 @@ export default function App() {
       .then(setItems)
       .catch(console.error);
 
-    fetch('/api/users')
-      .then(r => r.json())
-      .then(setUsers)
-      .catch(console.error);
+    refreshUsers().catch(console.error);
 
     loadSampleCards();
     refreshStoredDecks().catch(console.error);
@@ -285,6 +352,7 @@ useEffect(() => {
         persistLoggedInUser({ ...loggedInUser, ...updated });
       }
     }
+    await refreshLeaderboard();
   };
 
   const register = async (event: FormEvent) => {
@@ -660,6 +728,7 @@ useEffect(() => {
   const runTournamentSimulation = async () => {
     setSimulationStatus(null);
     setSimulationResult(null);
+    setSelectedDebugUserId(null);
 
     const fallbackUserId = deckData?.userId ?? (loggedInUser ? loggedInUser.id : null);
     const parsedUserId = simulationUserId.trim() ? parsePositiveInt(simulationUserId) : null;
@@ -703,6 +772,17 @@ useEffect(() => {
 
       const data = (await res.json()) as TournamentSimulationResult;
       setSimulationResult(data);
+      setSelectedDebugUserId(prev => {
+        if (!data.allDeckScores || data.allDeckScores.length === 0) {
+          return null;
+        }
+        if (prev !== null && data.allDeckScores.some(entry => entry.userId === prev)) {
+          return prev;
+        }
+        const fallbackEntry =
+          data.allDeckScores.find(entry => entry.userId !== data.user.id) ?? data.allDeckScores[0];
+        return fallbackEntry ? fallbackEntry.userId : null;
+      });
       applyDeckResponse({ deck: data.deck, summary: data.deckSummary }, data.user.id);
       setSimulationUserId(String(data.user.id));
       setSimulationStatus(`Awarded ${data.deckScore.awarded} points. User total score: ${data.user.score}.`);
@@ -714,7 +794,10 @@ useEffect(() => {
         });
       }
       refreshStoredDecks().catch(console.error);
-      refreshUsers().catch(console.error);
+      refreshUsers().catch(error => {
+        console.error(error);
+        refreshLeaderboard().catch(console.error);
+      });
     } catch (error) {
       console.error(error);
       setSimulationStatus('Network error during simulation.');
@@ -722,6 +805,17 @@ useEffect(() => {
       setSimulationLoading(false);
     }
   };
+
+  const resolveUserLabel = (userId: number) => {
+    const user = users.find(u => u.id === userId);
+    return user ? `${user.name} (#${user.id})` : `User #${userId}`;
+  };
+
+  const debugDeckScores = simulationResult?.allDeckScores ?? [];
+  const selectedDebugScore =
+    selectedDebugUserId !== null
+      ? debugDeckScores.find(entry => entry.userId === selectedDebugUserId) ?? null
+      : null;
 
   return (
     <div style={{ padding: 20, display: 'grid', gap: 24 }}>
@@ -1081,6 +1175,101 @@ useEffect(() => {
                 </table>
               </div>
 
+              {debugDeckScores.length > 0 && (
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <h3>All deck results (debug)</h3>
+                  <table style={{ borderCollapse: 'collapse', width: '100%', maxWidth: 720 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Player</th>
+                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Total</th>
+                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Awarded</th>
+                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Missing roles</th>
+                        <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Complete</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {debugDeckScores.map(entry => (
+                        <tr key={entry.userId}>
+                          <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{resolveUserLabel(entry.userId)}</td>
+                          <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{entry.score}</td>
+                          <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{entry.awarded}</td>
+                          <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>
+                            {entry.missingRoles.length > 0 ? entry.missingRoles.join(', ') : '-'}
+                          </td>
+                          <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>
+                            {entry.summary.complete ? 'Yes' : 'No'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    Inspect player
+                    <select
+                      value={selectedDebugUserId !== null ? String(selectedDebugUserId) : ''}
+                      onChange={event => {
+                        const value = event.target.value;
+                        setSelectedDebugUserId(value ? Number(value) : null);
+                      }}
+                    >
+                      <option value="">-- select --</option>
+                      {debugDeckScores.map(entry => (
+                        <option key={entry.userId} value={entry.userId}>
+                          {resolveUserLabel(entry.userId)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {selectedDebugScore ? (
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <h4>
+                        Breakdown for {resolveUserLabel(selectedDebugScore.userId)}
+                        {selectedDebugScore.userId === simulationResult.user.id ? ' (logged user)' : ''}
+                      </h4>
+                      <div>
+                        <strong>Total:</strong> {selectedDebugScore.score}{' '}
+                        <strong>Awarded:</strong> {selectedDebugScore.awarded}{' '}
+                        <strong>Missing roles:</strong>{' '}
+                        {selectedDebugScore.missingRoles.length > 0
+                          ? selectedDebugScore.missingRoles.join(', ')
+                          : 'None'}
+                      </div>
+                      <table style={{ borderCollapse: 'collapse', width: '100%', maxWidth: 720 }}>
+                        <thead>
+                          <tr>
+                            <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Role</th>
+                            <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Player</th>
+                            <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Player ID</th>
+                            <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Base</th>
+                            <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Multiplier</th>
+                            <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedDebugScore.breakdown.map(entry => (
+                            <tr key={entry.role}>
+                              <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{entry.role}</td>
+                              <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{entry.playerName}</td>
+                              <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{entry.playerId ?? '-'}</td>
+                              <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{entry.baseScore}</td>
+                              <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>
+                                {entry.multiplierLabel ? `${entry.multiplierLabel} (${entry.multiplier}x)` : entry.multiplier}
+                              </td>
+                              <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{entry.totalScore}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p>Select a player to see their detailed breakdown.</p>
+                  )}
+                </div>
+              )}
+
               <div>
                 <h3>Post-tournament Statistics</h3>
                 <p>
@@ -1169,6 +1358,61 @@ useEffect(() => {
                 </div>
               ))}
             </div>
+          )}
+        </div>
+      </section>
+
+      <section>
+        <h2>Leaderboard</h2>
+        <div style={{ display: 'grid', gap: 12, maxWidth: 480 }}>
+          {leaderboardStatus && <p>{leaderboardStatus}</p>}
+          {leaderboardTop.length === 0 && !leaderboardStatus ? (
+            <p>No players ranked yet.</p>
+          ) : (
+            <>
+              <div>
+                Tracking {leaderboardTotalUsers} {leaderboardTotalUsers === 1 ? 'player' : 'players'}.
+              </div>
+              <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px', width: 60 }}>#</th>
+                    <th style={{ borderBottom: '1px solid #ccc', textAlign: 'left', padding: '4px 8px' }}>Player</th>
+                    <th style={{ borderBottom: '1px solid #ccc', textAlign: 'right', padding: '4px 8px', width: 120 }}>Score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leaderboardTop.map(entry => {
+                    const isActive = loggedInUser && entry.id === loggedInUser.id;
+                    return (
+                      <tr
+                        key={entry.id}
+                        style={isActive ? { background: '#ffca7a' } : undefined}
+                      >
+                        <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>#{entry.position}</td>
+                        <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px' }}>{entry.name}</td>
+                        <td style={{ borderBottom: '1px solid #eee', padding: '4px 8px', textAlign: 'right' }}>{entry.score}</td>
+                      </tr>
+                    );
+                  })}
+                  {leaderboardUserEntry && !leaderboardUserInTop && (
+                    <>
+                      <tr>
+                        <td colSpan={3} style={{ textAlign: 'center', padding: '4px 8px', color: '#666' }}>...</td>
+                      </tr>
+                      <tr
+                        key={`user-${leaderboardUserEntry.id}`}
+                        style={{ background: '#ffca7a' }}
+                      >
+                        <td style={{ borderTop: '1px solid #ccc', padding: '4px 8px' }}>#{leaderboardUserEntry.position}</td>
+                        <td style={{ borderTop: '1px solid #ccc', padding: '4px 8px' }}>{leaderboardUserEntry.name}</td>
+                        <td style={{ borderTop: '1px solid #ccc', padding: '4px 8px', textAlign: 'right' }}>{leaderboardUserEntry.score}</td>
+                      </tr>
+                    </>
+                  )}
+                </tbody>
+              </table>
+            </>
           )}
         </div>
       </section>

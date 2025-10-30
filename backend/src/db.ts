@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import {
   User,
+  Card,
   Deck,
   CompleteDeck,
   DeckSaveResult,
@@ -138,6 +139,206 @@ function migratePlayersTable() {
 migrateDecksTable();
 migrateUsersTable();
 migratePlayersTable();
+
+type DebugDeckCardSeed = {
+  role: Role;
+  name: string;
+  points: number;
+  value: number;
+  multiplier?: Card["multiplier"];
+  playerId?: number;
+};
+
+type DebugUserSeed = {
+  name: string;
+  mail: string;
+  password: string;
+  currency: number;
+  score: number;
+  deck: DebugDeckCardSeed[];
+};
+
+const DEBUG_USER_SEEDS: DebugUserSeed[] = [
+  {
+    name: "Mia Analyst",
+    mail: "mia.analyst@example.com",
+    password: "Debug123!",
+    currency: 160,
+    score: 240,
+    deck: [
+      {
+        role: "Top",
+        name: "Stonewall",
+        points: 88,
+        value: 26,
+        multiplier: "Captain",
+        playerId: 1,
+      },
+      {
+        role: "Jgl",
+        name: "FlayMaster",
+        points: 82,
+        value: 24,
+        playerId: 2,
+      },
+      {
+        role: "Mid",
+        name: "Arcana",
+        points: 91,
+        value: 25,
+        playerId: 3,
+      },
+      {
+        role: "Adc",
+        name: "Skybolt",
+        points: 86,
+        value: 24,
+        multiplier: "Vice-captain",
+        playerId: 4,
+      },
+      {
+        role: "Supp",
+        name: "Emberlight",
+        points: 79,
+        value: 21,
+        playerId: 5,
+      },
+    ],
+  },
+  {
+    name: "Erik Strategist",
+    mail: "erik.strategist@example.com",
+    password: "Debug123!",
+    currency: 165,
+    score: 190,
+    deck: [
+      {
+        role: "Top",
+        name: "Riftbreaker",
+        points: 84,
+        value: 27,
+        multiplier: "Captain",
+        playerId: 6,
+      },
+      {
+        role: "Jgl",
+        name: "Phantom V",
+        points: 80,
+        value: 24,
+        playerId: 7,
+      },
+      {
+        role: "Mid",
+        name: "Sage of Dawn",
+        points: 87,
+        value: 26,
+        playerId: 8,
+      },
+      {
+        role: "Adc",
+        name: "Scarlet Viper",
+        points: 89,
+        value: 24,
+        multiplier: "Vice-captain",
+        playerId: 9,
+      },
+      {
+        role: "Supp",
+        name: "Warden Sol",
+        points: 78,
+        value: 22,
+        playerId: 10,
+      },
+    ],
+  },
+];
+
+function calculateSeedDeckValue(deckSeed: DebugDeckCardSeed[]): number {
+  return deckSeed.reduce((total, card) => total + card.value, 0);
+}
+
+function buildDeckFromSeed(userId: number, deckSeed: DebugDeckCardSeed[]): Deck {
+  const slots: Partial<Record<Role, Card>> = {};
+  for (const cardSeed of deckSeed) {
+    const card: Card = {
+      name: cardSeed.name,
+      role: cardSeed.role,
+      points: cardSeed.points,
+      value: cardSeed.value,
+    };
+    if (cardSeed.multiplier) {
+      card.multiplier = cardSeed.multiplier;
+    }
+    if (cardSeed.playerId !== undefined) {
+      card.playerId = cardSeed.playerId;
+    }
+    slots[cardSeed.role] = card;
+  }
+  return createDeck({ userId, slots });
+}
+
+function ensureSampleUsersWithDecks(): void {
+  for (const sample of DEBUG_USER_SEEDS) {
+    const requiredCurrency = Math.max(
+      sample.currency,
+      calculateSeedDeckValue(sample.deck)
+    );
+
+    const existingUser = db
+      .prepare("SELECT id, currency, score FROM users WHERE mail = ?")
+      .get(sample.mail) as
+      | { id: number; currency: number; score: number }
+      | undefined;
+
+    let userId: number;
+
+    if (!existingUser) {
+      const created = addUser({
+        name: sample.name,
+        mail: sample.mail,
+        password: sample.password,
+        currency: requiredCurrency,
+        score: sample.score,
+      });
+      userId = created.id;
+    } else {
+      userId = existingUser.id;
+      const nextCurrency = Math.max(
+        typeof existingUser.currency === "number"
+          ? existingUser.currency
+          : 0,
+        requiredCurrency
+      );
+      const nextScore = Math.max(
+        typeof existingUser.score === "number" ? existingUser.score : 0,
+        sample.score
+      );
+      db.prepare(
+        "UPDATE users SET name = ?, currency = ?, score = ? WHERE id = ?"
+      ).run(sample.name, nextCurrency, nextScore, userId);
+    }
+
+    const deckToSave = buildDeckFromSeed(userId, sample.deck);
+    try {
+      const result = saveDeck(userId, deckToSave);
+      if (result.status !== "saved") {
+        console.warn(
+          "Seeded debug deck with warnings for user",
+          sample.mail,
+          result
+        );
+      }
+    } catch (error) {
+      console.warn("Failed to seed debug deck for user", sample.mail, error);
+    }
+  }
+}
+
+try {
+  ensureSampleUsersWithDecks();
+} catch (error) {
+  console.warn("Failed to initialize debug users", error);
+}
 
 type DeckRow = {
   user_id: number;
@@ -368,6 +569,77 @@ export function getAllUsers() {
   return stmt.all();
 }
 
+export type LeaderboardEntry = {
+  id: number;
+  name: string;
+  score: number;
+  currency: number;
+  position: number;
+};
+
+export function getUsersCount(): number {
+  const row = db
+    .prepare("SELECT COUNT(*) AS total FROM users")
+    .get() as { total: number } | undefined;
+  return row?.total ?? 0;
+}
+
+export function getLeaderboardTop(limit = 10): LeaderboardEntry[] {
+  const rows = db
+    .prepare(
+      "SELECT id, name, score, currency FROM users ORDER BY score DESC, id ASC LIMIT ?"
+    )
+    .all(limit) as Array<{
+    id: number;
+    name: string;
+    score: number;
+    currency: number;
+  }>;
+
+  return rows.map((row, index) => ({
+    id: row.id,
+    name: row.name,
+    score: Number(row.score) || 0,
+    currency: Number(row.currency) || 0,
+    position: index + 1,
+  }));
+}
+
+export function getUserRankingEntry(
+  userId: number
+): LeaderboardEntry | undefined {
+  const userRow = db
+    .prepare("SELECT id, name, score, currency FROM users WHERE id = ?")
+    .get(userId) as
+    | {
+        id: number;
+        name: string;
+        score: number;
+        currency: number;
+      }
+    | undefined;
+
+  if (!userRow) {
+    return undefined;
+  }
+
+  const higherCountRow = db
+    .prepare(
+      "SELECT COUNT(*) AS higher FROM users WHERE score > ? OR (score = ? AND id < ?)"
+    )
+    .get(userRow.score, userRow.score, userRow.id) as { higher: number };
+
+  const position = Number(higherCountRow?.higher ?? 0) + 1;
+
+  return {
+    id: userRow.id,
+    name: userRow.name,
+    score: Number(userRow.score) || 0,
+    currency: Number(userRow.currency) || 0,
+    position,
+  };
+}
+
 export function clearUsers() {
   const stmt = db.prepare("DELETE FROM users");
   return stmt.run();
@@ -444,6 +716,12 @@ export function simulateData() {
 
   for (const { name, role } of samplePlayers) {
     playerStmt.run(name, 0, 0, 0, 0, primaryRegionId, role, 0);
+  }
+
+  try {
+    ensureSampleUsersWithDecks();
+  } catch (error) {
+    console.warn("Failed to refresh debug users after simulateData()", error);
   }
 }
 

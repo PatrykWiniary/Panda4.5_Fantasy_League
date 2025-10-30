@@ -17,6 +17,9 @@ import {
   getUserCurrency,
   simulateData,
   addUserScore,
+  getLeaderboardTop,
+  getUserRankingEntry,
+  getUsersCount,
 } from "./db";
 import {
   addCardToDeck,
@@ -27,7 +30,7 @@ import {
   calculateDeckValue,
   summarizeDeck,
 } from "./deckManager";
-import { Deck, Player, RoleInput } from "./Types";
+import { Deck, DeckSummary, Player, Role, RoleInput } from "./Types";
 import {
   DeckPayloadError,
   parseCardPayload,
@@ -36,7 +39,7 @@ import {
   toDeckResponse,
 } from "./deckIO";
 import { getSampleCards } from "./cards";
-import { scoreDeckAgainstPlayers } from "./simulationScoring";
+import { DeckScoreEntry, scoreDeckAgainstPlayers } from "./simulationScoring";
 import {
   isValidEmail,
   isPasswordStrong,
@@ -80,6 +83,43 @@ app.get("/api/items", (req, res) => {
 app.get("/api/users", (req, res) => {
   const users = getAllUsers();
   res.json(users);
+});
+
+app.get("/api/users/leaderboard", (req, res) => {
+  const rawUserId = Array.isArray(req.query.userId)
+    ? req.query.userId[0]
+    : req.query.userId;
+
+  let userId: number | undefined;
+  if (typeof rawUserId === "string" && rawUserId.trim().length > 0) {
+    const parsed = Number(rawUserId);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      return res.status(400).json({ error: "INVALID_USER_ID" });
+    }
+    userId = parsed;
+  }
+
+  const top = getLeaderboardTop(10);
+  const totalUsers = getUsersCount();
+
+  let userEntry = null;
+  let userInTop = false;
+
+  if (userId !== undefined) {
+    const entry = getUserRankingEntry(userId);
+    if (!entry) {
+      return res.status(404).json({ error: "USER_NOT_FOUND" });
+    }
+    userInTop = top.some((candidate) => candidate.id === entry.id);
+    userEntry = entry;
+  }
+
+  res.json({
+    top,
+    totalUsers,
+    userEntry,
+    userInTop,
+  });
 });
 
 app.post("/api/items", (req, res) => {
@@ -526,14 +566,66 @@ app.post("/api/tournaments/simulate", (req, res) => {
       };
 
     const finalPlayers = finalResult.players ?? [];
-    const deckScore = scoreDeckAgainstPlayers(deck, finalPlayers);
-    const rawTotalPoints = deckScore.totalScore;
-    const awardedPoints = Math.max(rawTotalPoints, 0);
+
+    type DeckScoreSnapshot = {
+      userId: number;
+      deck: Deck;
+      summary: DeckSummary;
+      score: number;
+      awarded: number;
+      breakdown: DeckScoreEntry[];
+      missingRoles: Role[];
+    };
+
+    const storedDecks = getAllDecks();
+    const allDeckScores: DeckScoreSnapshot[] = storedDecks.map((storedDeck) => {
+      const scoreResult = scoreDeckAgainstPlayers(storedDeck.deck, finalPlayers);
+      if (scoreResult.deck.userId === undefined) {
+        scoreResult.deck.userId = storedDeck.deck.userId ?? storedDeck.userId;
+      }
+      const summaryForDeck = summarizeDeck(scoreResult.deck);
+      return {
+        userId: storedDeck.userId,
+        deck: scoreResult.deck,
+        summary: summaryForDeck,
+        score: scoreResult.totalScore,
+        awarded: Math.max(scoreResult.totalScore, 0),
+        breakdown: scoreResult.entries,
+        missingRoles: scoreResult.missingRoles,
+      };
+    });
+
+    let userDeckScoreEntry: DeckScoreSnapshot | undefined =
+      allDeckScores.find((entry) => entry.userId === userId);
+
+    if (!userDeckScoreEntry) {
+      const fallbackScore = scoreDeckAgainstPlayers(deck, finalPlayers);
+      if (fallbackScore.deck.userId === undefined) {
+        fallbackScore.deck.userId = userId;
+      }
+      const fallbackEntry: DeckScoreSnapshot = {
+        userId,
+        deck: fallbackScore.deck,
+        summary: summarizeDeck(fallbackScore.deck),
+        score: fallbackScore.totalScore,
+        awarded: Math.max(fallbackScore.totalScore, 0),
+        breakdown: fallbackScore.entries,
+        missingRoles: fallbackScore.missingRoles,
+      };
+      userDeckScoreEntry = fallbackEntry;
+      allDeckScores.unshift(fallbackEntry);
+    }
+
+    if (!userDeckScoreEntry) {
+      throw new Error("USER_DECK_SCORING_FAILED");
+    }
+
+    const awardedPoints = Math.max(userDeckScoreEntry.score, 0);
     const updatedScore = addUserScore(userId, awardedPoints);
 
-    let persistedDeck = deckScore.deck;
+    let persistedDeck = userDeckScoreEntry.deck;
     try {
-      const saveOutcome = saveDeck(userId, deckScore.deck);
+      const saveOutcome = saveDeck(userId, userDeckScoreEntry.deck);
       if (saveOutcome.status === "saved") {
         persistedDeck = { ...saveOutcome.deck, userId };
       }
@@ -543,6 +635,11 @@ app.post("/api/tournaments/simulate", (req, res) => {
         userId,
         saveError
       );
+    }
+
+    if (persistedDeck !== userDeckScoreEntry.deck) {
+      userDeckScoreEntry.deck = persistedDeck;
+      userDeckScoreEntry.summary = summarizeDeck(persistedDeck);
     }
 
     const deckResponse = toDeckResponse(persistedDeck);
@@ -562,10 +659,10 @@ app.post("/api/tournaments/simulate", (req, res) => {
       deck: deckResponse.deck,
       deckSummary: deckResponse.summary,
       deckScore: {
-        total: rawTotalPoints,
+        total: userDeckScoreEntry.score,
         awarded: awardedPoints,
-        breakdown: deckScore.entries,
-        missingRoles: deckScore.missingRoles,
+        breakdown: userDeckScoreEntry.breakdown,
+        missingRoles: userDeckScoreEntry.missingRoles,
       },
       user: {
         id: userId,
@@ -573,6 +670,7 @@ app.post("/api/tournaments/simulate", (req, res) => {
         awardedPoints,
         currency,
       },
+      allDeckScores: allDeckScores,
     });
   } catch (error) {
     if (error instanceof DeckPayloadError) {
