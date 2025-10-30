@@ -52,6 +52,7 @@ html, body, #root {
     border: 4px solid #444;
     cursor: pointer;
     transition: all 0.25s ease;
+    overflow: hidden;
 }
 
 .player-circle:hover {
@@ -113,4 +114,134 @@ html, body, #root {
     background: -webkit-radial-gradient(#C9AC6D, #635536);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.6); /* darkens background */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.modal {
+  background-color: rgba(10, 10, 10, 0.9);
+  width: 40%;
+  height: 70%;
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  color: #d4af37; /* gold text */
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+}
+
+.close-btn {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  background: none;
+  border: none;
+  color: #aaa;
+  font-size: 24px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.close-btn:hover {
+  color: #fff;
+}
+
+.modal-header {
+    text-align: center;
+    font-size: 2.5rem;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
+    z-index: 2;
+    background: -webkit-radial-gradient(#C9AC6D, #635536);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.modal-body {
+  display: flex;
+  gap: 24px;
+  height: 100%;
+}
+
+.player-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  overflow-y: auto;
+  padding-right: 10px;
+  overflow: visible;
+}
+
+.player-grid-item {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  overflow: hidden;
+  background-color: #000;
+  border: 2px solid #333;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+}
+.player-grid-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+.player-grid-item:hover {
+  transform: scale(1.05);
+  border-color: #C9AC6D;
+}
+.player-grid-item.active {
+  border-color: #C9AC6D;
+  transform: scale(1.1);
+}
+
+.player-preview {
+  width: 40%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 12px;
+}
+
+.preview-image {
+  width: 200px;
+  height: auto;
+  border-radius: 12px;
+  border: 2px solid #C9AC6D;
+  background-color: rgba(10, 10, 10, 0.9);
+}
+
+.preview-info h2 {
+  margin-top: 8px;
+  margin-bottom: 6px;
+  font-size: 32px;
+  color: #C9AC6D;
+}
+
+.preview-info p {
+  margin: 0;
+  font-size: 32px;
+  color: #C9AC6D;
+}
+
+.circle-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
 }
