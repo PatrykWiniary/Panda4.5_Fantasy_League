@@ -1,10 +1,13 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import '../styles/LogReg.css'; 
 import homeIcon from "../assets/home.svg"; 
 import userIcon from "../assets/user.svg";
 import avatarIcon from "../assets/faker.svg";
 
 export default function ProfilePage() {
+  const location = useLocation();
+  const isProfile = location.pathname === "/profile"; //sprawdzenie ścieżki
+
   const player = {
     name: "<JoeMama>",
     avatar: avatarIcon, 
@@ -20,12 +23,21 @@ export default function ProfilePage() {
   return (
     <div className="profile-page">
       <div className="page-icons">
+        {/* HOME ICON */}
         <Link to="/" className="page-icon home-icon">
           <img src={homeIcon} alt="Home" className="icon-image" />
         </Link>
-        <Link to="/profile" className="page-icon user-icon">
-          <img src={userIcon} alt="Profile" className="icon-image" />
-        </Link>
+
+        {/* USER ICON (disabled on ProfilePage) */}
+        {isProfile ? (
+          <div className="page-icon user-icon disabled-icon">
+            <img src={userIcon} alt="Profile (disabled)" className="icon-image" />
+          </div>
+        ) : (
+          <Link to="/profile" className="page-icon user-icon">
+            <img src={userIcon} alt="Profile" className="icon-image" />
+          </Link>
+        )}
       </div>
 
       <div className="profile-header">

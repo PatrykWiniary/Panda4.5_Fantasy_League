@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import '../styles/LogReg.css';
 import homeIcon from "../assets/home.svg";
 import userIcon from "../assets/user.svg";
@@ -9,6 +9,8 @@ type Item = { id: number; name: string; qty: number };
 export default function App() {
   const [items, setItems] = useState<Item[]>([]);
   const [name, setName] = useState('');
+  const location = useLocation(); 
+  const isHome = location.pathname === "/"; //sprawdzenie ścieżki
 
   useEffect(() => {
     fetch('/api/items')
@@ -29,23 +31,29 @@ export default function App() {
     setName('');
   };
 
+  const hasOngoingLeague = false;
 
- const hasOngoingLeague = false;  // trwająca liga (false - nie ma ligi, true - jest liga)
-
-   return (
+  return (
     <div className="homepage">
       <div className="page-icons">
-        <Link to="/" className="page-icon home-icon">
-          <img src={homeIcon} alt="Home" className="icon-image" />
-        </Link>
+        {/* HOME ICON */}
+        {isHome ? (
+          <div className="page-icon home-icon disabled-icon">
+            <img src={homeIcon} alt="Home (disabled)" className="icon-image" />
+          </div>
+        ) : (
+          <Link to="/" className="page-icon home-icon">
+            <img src={homeIcon} alt="Home" className="icon-image" />
+          </Link>
+        )}
+
+        {/* USER ICON */}
         <Link to="/profile" className="page-icon user-icon">
           <img src={userIcon} alt="Profile" className="icon-image" />
         </Link>
       </div>
 
-
       <h1 className="homepage-title">SUMMONER’S LEAGUE</h1>
-
 
       <div className="homepage-buttons">
         <Link
@@ -63,7 +71,6 @@ export default function App() {
           CREATE NEW LEAGUE
         </Link>
       </div>
-
     </div>
   );
 }

@@ -193,11 +193,14 @@ body {
   width: 100vw;
   background: var(--bg);
   color: var(--accent);
+  max-width: 100%;
+  padding: 1rem;
+  overflow-x: hidden; /* zapobiega przesuwaniu poziomemu */
 }
 
 /* Tytuł główny */
 .homepage-title {
-  font-size: 3.5rem;
+  font-size: clamp(2rem, 5vw, 3.5rem);
   font-weight: 700;
   letter-spacing: 6px;
   text-transform: uppercase;
@@ -237,7 +240,11 @@ body {
 }
 
 
-.homepage-button:hover { background: var(--accent); color: var(--text-dark); box-shadow: 0 0 12px rgba(201, 172, 109, 0.4); transform: translateY(-2px); }
+.homepage-button:hover { 
+  background: var(--accent); 
+  color: var(--text-dark); 
+  box-shadow: 0 0 12px rgba(201, 172, 109, 0.4); 
+  transform: translateY(-2px); }
 
 
 /* --- IKONY WSZĘDZIE --- */
@@ -269,7 +276,7 @@ body {
 }
 
 .page-icon img.icon-image {
-  height: 32px;
+  height: clamp(24px, 3vw, 36px);
   width: auto;
   object-fit: contain;
   cursor: pointer;
@@ -278,8 +285,8 @@ body {
 
 /* Hovery */
 .page-icon.home-icon img.icon-image:hover {
-  filter: brightness(0) saturate(100%) invert(77%) sepia(25%) saturate(500%) hue-rotate(1deg) brightness(95%) contrast(90%);
   transform: scale(1.1);
+  filter: drop-shadow(0 0 6px #000) drop-shadow(0 0 12px #C9AC6D);
 }
 
 .page-icon.user-icon img.icon-image:hover {
@@ -322,36 +329,61 @@ body {
   margin-top: 1.5rem;
 }
 
+.disabled-icon {
+  background-color: #1E1E1E;
+  border-radius: 50%;      
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  opacity: 0.7;             
+  filter: grayscale(100%) brightness(0.4);
+  pointer-events: none;    
+  cursor: default;
+  transition: all 0.3s ease;
+}
+
+.disabled-icon img.icon-image {
+  filter: brightness(0.4) grayscale(100%);
+  transform: none !important;
+}
+
 
 /* --- RESPONSIVE --- */
-@media (max-width: 480px) {
-  .login-title--main,
-  .login-title,
+@media (max-width: 768px) {
   .homepage-title {
-    font-size: 2.4rem;
-    letter-spacing: 3px;
+    font-size: clamp(1.8rem, 5vw, 2.5rem);
   }
 
-  .login-title--sub {
-    font-size: 1.4rem;
+  .homepage-buttons {
+    gap: 1rem;
   }
 
-  .login-form,
-  .registration-form {
-    padding: 1.5rem;
-  }
-
-  .login-button,
-  .registration-button,
   .homepage-button {
-    width: 100%;
-    height: 3rem;
+    width: 90%;
+    height: clamp(50px, 10vw, 70px);
     font-size: 1rem;
-    
   }
 
-  .page-icon img.icon-image {
-    height: 28px;
+  .profile-avatar {
+    width: 160px;
+    height: 160px;
   }
-  
 }
+
+@media (max-width: 480px) {
+  .homepage-title {
+    font-size: 1.8rem;
+  }
+
+  .page-icons {
+    top: 0.5rem;
+    right: 0.5rem;
+  }
+
+  .homepage-button {
+    width: 95%;
+    font-size: 0.9rem;
+  }
+}
+
