@@ -247,18 +247,8 @@ body {
   transform: translateY(-2px); }
 
 
-/* --- IKONY WSZĘDZIE --- */
-.page-icons {
-  display: flex;
-  gap: 1.5rem;
-}
 
-/* Pozycjonowanie ikon */
-.homepage .page-icons {
-  position: absolute;
-  top: 1.5rem;
-  right: 2rem;
-}
+
 
 .login-container .page-icons,
 .registration-container .page-icons {
@@ -268,12 +258,15 @@ body {
 }
 
 .page-icons {
+  position: fixed;       
+  top: 1rem;            
+  right: 1rem;          
   display: flex;
   gap: 1.5rem;
-  position: absolute;
-  top: 1.5rem;
-  right: 2rem;
+  z-index: 1000;        
 }
+
+
 
 .page-icon img.icon-image {
   height: clamp(24px, 3vw, 36px);
@@ -283,15 +276,18 @@ body {
   transition: transform 0.2s ease, filter 0.3s ease;
 }
 
-/* Hovery */
+
+
+
+/* Efekt hover */
 .page-icon.home-icon img.icon-image:hover {
   transform: scale(1.1);
   filter: drop-shadow(0 0 6px #000) drop-shadow(0 0 12px #C9AC6D);
 }
 
+
 .page-icon.user-icon img.icon-image:hover {
   transform: scale(1.1);
-  filter: drop-shadow(0 0 6px #000) drop-shadow(0 0 12px #C9AC6D);
 }
 
 /* --- HOMEPAGE BUTTON DISABLED --- */
