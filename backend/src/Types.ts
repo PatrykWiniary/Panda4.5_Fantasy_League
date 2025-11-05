@@ -70,7 +70,8 @@ export interface Player {
   deaths: number;
   assists: number;
   cs: number;
+  role: string;
+  gold: number;
   region_id: number;
-  role: Role;
-  gold?: number;
+  team_id: number;
 }
