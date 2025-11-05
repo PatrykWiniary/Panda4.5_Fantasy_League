@@ -45,24 +45,67 @@ html, body, #root {
 }
 
 .player-circle {
+    position: relative;
     width: 64px;
     height: 64px;
     border-radius: 50%;
     background-color: rgba(0, 0, 0, 0.8);
-    border: 4px solid #444;
     cursor: pointer;
-    transition: all 0.25s ease;
+    transition: transform 0.25s ease;
     overflow: hidden;
+    z-index: 1;
+}
+
+.player-circle::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    padding: 3px;
+    background: linear-gradient(
+        90deg,
+        #C9AC6D 0%,
+        #141313 25%,
+        #C9AC6D 50%,
+        #141313 75%,
+        #C9AC6D 100%
+    );
+    background-size: 400% 100%;
+    box-sizing: border-box;
+    z-index: -1;
+
+    -webkit-mask:
+        radial-gradient(farthest-side, transparent calc(100% - 3px), #000 100%);
+    mask:
+        radial-gradient(farthest-side, transparent calc(100% - 3px), #000 100%);
+}
+
+.player-circle:not(:hover)::before {
+    animation: none !important;
+    background-position: 0% 0% !important;
+}
+
+.player-circle::after {
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.8);
+    z-index: 0;
 }
 
 .player-circle:hover {
     transform: scale(1.05);
-    border-color: #777;
+}
+.player-circle:hover::before {
+    animation: moveGradient 10s linear infinite;
 }
 
 .player-circle.selected {
-    border-color: #ffcc00;
     transform: scale(1.1);
+}
+.player-circle.selected::before {
+    background: #C9AC6D;
+    animation: none;
 }
 
 .role-icon {
@@ -70,6 +113,7 @@ html, body, #root {
     width: 28px;
     height: 28px;
     object-fit: contain;
+    z-index: 100;
 }
 
 .title {
@@ -98,28 +142,70 @@ html, body, #root {
 }
 
 .btn {
+    position: relative;
     font-size: 1.1rem;
     font-weight: 600;
     padding: 20px 60px;
-    border: 1px solid #635536;
     border-radius: 10px;
     cursor: pointer;
-    transition: background-color 0.25s ease, transform 0.15s ease;
     background-color: #141313;
+    overflow: hidden;
+    z-index: 0;
+    border: none;
+    transition: transform 0.2s ease;
 }
+
+.btn::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 2px;
+    border-radius: inherit;
+    background: linear-gradient(120deg, #C9AC6D, #141313, #C9AC6D);
+    background-size: 300% 300%;
+    -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    z-index: -1;
+    transition: background-position 0.5s ease;
+}
+
+.btn:not(:hover)::before {
+    animation: none !important;
+    background-position: 0% 0% !important;
+}
+
 .btn:hover {
     transform: scale(1.05);
 }
-.btn span{
+
+.btn:hover::before {
+    animation: moveGradient 6s linear infinite;
+}
+
+@keyframes moveGradient {
+    0% {
+        background-position: 0% 50%;
+    }
+    100% {
+        background-position: 300% 50%;
+    }
+}
+
+.btn span {
     background: -webkit-radial-gradient(#C9AC6D, #635536);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+    font-size: 2rem;
 }
+
 
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(0, 0, 0, 0.6); /* darkens background */
+  background-color: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -135,7 +221,7 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   position: relative;
-  color: #d4af37; /* gold text */
+  color: #d4af37;
   box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
 }
 
@@ -143,16 +229,27 @@ html, body, #root {
   position: absolute;
   top: 12px;
   right: 16px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   color: #aaa;
   font-size: 24px;
+  line-height: 1;
   cursor: pointer;
-  transition: color 0.2s;
+  padding: 0;
+  transition: color 0.2s, transform 0.1s ease;
+  z-index: 10;
 }
+
 .close-btn:hover {
   color: #fff;
+  transform: scale(1.1);
 }
+
 
 .modal-header {
     text-align: center;
@@ -208,7 +305,7 @@ html, body, #root {
 }
 
 .player-preview {
-  width: 40%;
+  width: 30%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -218,7 +315,7 @@ html, body, #root {
 }
 
 .preview-image {
-  width: 200px;
+  width: 250px;
   height: auto;
   border-radius: 12px;
   border: 2px solid #C9AC6D;
