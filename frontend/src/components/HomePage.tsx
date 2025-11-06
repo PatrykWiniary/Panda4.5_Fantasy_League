@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import '../styles/LogReg.css';
 import homeIcon from "../assets/home.svg";
 import userIcon from "../assets/user.svg";
@@ -9,8 +9,10 @@ type Item = { id: number; name: string; qty: number };
 export default function App() {
   const [items, setItems] = useState<Item[]>([]);
   const [name, setName] = useState('');
-  const location = useLocation(); 
-  const isHome = location.pathname === "/"; //sprawdzenie ścieżki
+  const [fadeOut, setFadeOut] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isHome = location.pathname === "/";
 
   useEffect(() => {
     fetch('/api/items')
@@ -30,39 +32,52 @@ export default function App() {
     setItems(s => [...s, newItem]);
     setName('');
   };
+  const handleNavigate = (path: string) => {
+    setFadeOut(true);
+    setTimeout(() => {
+      navigate(path);
+    }, 800); // czas animacji fade-out (dopasowany do CSS)
+  };
+
+ const handleLinkClick = (e: React.MouseEvent, to: string) => {
+    // pozwól na otwieranie w nowej karcie / z modyfikatorem
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || (e as any).button === 1) {
+      return; // domyślne zachowanie Link (nowa karta)
+    }
+    e.preventDefault();
+    setFadeOut(true);
+    // czas musi pasować do CSS fade-out (np. 700ms)
+    setTimeout(() => navigate(to), 700);
+  };
+
 
   const hasOngoingLeague = true;
 
   return (
-    <div className="homepage">
+    <div className={`homepage ${fadeOut ? "fade-out" : "fade-in"}`}>
       <div className="page-icons">
-        {/* HOME ICON */}
-        {isHome ? (
-          <div className="page-icon home-icon disabled-icon">
-            <img src={homeIcon} alt="Home (disabled)" className="icon-image" />
-          </div>
-        ) : (
-          <Link to="/" className="page-icon home-icon">
-            <img src={homeIcon} alt="Home" className="icon-image" />
-          </Link>
-        )}
-
-        {/* USER ICON */}
-        <Link to="/profile" className="page-icon user-icon">
-          <img src={userIcon} alt="Profile" className="icon-image" />
-        </Link>
+        <div className="page-icon home-icon disabled-icon">
+          <img src={homeIcon} alt="Home (disabled)" className="icon-image" />
+        </div>
+<Link
+  to="/profile"
+  className="page-icon user-icon"
+  onClick={(e) => handleLinkClick(e, "/profile")}
+>
+  <img src={userIcon} alt="Profile" className="icon-image" />
+</Link>
       </div>
 
       <h1 className="homepage-title">SUMMONER’S LEAGUE</h1>
 
       <div className="homepage-buttons">
-        <Link
+    <Link
           to={hasOngoingLeague ? "/ongleague" : "#"}
           className={`homepage-button ${!hasOngoingLeague ? "disabled" : ""}`}
+          onClick={(e) => hasOngoingLeague && handleLinkClick(e, "/ongleague")}
         >
           ONGOING LEAGUE
         </Link>
-
         <Link to="/joinnewleague" className="homepage-button">
           JOIN NEW LEAGUE
         </Link>

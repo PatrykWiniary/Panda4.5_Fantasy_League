@@ -35,9 +35,13 @@ export default function App() {
         <Link to="/" className="page-icon home-icon">
           <img src={homeIcon} alt="Home" className="icon-image" />
         </Link>
-        <Link to="/profile" className="page-icon user-icon">
-          <img src={userIcon} alt="Profile" className="icon-image" />
-        </Link>
+<Link
+  to="/profile"
+  className="page-icon user-icon"
+  onClick={(e) => handleLinkClick(e, "/profile")}
+>
+  <img src={userIcon} alt="Profile" className="icon-image" />
+</Link>
       </div>
 
       <div className="login-form">

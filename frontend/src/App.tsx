@@ -6,6 +6,7 @@ import ProfilePage from './components/ProfilePage';
 import OngLeaguePage from './components/OngLeague';
 import CreateNewLeaguePage from './components/CreateNewLeague';
 import JoinNewLeaguePage from './components/JoinNewLeague';
+import PageTransition from "./components/PageTransition";
 import "./App.css";
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
@@ -38,6 +39,7 @@ export default function App() {
 
   <BrowserRouter>
     <Routes>
+       <Route element={<PageTransition />}>
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/registration" element={<RegistrationPage />} />
@@ -45,6 +47,7 @@ export default function App() {
       <Route path="/ongleague" element={<OngLeaguePage />} />
       <Route path="/createnewleague" element={<CreateNewLeaguePage />} />
       <Route path="/joinnewleague" element={<JoinNewLeaguePage />} />
+    </Route>
     </Routes>
   </BrowserRouter>
   );
