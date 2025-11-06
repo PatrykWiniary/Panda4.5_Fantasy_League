@@ -31,7 +31,7 @@ export default function App() {
     setName('');
   };
 
-  const hasOngoingLeague = false;
+  const hasOngoingLeague = true;
 
   return (
     <div className="homepage">
@@ -57,17 +57,17 @@ export default function App() {
 
       <div className="homepage-buttons">
         <Link
-          to={hasOngoingLeague ? "/ongoing" : "#"}
+          to={hasOngoingLeague ? "/ongleague" : "#"}
           className={`homepage-button ${!hasOngoingLeague ? "disabled" : ""}`}
         >
           ONGOING LEAGUE
         </Link>
 
-        <Link to="/join" className="homepage-button">
+        <Link to="/joinnewleague" className="homepage-button">
           JOIN NEW LEAGUE
         </Link>
 
-        <Link to="/create" className="homepage-button">
+        <Link to="/createnewleague" className="homepage-button">
           CREATE NEW LEAGUE
         </Link>
       </div>
