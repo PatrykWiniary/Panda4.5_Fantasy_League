@@ -343,6 +343,138 @@ body {
   filter: brightness(0.4) grayscale(100%);
   transform: none !important;
 }
+/* --- ONG LEAGUE LAYOUT --- */
+.ongleague-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 100vh;
+  width: 100vw;
+  background: var(--bg);
+  color: var(--accent);
+  position: relative;
+  overflow: hidden;
+  padding-top: 5rem;
+}
+
+/* --- ONG LEAGUE PAGE --- */
+.ongleague-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 100vh;
+  width: 100vw;
+  background: var(--bg);
+  color: var(--accent);
+  position: relative;
+  overflow: hidden;
+  padding-top: 4rem;
+}
+
+/* Tytuł lobby */
+.league-title {
+  text-align: center;
+  font-size: 2.6rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-top: 2rem;
+  margin-bottom: 3rem;
+  background: linear-gradient(to bottom, #d9bf7a, #a98c46);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* --- GŁÓWNA CZĘŚĆ (avatar + drużyna) --- */
+.league-layout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6rem;
+  width: 100%;
+  max-width: 1200px;
+  flex-grow: 0.5; 
+  margin-top: 2rem; 
+}
+
+/* Lewa sekcja */
+.league-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1rem;
+}
+
+.league-avatar {
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  border: 3px solid var(--accent);
+  box-shadow: 0 0 25px rgba(201, 172, 109, 0.4);
+}
+
+.league-player-name {
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.league-player-stats {
+  font-size: 1.2rem;
+  color: var(--accent-dark);
+}
+
+/* Prawa sekcja (drużyna) */
+.league-right {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.league-champions {
+  display: flex;
+  justify-content: center;
+  gap: 1.2rem;
+}
+
+.league-champion-card {
+  width: 110px;
+  height: 110px;
+  border: 2px solid var(--accent);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(20, 19, 19, 0.6);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.league-champion-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 0 15px rgba(201, 172, 109, 0.4);
+}
+
+.league-champion-icon {
+  width: 70%;
+  height: auto;
+}
+
+/* responsywność */
+@media (max-width: 900px) {
+  .league-content {
+    flex-direction: column;
+    gap: 3rem;
+  }
+
+  .league-champions {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
+
 
 
 /* --- RESPONSIVE --- */

@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import '../styles/LogReg.css'; 
 import homeIcon from "../assets/home.svg"; 
 import userIcon from "../assets/user.svg";
-import avatarIcon from "../assets/faker.svg";
+import avatarIcon from "../assets/user.svg";
 
 export default function ProfilePage() {
   const location = useLocation();
