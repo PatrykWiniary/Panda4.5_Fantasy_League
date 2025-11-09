@@ -1,10 +1,13 @@
-import { fetchAllPlayers, fetchRegionNameById, simulateMatch } from "../db";
+import { fetchAllPlayers, fetchPlayersByTeamId, fetchRegionNameById, simulateMatch, getTeamId } from "../db";
 import { Player } from "../Types";
+import { sampleData } from "../../data/SampleData.json";
 
 export default class FootabalolGame {
   regionId: number = -1;
   regionName: string = "";
   players: Player[] = [];
+  torunamentMVP = {};
+  teams = sampleData.teams;
 
   setRegion(regionId: number = 1) {
     this.regionId = regionId;
@@ -20,40 +23,40 @@ export default class FootabalolGame {
     this.players = fetchAllPlayers(this.regionId);
   }
 
-  /** Simulate a match that randomly updates player stats */
   simulateMatch() {
-    simulateMatch(this.players, this.regionName);
+    return {...simulateMatch(this.players, this.regionName)};
   }
 
   *simulateTournament(region: number, gameNumber: number) {
     let i = 0;
     while (i < gameNumber) {
-      this.simulateMatch();
+      const {region, teams, winningTeam, MVP} = this.simulateMatch();
+      this.torunamentMVP = MVP;
+      let team1 = getTeamId(teams[0]);
+      let team2 = getTeamId(teams[1]);
       yield {
         region: region,
-        players: [...fetchAllPlayers(region)],
+        teams: teams,//2 teams
+        winner: winningTeam,
+        MVP: MVP,
+        players: [...fetchPlayersByTeamId(team1.id), ...fetchPlayersByTeamId(team2.id)],
+        //players: [],
         gameNumber: i + 1,
       };
       i++;
     }
 
-    const kda = (p:Player) => p.kills + 0.8 * p.deaths + 0.5 * p.assists;
-    const avg = (arr:Player[]) => arr.reduce((a, p) => a + kda(p), 0) / arr.length;
-    const players = fetchAllPlayers(region);
-
-    const blue = avg(players.slice(0, 5));
-    const red = avg(players.slice(5));
-
     return {
       region: region,
-      players: [...fetchAllPlayers(region)],
-      winner: blue > red ? "Blue" : "Red",
+        teams: this.teams,//all teams
+        winner: "SKT T1",
+        MVP: this.torunamentMVP,
+        players: [...fetchAllPlayers(this.regionId)],
+        //players: [],
+        numberOfGames: i,
     };
-
-    //include gold as a wincon
   }
 
-  /** Log stats for a specific player by name */
   logPlayerStats(name: string) {
     const player = this.players.find((p) => p.name === name);
     if (!player) {

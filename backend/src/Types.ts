@@ -72,6 +72,7 @@ export interface Player {
   cs: number;
   role: string;
   gold: number;
+  score: number,
   region_id: number;
   team_id: number;
 }

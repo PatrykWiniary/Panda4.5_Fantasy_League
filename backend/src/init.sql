@@ -24,12 +24,14 @@ CREATE TABLE
   );
 
 -- Regions table
+DROP TABLE regions;
 CREATE TABLE IF NOT EXISTS regions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL
 );
 
 -- Tournaments table
+DROP TABLE tournaments;
 CREATE TABLE IF NOT EXISTS tournaments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
@@ -38,16 +40,16 @@ CREATE TABLE IF NOT EXISTS tournaments (
 );
 
 -- Teams table (each team belongs to 1 tournament & region)
+DROP TABLE teams;
 CREATE TABLE IF NOT EXISTS teams (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
-  region_id INTEGER NOT NULL,
   tournament_id INTEGER NOT NULL,
-  FOREIGN KEY (region_id) REFERENCES regions (id) ON DELETE CASCADE,
   FOREIGN KEY (tournament_id) REFERENCES tournaments (id) ON DELETE CASCADE
 );
 
 -- Players table (each player belongs to 1 team & region)
+DROP TABLE players;
 CREATE TABLE IF NOT EXISTS players (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
@@ -55,8 +57,8 @@ CREATE TABLE IF NOT EXISTS players (
   deaths INTEGER NOT NULL,
   assists INTEGER NOT NULL,
   cs INTEGER NOT NULL,
-  -- role TEXT NOT NULL,
   gold INTEGER NOT NULL DEFAULT 0,
+  score INTEGER NOT NULL DEFAULT 0,
   region_id INTEGER NOT NULL,
   team_id INTEGER NOT NULL,
   FOREIGN KEY (region_id) REFERENCES regions (id) ON DELETE CASCADE,
@@ -64,6 +66,7 @@ CREATE TABLE IF NOT EXISTS players (
 );
 
 -- Matches table (each match belongs to 1 tournament & region, between 2 teams)
+DROP TABLE matches;
 CREATE TABLE IF NOT EXISTS matches (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   region_id INTEGER NOT NULL,

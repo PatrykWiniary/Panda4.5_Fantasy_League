@@ -704,13 +704,18 @@ function test(){
   const tournament = new FootabalolGame();
   tournament.setRegion(1);
 
-  const games = tournament.simulateTournament(1, 5);
-  // console.log(games.next().value);
-  // console.log(games.next().value);
-  // console.log(games.next().value);
-  // console.log(games.next().value);
-  // console.log(games.next().value);
-  // console.log(games.next().value);
+  const games = tournament.simulateTournament(1, 10);
+  console.log(games.next().value);
+  console.log(games.next().value);
+  console.log(games.next().value);
+  console.log(games.next().value);
+  console.log(games.next().value);
+  console.log(games.next().value);
+  console.log(games.next().value);
+  console.log(games.next().value);
+  console.log(games.next().value);
+  console.log(games.next().value);
+  console.log(games.next().value);//summary
 }
 test();
 

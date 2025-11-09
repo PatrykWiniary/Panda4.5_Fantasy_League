@@ -21,6 +21,7 @@ import {
   ensureUniqueMultipliers,
 } from "./deckManager";
 import { parseDeckPayload } from "./deckIO";
+import {sampleData} from "../data/SampleData.json"
 
 const DB_PATH = path.join(__dirname, "..", "data", "app.db");
 const INIT_SQL = path.join(__dirname, "init.sql");
@@ -678,34 +679,51 @@ export function loginUser(mail: string, password: string) {
   return safeUser;
 }
 
-export function simulateData() {
+function cleanDB(){
   db.prepare("DELETE FROM players").run();
+  db.prepare("DELETE FROM sqlite_sequence WHERE name='players';")
+  
   db.prepare("DELETE FROM matches").run();
+  db.prepare("DELETE FROM sqlite_sequence WHERE name='matches';")
+  
   db.prepare("DELETE FROM regions").run();
+  db.prepare("DELETE FROM sqlite_sequence WHERE name='regions';")
+  
+  db.prepare("DELETE FROM teams").run();
+  db.prepare("DELETE FROM sqlite_sequence WHERE name='teams';")
+  
+  db.prepare("DELETE FROM tournaments").run();
+  db.prepare("DELETE FROM sqlite_sequence WHERE name='tournaments';")
+}
+
+export function simulateData() {
+  cleanDB();
 
   const regionArr = ["Korea", "North America", "Europe"];
   const regionStmt = db.prepare("INSERT INTO regions (name) VALUES (?)");
-
-
   const regionIds = [];
   for (const region of regionArr) {
     const info = regionStmt.run(region);
     regionIds.push(Number(info.lastInsertRowid));
   }
-
   const primaryRegionId = regionIds[0] ?? 1;
-  let samplePlayers: Array<{ name: string; role: Role | null}> = [];
-  let sampleTeams: Array<{name: string}> = [];
-  /*
-  CREATE TABLE IF NOT EXISTS teams (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  region_id INTEGER NOT NULL,
-  tournament_id INTEGER NOT NULL,
-  FOREIGN KEY (region_id) REFERENCES regions (id) ON DELETE CASCADE,
-  FOREIGN KEY (tournament_id) REFERENCES tournaments (id) ON DELETE CASCADE
-  );
-  */
+
+  const tournaments = ["LCK", "LCK Academy", "LCK Challenge League"];
+  const tournamentStmt = db.prepare("INSERT INTO tournaments (name, region_id) VALUES (?, ?)");
+  const tournamentIds = [];
+  for(const tour of tournaments){
+    const info = tournamentStmt.run(tour, primaryRegionId);
+    tournamentIds.push(Number(info.lastInsertRowid));
+  }
+  const tournamentId = tournamentIds[0] ?? 1;
+  
+  let sampleTeams: string[] = sampleData.teams;
+  const teamsStmt = db.prepare("INSERT INTO teams (name, tournament_id) VALUES (?, ?)");
+  for(const team of sampleTeams){
+    teamsStmt.run(team, tournamentId);
+  }
+
+  let samplePlayers: Array<{ name: string | undefined; role: Role | null, team_id: number | null}> = [];
   
   for(let i = 1; i <= 40; i++){
     let roleID = i % 5;
@@ -730,18 +748,19 @@ export function simulateData() {
         break;
     }
     samplePlayers.push({
-      name: `Faker${i}`,
-      role: role
+      name: sampleData.players[i - 1]?.name,
+      role: role,
+      team_id: (i % 5) + 1
     })
   }
 
   const playerStmt = db.prepare(`
-    INSERT INTO players (name, kills, deaths, assists, cs, region_id, role, gold)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO players (name, kills, deaths, assists, cs, region_id, role, gold, score, team_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  for (const { name, role } of samplePlayers) {
-    playerStmt.run(name, 0, 0, 0, 0, primaryRegionId, role, 0);
+  for (const { name, role, team_id } of samplePlayers) {
+    playerStmt.run(name, 0, 0, 0, 0, primaryRegionId, role, 0, 0, team_id);
   }
 
   try {
@@ -750,37 +769,73 @@ export function simulateData() {
     console.warn("Failed to refresh debug users after simulateData()", error);
   }
 
-  console.log(samplePlayers)
+}
+
+function calculateScore(kills:number, deaths:number, assists:number, cs:number, gold:number):number{
+  const score =
+    (kills * 3) +
+    (assists * 1.5) -
+    (deaths * 2) +
+    (cs / 10) +
+    (gold / 1000);
+
+  return Number(score.toFixed(2));
 }
 
 export function simulateMatch(players: Player[], regionName: string) {
+  let teams:string[] = [...sampleData.teams];
+  let MVP = {name: "", score: 0};
+  
+  while (teams.length > 2) {
+    const randomIndex = Math.floor(Math.random() * teams.length);
+    teams.splice(randomIndex, 1);
+  }
+  let winningTeam = teams[Math.floor(Math.random() * teams.length)];
+
   for (const player of players) {
     const deltaKills = Math.floor(Math.random() * 5);
     const deltaDeaths = Math.floor(Math.random() * 3);
     const deltaAssists = Math.floor(Math.random() * 4);
     const deltaCs = Math.floor(Math.random() * 200);
-    const deltaGold = Math.floor(Math.random() * 1500);
-
+    const deltaGold = Math.floor(Math.random() * 12000);
+    
     player.kills += deltaKills;
     player.deaths += deltaDeaths;
     player.assists += deltaAssists;
     player.cs += deltaCs;
-    player.gold = (player.gold ?? 0) + deltaGold;
+    player.gold += deltaGold;
+    
+    const deltaScore = calculateScore(deltaKills, deltaDeaths, deltaAssists, deltaCs, deltaGold);
+    player.score += deltaScore;
+    if(deltaScore > MVP.score){
+      MVP.name = player.name;
+      MVP.score = deltaScore;
+    }
 
     db.prepare(
-      "UPDATE players SET kills = ?, deaths = ?, assists = ?, cs = ?, gold = ?, region_id = ? WHERE id = ?"
+      "UPDATE players SET kills = ?, deaths = ?, assists = ?, cs = ?, gold = ?, score = ? WHERE id = ?"
     ).run(
       player.kills,
       player.deaths,
       player.assists,
       player.cs,
       player.gold,
-      player.region_id,
+      player.score,
       player.id
     );
   }
 
-  console.log(`Simulated match in ${regionName}`);
+  // console.log(`Simulated match in ${regionName}`);
+  // console.log("Team: " + teams[0] + " vs Team: " + teams[1]);
+  // console.log("Winner: " + winningTeam);
+  // console.log("MVP: " + MVP.name + ", score = " + MVP.score);
+  const returnData = {
+    region: regionName,
+    teams: teams,
+    winningTeam: winningTeam,
+    MVP: MVP
+  }
+  return returnData;
 }
 
 export function fetchRegionNameById(regionId: number): string {
@@ -793,4 +848,14 @@ export function fetchRegionNameById(regionId: number): string {
 export function fetchAllPlayers(regionId: number): Player[] {
   const stmt = db.prepare("SELECT * FROM players WHERE region_id = ?");
   return stmt.all(regionId) as Player[];
+}
+
+export function fetchPlayersByTeamId(teamId: number):Player[]{
+  const stmt = db.prepare("SELECT * FROM players WHERE players.region_id = ?");
+  return stmt.all(teamId) as Player[];
+}
+
+export function getTeamId(teamName: string):number{
+  const stmt = db.prepare("SELECT id from teams WHERE name = ?");
+  return stmt.get(teamName) as number;
 }
