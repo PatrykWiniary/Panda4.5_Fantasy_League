@@ -45,6 +45,7 @@ import {
   isPasswordStrong,
   PASSWORD_REQUIREMENTS_DESCRIPTION,
 } from "./validation";
+import FootabalolGame from "./API/FootbalolGame";
 
 const parsePositiveIntFromEnv = (value: string | undefined, fallback: number) => {
   const parsed = Number(value);
@@ -697,6 +698,21 @@ app.post("/api/tournaments/simulate", (req, res) => {
     res.status(500).json({ error: "TOURNAMENT_SIMULATION_FAILED" });
   }
 });
+
+function test(){
+  simulateData();
+  const tournament = new FootabalolGame();
+  tournament.setRegion(1);
+
+  const games = tournament.simulateTournament(1, 5);
+  // console.log(games.next().value);
+  // console.log(games.next().value);
+  // console.log(games.next().value);
+  // console.log(games.next().value);
+  // console.log(games.next().value);
+  // console.log(games.next().value);
+}
+test();
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {

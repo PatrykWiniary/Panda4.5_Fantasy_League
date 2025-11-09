@@ -682,12 +682,10 @@ export function simulateData() {
   db.prepare("DELETE FROM players").run();
   db.prepare("DELETE FROM matches").run();
   db.prepare("DELETE FROM regions").run();
-  db.prepare(
-    "DELETE FROM sqlite_sequence WHERE name IN ('players', 'matches', 'regions')"
-  ).run();
 
   const regionArr = ["Korea", "North America", "Europe"];
   const regionStmt = db.prepare("INSERT INTO regions (name) VALUES (?)");
+
 
   const regionIds = [];
   for (const region of regionArr) {
@@ -696,18 +694,46 @@ export function simulateData() {
   }
 
   const primaryRegionId = regionIds[0] ?? 1;
-  const samplePlayers: Array<{ name: string; role: Role }> = [
-    { name: "Stonewall", role: "Top" },
-    { name: "FlayMaster", role: "Jgl" },
-    { name: "Arcana", role: "Mid" },
-    { name: "Skybolt", role: "Adc" },
-    { name: "Emberlight", role: "Supp" },
-    { name: "Riftbreaker", role: "Top" },
-    { name: "Phantom V", role: "Jgl" },
-    { name: "Sage of Dawn", role: "Mid" },
-    { name: "Scarlet Viper", role: "Adc" },
-    { name: "Warden Sol", role: "Supp" },
-  ];
+  let samplePlayers: Array<{ name: string; role: Role | null}> = [];
+  let sampleTeams: Array<{name: string}> = [];
+  /*
+  CREATE TABLE IF NOT EXISTS teams (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  region_id INTEGER NOT NULL,
+  tournament_id INTEGER NOT NULL,
+  FOREIGN KEY (region_id) REFERENCES regions (id) ON DELETE CASCADE,
+  FOREIGN KEY (tournament_id) REFERENCES tournaments (id) ON DELETE CASCADE
+  );
+  */
+  
+  for(let i = 1; i <= 40; i++){
+    let roleID = i % 5;
+    let role:Role | null = null;
+    switch (roleID) {
+      case 0:
+        role = "Top"   
+        break;
+      case 1:
+        role = "Jgl"   
+        break;
+      case 2:
+        role = "Mid"   
+        break;
+      case 3:
+        role = "Adc"   
+        break;
+      case 4:
+        role = "Supp"   
+        break;
+      default:
+        break;
+    }
+    samplePlayers.push({
+      name: `Faker${i}`,
+      role: role
+    })
+  }
 
   const playerStmt = db.prepare(`
     INSERT INTO players (name, kills, deaths, assists, cs, region_id, role, gold)
@@ -723,6 +749,8 @@ export function simulateData() {
   } catch (error) {
     console.warn("Failed to refresh debug users after simulateData()", error);
   }
+
+  console.log(samplePlayers)
 }
 
 export function simulateMatch(players: Player[], regionName: string) {
