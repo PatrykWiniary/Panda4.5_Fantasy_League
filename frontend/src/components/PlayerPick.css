@@ -108,6 +108,14 @@ html, body, #root {
     animation: none;
 }
 
+.player-circle-label {
+    position: relative;
+    z-index: 2;
+    font-size: 0.65rem;
+    letter-spacing: 2px;
+    color: white;
+}
+
 .role-icon {
     margin-top: -20px;
     width: 28px;
@@ -200,7 +208,6 @@ html, body, #root {
     -webkit-text-fill-color: transparent;
     font-size: 2rem;
 }
-
 
 .modal-overlay {
   position: fixed;

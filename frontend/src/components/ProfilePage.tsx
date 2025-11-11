@@ -1,57 +1,48 @@
-import { Link, useLocation } from 'react-router-dom';
-import '../styles/LogReg.css'; 
-import homeIcon from "../assets/home.svg"; 
+import { Link } from "react-router-dom";
+import "../styles/LogReg.css";
+import homeIcon from "../assets/home.svg";
 import userIcon from "../assets/user.svg";
 import avatarIcon from "../assets/user.svg";
+import { useSession } from "../context/SessionContext";
 
 export default function ProfilePage() {
-  const location = useLocation();
-  const isProfile = location.pathname === "/profile"; //sprawdzenie ścieżki
-
-  const player = {
-    name: "<JoeMama>",
-    avatar: avatarIcon, 
-    champions: [
-      { id: 1, icon: "/path/to/champ1.png" },
-      { id: 2, icon: "/path/to/champ2.png" },
-      { id: 3, icon: "/path/to/champ3.png" },
-      { id: 4, icon: "/path/to/champ4.png" },
-      { id: 5, icon: "/path/to/champ5.png" },
-    ],
-  };
+  const { user, logout } = useSession();
 
   return (
     <div className="profile-page">
       <div className="page-icons">
-        {/* HOME ICON */}
         <Link to="/" className="page-icon home-icon">
           <img src={homeIcon} alt="Home" className="icon-image" />
         </Link>
+        <div className="page-icon user-icon disabled-icon">
+          <img src={userIcon} alt="Profile" className="icon-image" />
+        </div>
+      </div>
 
-        {/* USER ICON (disabled on ProfilePage) */}
-        {isProfile ? (
-          <div className="page-icon user-icon disabled-icon">
-            <img src={userIcon} alt="Profile (disabled)" className="icon-image" />
+      {user ? (
+        <>
+          <div className="profile-header">
+            <img src={avatarIcon} alt="Avatar" className="profile-avatar" />
+            <h2 className="player-name">{user.name}</h2>
+            <p className="profile-meta">
+              Score: {user.score ?? 0} • Gold: {user.currency}
+            </p>
+            <button className="login-button" onClick={logout}>
+              Sign out
+            </button>
           </div>
-        ) : (
-          <Link to="/profile" className="page-icon user-icon">
-            <img src={userIcon} alt="Profile" className="icon-image" />
+          <p className="profile-hint">
+            Head to “Join new league” to draft your next roster.
+          </p>
+        </>
+      ) : (
+        <div className="profile-empty">
+          <h2>You are not signed in.</h2>
+          <Link to="/login" className="homepage-button">
+            Go to login
           </Link>
-        )}
-      </div>
-
-      <div className="profile-header">
-        <img src={player.avatar} alt="Avatar" className="profile-avatar" />
-        <h2 className="player-name">{player.name}</h2>
-      </div>
-
-      <div className="profile-champions">
-        {player.champions.map(champ => (
-          <div key={champ.id} className="champion-card">
-            <img src={champ.icon} alt={`Champion ${champ.id}`} className="champion-icon" />
-          </div>
-        ))}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

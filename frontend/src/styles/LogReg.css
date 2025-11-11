@@ -181,6 +181,19 @@ body {
   letter-spacing: 1px;
 }
 
+.form-status {
+  margin-top: 1rem;
+  font-size: 1rem;
+  color: #f3c694;
+}
+
+.profile-hint {
+  margin-top: 1.5rem;
+  font-size: 1rem;
+  color: #f6e7c6;
+  line-height: 1.6;
+}
+
 /* --- HOMEPAGE --- */
 .homepage {
   position: relative;
@@ -211,6 +224,12 @@ body {
   background-clip: text;
   color: transparent;
   text-shadow: 0 0 5px rgba(0, 0, 0, 0.4);
+}
+
+.homepage-subtitle {
+  font-size: 1.2rem;
+  margin-bottom: 2rem;
+  color: #f6e7c6;
 }
 
 /* Sekcja przycisków */
