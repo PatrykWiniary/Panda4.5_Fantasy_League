@@ -1,0 +1,694 @@
+:root {
+  --bg: #141313;
+  --accent: #C9AC6D;
+  --accent-dark: #635536;
+  --text-dark: #141313;
+}
+
+/* --- GLOBAL --- */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+  background: var(--bg);
+  font-family: 'Outfit', sans-serif;
+  color: var(--accent);
+}
+
+.login-container,
+.registration-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  width: 100vw;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+/* --- FORM --- */
+.login-form,
+.registration-form {
+  width: 100%;
+  max-width: 500px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 3rem;
+}
+
+
+/* --- MAIN TITLES --- */
+.login-title--main,
+.login-title {
+  white-space: nowrap;
+  font-size: 3.5rem;
+  font-weight: 700;
+  line-height: 1.3;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 6px;
+  text-align: center;
+  background: radial-gradient(circle at 50% 40%, var(--accent) 20%, var(--accent-dark) 80%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 5px rgba(0, 0, 0, 0.4);
+}
+
+.login-title--sub {
+  white-space: nowrap;
+  font-size: 2.2rem;
+  font-weight: 700;
+  letter-spacing: 4px;
+  margin-bottom: 2rem;
+  text-transform: uppercase;
+  background: radial-gradient(circle at center, var(--accent) 20%, var(--accent-dark) 80%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 0 5px rgba(0, 0, 0, 0.4);
+}
+
+.login-container .login-input,
+.registration-container .login-input {
+  width: 100%;
+  max-width: 500px;
+  padding: 1.2rem 1.5rem;
+  border-radius: 19px;
+  border: 1.5px solid var(--accent-dark);
+  background-color: var(--bg);
+  color: var(--accent);
+  font-size: 1.3rem;
+  outline: none;
+  margin-bottom: 1.5rem;
+  text-align: center;
+    display: flex;
+  justify-content: center;
+}
+
+
+.login-container .login-input::placeholder,
+.registration-container .login-input::placeholder {
+  
+  color: var(--accent-dark);
+  opacity: 0.8;
+  font-size: 1.2rem;
+  text-align: center;
+}
+
+.login-container .login-input:focus,
+.registration-container .login-input:focus {
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 12px rgba(201, 172, 109, 0.4);
+}
+
+/* --- ACTIONS (BUTTONS & LINKS) --- */
+.login-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin-top: 1.5rem;
+  gap: 1.5rem;
+}
+.login-button,
+.registration-button {
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14rem;
+  height: 4rem;
+  padding: 0 2rem;
+  background-color: var(--accent); /* normalny kolor */
+  color: var(--text-dark);
+  border: none;
+  border-radius: 24px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.3s ease;
+}
+
+.login-button:hover,
+.registration-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6);
+  background: linear-gradient(to bottom, #C9AC6D 0%, #FFFFFF 20%);
+}
+
+
+.login-button:hover,
+.registration-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6);
+  background: linear-gradient(to bottom, var(--accent) 0%, #BFA96B 40%, #AD9767 80%);
+}
+
+/* --- LINKS --- */
+.login-forgot,
+.register-link {
+  white-space: nowrap;
+  font-size: 1.1rem;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.login-forgot:hover,
+.register-link:hover {
+  color: #E0C878;
+}
+
+/* --- REGISTER SECTION --- */
+.login-register {
+  text-align: center;
+  margin-top: 2rem;
+  color: var(--accent);
+  font-size: 1.1rem;
+  letter-spacing: 1px;
+}
+
+/* --- HOMEPAGE --- */
+.homepage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  min-height: 100vh;
+  width: 100vw;
+  background: var(--bg);
+  color: var(--accent);
+  max-width: 100%;
+  padding: 1rem;
+  overflow-x: hidden; /* zapobiega przesuwaniu poziomemu */
+}
+
+/* Tytuł główny */
+.homepage-title {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 700;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  margin-bottom: 3rem;
+  background: radial-gradient(circle at 50% 40%, var(--accent) 20%, var(--accent-dark) 80%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 5px rgba(0, 0, 0, 0.4);
+}
+
+/* Sekcja przycisków */
+.homepage-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+/* Przyciski homepage */
+.homepage-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 420px; 
+  height: 75px;
+  font-size: 1.3rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  border: 1.5px solid var(--accent);
+  border-radius: 12px;
+  color: var(--accent);
+  background: transparent;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+
+.homepage-button:hover { 
+  background: var(--accent); 
+  color: var(--text-dark); 
+  box-shadow: 0 0 12px rgba(201, 172, 109, 0.4); 
+  transform: translateY(-2px); }
+
+
+
+
+
+.login-container .page-icons,
+.registration-container .page-icons {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+}
+
+.page-icons {
+  position: fixed;       
+  top: 1rem;            
+  right: 1rem;          
+  display: flex;
+  gap: 1.5rem;
+  z-index: 1000;        
+}
+
+
+
+.page-icon img.icon-image {
+  height: clamp(24px, 3vw, 36px);
+  width: auto;
+  object-fit: contain;
+  cursor: pointer;
+  transition: transform 0.2s ease, filter 0.3s ease;
+}
+
+
+
+
+/* Efekt hover */
+.page-icon.home-icon img.icon-image:hover {
+  transform: scale(1.1);
+  filter: drop-shadow(0 0 6px #000) drop-shadow(0 0 12px #C9AC6D);
+}
+
+
+.page-icon.user-icon img.icon-image:hover {
+  transform: scale(1.1);
+  filter: drop-shadow(0 0 6px #000) drop-shadow(0 0 12px #C9AC6D);
+}
+
+/* --- HOMEPAGE BUTTON DISABLED --- */
+.homepage-button.disabled {
+  background: #1E1E1E;
+  color: #555;
+  border: 1.5px solid #1E1E1E;
+  pointer-events: none;
+  box-shadow: none;
+  transform: none;
+  cursor: default;
+}
+.profile-avatar{
+  width: 236px;
+  height: 236px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 1.5rem;
+}
+
+.champion-card{
+  width: 120px;
+  height: 120px;
+  border-radius: 12px;
+  object-fit: cover;
+  margin: 0.5rem;
+  border: 2px solid var(--accent);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+.profile-champions{
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.disabled-icon {
+  background-color: #1E1E1E;
+  border-radius: 50%;      
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  opacity: 0.7;             
+  filter: grayscale(100%) brightness(0.4);
+  pointer-events: none;    
+  cursor: default;
+  transition: all 0.3s ease;
+}
+
+.disabled-icon img.icon-image {
+  filter: brightness(0.4) grayscale(100%);
+  transform: none !important;
+}
+/* === ONG LEAGUE FINAL CLEAN FIXED === */
+
+.ongleague-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 100vh;
+  width: 100vw;
+  color: var(--accent);
+  overflow: hidden;
+
+  /* kluczowa zmiana — pełna mapa, nieprzycięta */
+  background: url("/assets/map-background.jpg") center center no-repeat;
+  background-size: contain; /* zamiast cover — nic nie przytnie */
+  background-color: var(--bg); /* wypełnienie po bokach */
+  background-attachment: fixed; /* opcjonalne — lekki efekt paralaksy */
+}
+
+
+.ongleague-page::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25); /* mniej ciemny overlay */
+  z-index: 0;
+}
+/* === FADE-IN EFFECT przy przejściu do ongoingLeague === */
+.ongoing-league-page {
+  opacity: 0;
+  animation: fadeInPage 1.3s ease-in-out forwards;
+}
+
+@keyframes fadeInPage {
+  0% {
+    opacity: 0;
+    transform: scale(1.02);
+    filter: blur(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+}
+
+/* --- LOBBY TITLE --- */
+.league-title-bg {
+  position: relative;
+  background: rgba(0, 0, 0, 0.55); /* delikatne ciemne tło */
+  backdrop-filter: blur(2px); /* bardzo subtelny blur, prawie niewidoczny */
+  -webkit-backdrop-filter: blur(2px);
+  padding: 1.2rem 4rem;
+  border-radius: 0.5rem;
+  margin-top: 2.5rem;
+  margin-bottom: 2rem;
+  z-index: 2;
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.4); /* miękki cień, bez halo */
+  border: none; /* brak złotych ramek */
+}
+
+.league-title {
+  text-align: center;
+  font-size: 2.8rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #C9AC6D; /* czysty złoty kolor */
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.6); /* subtelne pogłębienie */
+}
+
+
+
+/* --- GŁÓWNY UKŁAD --- */
+.league-layout {
+  display: flex;
+  align-items: center; /* Avatar i drużyna w jednej linii */
+  justify-content: center;
+  gap: 5rem;
+  width: 100%;
+  max-width: 1200px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Lewa kolumna (gracz) */
+.league-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: center;
+  color: var(--accent);
+  gap: 0.3rem;
+
+  /* ↓ kluczowa zmiana ↓ */
+  margin-top: 90px; 
+}
+
+.league-avatar {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  border: 3px solid var(--accent);
+  box-shadow: 0 0 25px rgba(201, 172, 109, 0.5);
+  object-fit: cover;
+}
+
+/* --- Teksty pod graczem (OSTATECZNA WERSJA) --- */
+.league-player-name {
+  font-size: 2rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.5px;
+  color: var(--accent) !important;
+  text-shadow: 0 0 8px rgba(201, 172, 109, 0.4);
+  margin-top: 0.1rem !important;
+}
+
+.league-player-rank {
+  font-size: 2.4rem !important; /* większy, bardziej widoczny */
+  color: var(--accent) !important; /* ten sam złoty */
+  font-weight: 800 !important;
+  text-shadow: 0 0 12px rgba(201, 172, 109, 0.6);
+  margin-top: -1.1rem !important;
+}
+
+.league-player-points {
+  font-size: 1.8rem !important; /* wyraźnie większy */
+  color: var(--accent) !important; /* jednolity złoty */
+  font-weight: 600 !important;
+  margin-top: -1.1rem !important;
+  text-shadow: 0 0 10px rgba(201, 172, 109, 0.5);
+}
+
+
+/* === POPRAWKA: IKONY RÓL POD PORTRETAMI === */
+
+.league-champions {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 2.2rem;
+  margin-top: 1.5rem;
+}
+
+
+.league-champion-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  border: none;
+  background: none;
+  box-shadow: none;
+  transition: transform 0.3s ease;
+}
+
+
+/* Portret gracza */
+.league-champion-portrait {
+  width: 150px;
+  height: 180px;
+  border-radius: 16px;
+  border: 2px solid var(--accent);
+  object-fit: cover;
+  box-shadow: 0 0 25px rgba(201, 172, 109, 0.4);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  margin-bottom: 0.7rem;
+}
+.league-champion-portrait:hover {
+  transform: translateY(-4px) scale(1.05);
+  box-shadow: 0 0 35px rgba(201, 172, 109, 0.65);
+}
+
+.league-role-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  background: none;
+  margin-top: 0.2rem;
+}
+/* Ikona roli */
+.league-role-icon {
+  width: 50px;
+  height: auto;
+  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.6));
+  transition: transform 0.25s ease;
+}
+
+/* --- Efekt hover tylko dla zdjęcia gracza --- */
+.league-champion-card:hover .league-champion-portrait {
+  transform: translateY(-4px) scale(1.05);
+  box-shadow: 0 0 35px rgba(201, 172, 109, 0.65);
+}
+
+/* --- Ikona roli reaguje razem z portretem (powiększa się), ale bez glow --- */
+.league-champion-card:hover .league-role-icon {
+  transform: scale(1.1);
+  filter: drop-shadow(0 0 6px rgba(0, 0, 0, 0.8)); /* tylko cień, bez blasku */
+}
+/* --- Teksty pod graczem --- */
+.league-player-name {
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.league-player-rank {
+  font-size: 1.8rem;
+  color: var(--accent);
+  font-weight: 800;
+  text-shadow: 0 0 8px rgba(201, 172, 109, 0.4);
+}
+
+.league-player-points {
+  font-size: 1.2rem;
+  color: var(--accent-dark);
+}
+
+/* PAGE TRANSITION UTILITIES */
+.fade-in {
+  animation: fadeInPage 0.2s ease-out forwards;
+}
+
+.fade-out {
+  animation: fadeOutPage 0.1s ease-in forwards;
+}
+
+@keyframes fadeInPage {
+  0% {
+    opacity: 0;
+    transform: scale(1.02);
+    filter: blur(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes fadeOutPage {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.98);
+    filter: blur(6px);
+  }
+}
+
+/* Jeżeli chcesz, żeby główny kontener blokował interakcję podczas animacji: */
+.fade-out, .fade-in {
+  pointer-events: auto;
+}
+
+.page-transition-wrapper {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  transition: opacity 0.7s ease, transform 0.7s ease, filter 0.7s ease;
+}
+
+.page-transition-wrapper.fade-in {
+  opacity: 1;
+  transform: scale(1);
+  filter: blur(0);
+}
+
+.page-transition-wrapper.fade-out {
+  opacity: 0;
+  transform: scale(0.98);
+  filter: blur(6px);
+  pointer-events: none; /* zapobiega kliknięciom w trakcie przejścia */
+}
+
+/* --- RESPONSYWNOŚĆ --- */
+@media (max-width: 1000px) {
+  .league-layout {
+    flex-direction: column;
+    gap: 3rem;
+  }
+
+  .league-champions {
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .league-champion-card {
+    width: 95px;
+  }
+
+  .league-champion-portrait {
+    height: 100px;
+  }
+}
+
+/* responsywność — na mniejszych ekranach mniej obniżamy */
+@media (max-width: 900px) {
+  .league-left {
+    margin-top: 30px;
+  }
+}
+
+
+/* --- RESPONSIVE --- */
+@media (max-width: 768px) {
+  .homepage-title {
+    font-size: clamp(1.8rem, 5vw, 2.5rem);
+  }
+
+  .homepage-buttons {
+    gap: 1rem;
+  }
+
+  .homepage-button {
+    width: 90%;
+    height: clamp(50px, 10vw, 70px);
+    font-size: 1rem;
+  }
+
+  .profile-avatar {
+    width: 160px;
+    height: 160px;
+  }
+}
+
+@media (max-width: 480px) {
+  .homepage-title {
+    font-size: 1.8rem;
+  }
+
+  .page-icons {
+    top: 0.5rem;
+    right: 0.5rem;
+  }
+
+  .homepage-button {
+    width: 95%;
+    font-size: 0.9rem;
+  }
+}
+
