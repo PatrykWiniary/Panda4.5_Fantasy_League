@@ -11,6 +11,8 @@ import {
   DeckSummary,
   Player,
   Role,
+  Region,
+  Team,
 } from "./Types";
 import {
   createDeck,
@@ -253,6 +255,57 @@ const DEBUG_USER_SEEDS: DebugUserSeed[] = [
     ],
   },
 ];
+
+const ROLE_ORDER: Role[] = ["Top", "Jgl", "Mid", "Adc", "Supp"];
+
+export type PlayerFilters = {
+  role?: Role;
+  regionId?: number;
+  teamId?: number;
+};
+
+type PlayerOverviewRow = {
+  id: number;
+  name: string;
+  role: Role;
+  kills: number;
+  deaths: number;
+  assists: number;
+  cs: number;
+  gold: number;
+  score: number;
+  region_id: number;
+  team_id: number;
+  teamName: string;
+  regionName: string;
+  tournamentId: number;
+  tournamentName: string;
+};
+
+export type PlayerOverview = {
+  id: number;
+  name: string;
+  role: Role;
+  kills: number;
+  deaths: number;
+  assists: number;
+  cs: number;
+  gold: number;
+  score: number;
+  region: Region;
+  team: {
+    id: number;
+    name: string;
+    tournamentId: number;
+    tournamentName: string;
+  };
+};
+
+export type TeamOverview = Team & {
+  tournamentName: string;
+  regionName: string;
+  playerCount: number;
+};
 
 function calculateSeedDeckValue(deckSeed: DebugDeckCardSeed[]): number {
   return deckSeed.reduce((total, card) => total + card.value, 0);
@@ -679,6 +732,172 @@ export function loginUser(mail: string, password: string) {
   return safeUser;
 }
 
+export function getRegions(): Region[] {
+  const stmt = db.prepare("SELECT id, name FROM regions ORDER BY id");
+  return stmt.all() as Region[];
+}
+
+export function getTeamsOverview(regionId?: number): TeamOverview[] {
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+
+  if (typeof regionId === "number" && Number.isInteger(regionId)) {
+    clauses.push("r.id = ?");
+    params.push(regionId);
+  }
+
+  const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
+  const rows = db
+    .prepare(
+      `
+      SELECT
+        t.id,
+        t.name,
+        t.tournament_id as tournamentId,
+        r.id as regionId,
+        r.name as regionName,
+        tr.name as tournamentName,
+        (
+          SELECT COUNT(*) FROM players p WHERE p.team_id = t.id
+        ) as playerCount
+      FROM teams t
+      JOIN tournaments tr ON tr.id = t.tournament_id
+      JOIN regions r ON r.id = tr.region_id
+      ${where}
+      ORDER BY t.name
+    `
+    )
+    .all(...params) as Array<{
+    id: number;
+    name: string;
+    tournamentId: number;
+    regionId: number;
+    regionName: string;
+    tournamentName: string;
+    playerCount: number;
+  }>;
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    tournamentId: row.tournamentId,
+    regionId: row.regionId,
+    regionName: row.regionName,
+    tournamentName: row.tournamentName,
+    playerCount: Number(row.playerCount) || 0,
+  }));
+}
+
+export function getPlayersOverview(
+  filters: PlayerFilters = {}
+): PlayerOverview[] {
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+
+  if (filters.role) {
+    clauses.push("p.role = ?");
+    params.push(filters.role);
+  }
+
+  if (
+    typeof filters.regionId === "number" &&
+    Number.isInteger(filters.regionId)
+  ) {
+    clauses.push("p.region_id = ?");
+    params.push(filters.regionId);
+  }
+
+  if (
+    typeof filters.teamId === "number" &&
+    Number.isInteger(filters.teamId)
+  ) {
+    clauses.push("p.team_id = ?");
+    params.push(filters.teamId);
+  }
+
+  const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
+
+  const rows = db
+    .prepare(
+      `
+      SELECT
+        p.id,
+        p.name,
+        p.role,
+        p.kills,
+        p.deaths,
+        p.assists,
+        p.cs,
+        p.gold,
+        p.score,
+        p.region_id as region_id,
+        p.team_id as team_id,
+        t.name as teamName,
+        r.name as regionName,
+        tr.id as tournamentId,
+        tr.name as tournamentName
+      FROM players p
+      JOIN teams t ON t.id = p.team_id
+      JOIN tournaments tr ON tr.id = t.tournament_id
+      JOIN regions r ON r.id = tr.region_id
+      ${where}
+    `
+    )
+    .all(...params) as PlayerOverviewRow[];
+
+  return rows
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      role: row.role,
+      kills: row.kills,
+      deaths: row.deaths,
+      assists: row.assists,
+      cs: row.cs,
+      gold: row.gold,
+      score: row.score,
+      region: {
+        id: row.region_id,
+        name: row.regionName,
+      },
+      team: {
+        id: row.team_id,
+        name: row.teamName,
+        tournamentId: row.tournamentId,
+        tournamentName: row.tournamentName,
+      },
+    }))
+    .sort((a, b) => {
+      if (a.team.id !== b.team.id) {
+        return a.team.name.localeCompare(b.team.name);
+      }
+      const roleIndexA = ROLE_ORDER.indexOf(a.role);
+      const roleIndexB = ROLE_ORDER.indexOf(b.role);
+      const safeA = roleIndexA === -1 ? ROLE_ORDER.length : roleIndexA;
+      const safeB = roleIndexB === -1 ? ROLE_ORDER.length : roleIndexB;
+      return safeA - safeB;
+    });
+}
+
+export function getPlayersGroupedByRole(
+  filters: PlayerFilters = {}
+): Record<Role, PlayerOverview[]> {
+  const grouped: Record<Role, PlayerOverview[]> = {
+    Top: [],
+    Jgl: [],
+    Mid: [],
+    Adc: [],
+    Supp: [],
+  };
+
+  const players = getPlayersOverview(filters);
+  for (const player of players) {
+    grouped[player.role].push(player);
+  }
+
+  return grouped;
+}
+
 function cleanDB(){
   db.prepare("DELETE FROM players").run();
   db.prepare("DELETE FROM sqlite_sequence WHERE name='players';")
@@ -717,41 +936,49 @@ export function simulateData() {
   }
   const tournamentId = tournamentIds[0] ?? 1;
   
-  let sampleTeams: string[] = sampleData.teams;
-  const teamsStmt = db.prepare("INSERT INTO teams (name, tournament_id) VALUES (?, ?)");
-  for(const team of sampleTeams){
-    teamsStmt.run(team, tournamentId);
+  const sampleTeams: string[] = sampleData.teams ?? [];
+  const teamsStmt = db.prepare(
+    "INSERT INTO teams (name, tournament_id) VALUES (?, ?)"
+  );
+  const insertedTeamIds: number[] = [];
+  for (const team of sampleTeams) {
+    const info = teamsStmt.run(team, tournamentId);
+    insertedTeamIds.push(Number(info.lastInsertRowid));
   }
 
-  let samplePlayers: Array<{ name: string | undefined; role: Role | null, team_id: number | null}> = [];
-  
-  for(let i = 1; i <= 40; i++){
-    let roleID = i % 5;
-    let role:Role | null = null;
-    switch (roleID) {
-      case 0:
-        role = "Top"   
-        break;
-      case 1:
-        role = "Jgl"   
-        break;
-      case 2:
-        role = "Mid"   
-        break;
-      case 3:
-        role = "Adc"   
-        break;
-      case 4:
-        role = "Supp"   
-        break;
-      default:
-        break;
+  const roles: Role[] = ["Top", "Jgl", "Mid", "Adc", "Supp"];
+  const playerSeeds = sampleData.players ?? [];
+
+  type PlayerSeed = {
+    name?: string;
+    nickname?: string;
+  };
+
+  const samplePlayers: Array<{
+    name: string;
+    role: Role;
+    team_id: number;
+  }> = [];
+
+  if (insertedTeamIds.length === 0) {
+    insertedTeamIds.push(1);
+  }
+
+  let seedIndex = 0;
+  for (const teamId of insertedTeamIds) {
+    for (const role of roles) {
+      const seed: PlayerSeed | undefined = playerSeeds[seedIndex];
+      const displayName =
+        (seed?.nickname ?? seed?.name)?.trim() || `Player ${seedIndex + 1}`;
+
+      samplePlayers.push({
+        name: displayName,
+        role,
+        team_id: teamId,
+      });
+
+      seedIndex = (seedIndex + 1) % (playerSeeds.length || roles.length);
     }
-    samplePlayers.push({
-      name: sampleData.players[i - 1]?.name,
-      role: role,
-      team_id: (i % 5) + 1
-    })
   }
 
   const playerStmt = db.prepare(`
@@ -850,12 +1077,19 @@ export function fetchAllPlayers(regionId: number): Player[] {
   return stmt.all(regionId) as Player[];
 }
 
-export function fetchPlayersByTeamId(teamId: number):Player[]{
-  const stmt = db.prepare("SELECT * FROM players WHERE players.region_id = ?");
+export function fetchPlayersByTeamId(teamId: number): Player[] {
+  const stmt = db.prepare("SELECT * FROM players WHERE team_id = ?");
   return stmt.all(teamId) as Player[];
 }
 
-export function getTeamId(teamName: string):number{
-  const stmt = db.prepare("SELECT id from teams WHERE name = ?");
-  return stmt.get(teamName) as number;
+export function getTeamId(teamName: string): number {
+  const row = db
+    .prepare("SELECT id FROM teams WHERE name = ?")
+    .get(teamName) as { id: number } | undefined;
+
+  if (!row) {
+    throw new Error("TEAM_NOT_FOUND");
+  }
+
+  return Number(row.id);
 }

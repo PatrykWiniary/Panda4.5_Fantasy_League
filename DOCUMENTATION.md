@@ -87,6 +87,9 @@ Najwazniejsze sciezki serwera (wszystkie zaczynaja sie od `/api`):
 | Metoda | Sciezka | Opis |
 | ------ | ------- | ---- |
 | `GET` | `/cards` | Zwraca tablice przykladowych kart z opisami.
+| `GET` | `/regions` | Lista regionow turniejowych (ID + nazwa) wykorzystywana przez mapy/wybory regionu.
+| `GET` | `/teams?regionId=ID` | Zwraca druzyny (z turniejem, regionem i liczba graczy) z opcjonalnym filtrem po regionie.
+| `GET` | `/players?role=Top&regionId=1&teamId=3&grouped=true` | Uniwersalny endpoint zwracajacy liste lub mapowanie graczy wedlug roli; pozwala filtrowac po regionie, druzynie i roli (wynik wykorzystywany przez widok Player Pick).
 | `GET` | `/decks` | Lista wszystkich zapisanych talii (uzytkownik, data aktualizacji, talia, podsumowanie).
 | `GET` | `/decks/:userId` | Talia pojedynczego uzytkownika.
 | `POST` | `/decks/empty` | Tworzy pusta talie (wszystkie sloty `null`).

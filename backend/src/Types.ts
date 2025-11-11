@@ -63,6 +63,19 @@ export interface Region {
   name: string;
 }
 
+export interface Tournament {
+  id: number;
+  name: string;
+  regionId: number;
+}
+
+export interface Team {
+  id: number;
+  name: string;
+  tournamentId: number;
+  regionId: number;
+}
+
 export interface Player {
   id: number;
   name: string;

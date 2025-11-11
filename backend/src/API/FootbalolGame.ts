@@ -1,18 +1,26 @@
-import { fetchAllPlayers, fetchPlayersByTeamId, fetchRegionNameById, simulateMatch, getTeamId } from "../db";
+import {
+  fetchAllPlayers,
+  fetchPlayersByTeamId,
+  fetchRegionNameById,
+  simulateMatch as simulatePlayerStats,
+  getTeamId,
+  getTeamsOverview,
+  TeamOverview,
+} from "../db";
 import { Player } from "../Types";
-import { sampleData } from "../../data/SampleData.json";
 
 export default class FootabalolGame {
   regionId: number = -1;
   regionName: string = "";
   players: Player[] = [];
-  torunamentMVP = {};
-  teams = sampleData.teams;
+  torunamentMVP: { name?: string; score?: number } = {};
+  teams: TeamOverview[] = [];
 
   setRegion(regionId: number = 1) {
     this.regionId = regionId;
     this.regionName = fetchRegionNameById(regionId);
     this.loadPlayers();
+    this.loadTeams();
   }
 
   getRegion() {
@@ -23,37 +31,85 @@ export default class FootabalolGame {
     this.players = fetchAllPlayers(this.regionId);
   }
 
-  simulateMatch() {
-    return {...simulateMatch(this.players, this.regionName)};
+  loadTeams() {
+    this.teams = getTeamsOverview(this.regionId);
   }
 
-  *simulateTournament(region: number, gameNumber: number) {
+  simulateMatch() {
+    const stats = simulatePlayerStats(this.players, this.regionName);
+    if (this.teams.length < 2) {
+      return { ...stats };
+    }
+
+    const availableTeams = [...this.teams];
+    while (availableTeams.length > 2) {
+      const index = Math.floor(Math.random() * availableTeams.length);
+      availableTeams.splice(index, 1);
+    }
+
+    const matchup =
+      availableTeams.length === 2
+        ? availableTeams
+        : this.teams.slice(0, 2);
+    const winningTeam =
+      matchup[Math.floor(Math.random() * matchup.length)] ?? matchup[0];
+
+    return {
+      ...stats,
+      teams: matchup.map((team) => team.name),
+      teamIds: matchup.map((team) => team.id),
+      winningTeam: winningTeam?.name ?? stats.winningTeam,
+      winningTeamId: winningTeam?.id,
+    };
+  }
+
+  *simulateTournament(_region: number, gameNumber: number) {
     let i = 0;
     while (i < gameNumber) {
-      const {region, teams, winningTeam, MVP} = this.simulateMatch();
+      const { region: regionName, teams, teamIds, winningTeam, MVP } =
+        this.simulateMatch();
       this.torunamentMVP = MVP;
-      let team1 = getTeamId(teams[0]);
-      let team2 = getTeamId(teams[1]);
+      const idsFromMatch =
+        teamIds && Array.isArray(teamIds) && teamIds.length === 2
+          ? teamIds
+          : teams
+              .map((teamName) => {
+                try {
+                  return getTeamId(teamName);
+                } catch {
+                  return undefined;
+                }
+              })
+              .filter((id): id is number => typeof id === "number");
+
+      const roster =
+        idsFromMatch.length >= 2
+          ? [
+              ...fetchPlayersByTeamId(idsFromMatch[0]),
+              ...fetchPlayersByTeamId(idsFromMatch[1]),
+            ]
+          : fetchAllPlayers(this.regionId);
+
       yield {
-        region: region,
-        teams: teams,//2 teams
+        region: regionName,
+        teams,
         winner: winningTeam,
-        MVP: MVP,
-        players: [...fetchPlayersByTeamId(team1.id), ...fetchPlayersByTeamId(team2.id)],
-        //players: [],
+        MVP,
+        players: roster,
+        teamIds: idsFromMatch,
         gameNumber: i + 1,
       };
       i++;
     }
 
     return {
-      region: region,
-        teams: this.teams,//all teams
-        winner: "SKT T1",
-        MVP: this.torunamentMVP,
-        players: [...fetchAllPlayers(this.regionId)],
-        //players: [],
-        numberOfGames: i,
+      region: this.regionName,
+      teams: this.teams.map((team) => team.name),
+      teamIds: this.teams.map((team) => team.id),
+      winner: this.teams[0]?.name ?? "SKT T1",
+      MVP: this.torunamentMVP,
+      players: [...fetchAllPlayers(this.regionId)],
+      numberOfGames: i,
     };
   }
 

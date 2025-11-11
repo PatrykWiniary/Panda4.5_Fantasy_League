@@ -2,7 +2,6 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import FootabalolGame from "./API/FootbalolGame";
 import {
   getAllItems,
   addItem,
@@ -20,6 +19,11 @@ import {
   getLeaderboardTop,
   getUserRankingEntry,
   getUsersCount,
+  getRegions,
+  getTeamsOverview,
+  getPlayersOverview,
+  getPlayersGroupedByRole,
+  PlayerFilters,
 } from "./db";
 import {
   addCardToDeck,
@@ -51,6 +55,55 @@ const parsePositiveIntFromEnv = (value: string | undefined, fallback: number) =>
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 };
+
+const ROLE_QUERY_MAP: Record<string, Role> = {
+  top: "Top",
+  toplane: "Top",
+  jgl: "Jgl",
+  jungle: "Jgl",
+  mid: "Mid",
+  middle: "Mid",
+  adc: "Adc",
+  bot: "Adc",
+  carry: "Adc",
+  supp: "Supp",
+  support: "Supp",
+};
+
+function coerceQueryString(value: unknown): string | undefined {
+  if (Array.isArray(value)) {
+    return typeof value[0] === "string" ? value[0] : undefined;
+  }
+  return typeof value === "string" ? value : undefined;
+}
+
+function parseRoleQuery(value: unknown): Role | undefined {
+  const raw = coerceQueryString(value);
+  if (!raw) {
+    return undefined;
+  }
+  return ROLE_QUERY_MAP[raw.trim().toLowerCase()];
+}
+
+function parsePositiveIntQuery(value: unknown): number | undefined {
+  const raw = coerceQueryString(value);
+  if (raw === undefined) {
+    return undefined;
+  }
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return undefined;
+  }
+  return parsed;
+}
+
+function parseBooleanQuery(value: unknown): boolean {
+  const raw = coerceQueryString(value);
+  if (!raw) {
+    return false;
+  }
+  return raw === "1" || raw.toLowerCase() === "true";
+}
 
 const AUTH_RATE_LIMIT_WINDOW_MS = parsePositiveIntFromEnv(
   process.env.AUTH_RATE_LIMIT_WINDOW_MS,
@@ -139,6 +192,83 @@ app.post("/api/users", (req, res) => {
 
 app.get("/api/cards", (_req, res) => {
   res.json(getSampleCards());
+});
+
+app.get("/api/regions", (_req, res) => {
+  try {
+    res.json({ regions: getRegions() });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "REGION_FETCH_FAILED" });
+  }
+});
+
+app.get("/api/teams", (req, res) => {
+  try {
+    const regionId = parsePositiveIntQuery(req.query.regionId);
+    if (req.query.regionId !== undefined && regionId === undefined) {
+      return res.status(400).json({ error: "INVALID_REGION_ID" });
+    }
+    const teams = getTeamsOverview(regionId);
+    res.json({
+      teams,
+      filters: {
+        regionId,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "TEAM_FETCH_FAILED" });
+  }
+});
+
+app.get("/api/players", (req, res) => {
+  try {
+    const role = parseRoleQuery(req.query.role);
+    if (req.query.role !== undefined && !role) {
+      return res.status(400).json({ error: "INVALID_ROLE" });
+    }
+
+    const regionId = parsePositiveIntQuery(req.query.regionId);
+    if (req.query.regionId !== undefined && regionId === undefined) {
+      return res.status(400).json({ error: "INVALID_REGION_ID" });
+    }
+
+    const teamId = parsePositiveIntQuery(req.query.teamId);
+    if (req.query.teamId !== undefined && teamId === undefined) {
+      return res.status(400).json({ error: "INVALID_TEAM_ID" });
+    }
+
+    const filters: PlayerFilters = {};
+    if (role) {
+      filters.role = role;
+    }
+    if (regionId !== undefined) {
+      filters.regionId = regionId;
+    }
+    if (teamId !== undefined) {
+      filters.teamId = teamId;
+    }
+
+    const grouped = parseBooleanQuery(req.query.grouped);
+
+    if (grouped) {
+      const groupedByRole = getPlayersGroupedByRole(filters);
+      return res.json({
+        groupedByRole,
+        filters,
+      });
+    }
+
+    const players = getPlayersOverview(filters);
+    res.json({
+      players,
+      filters,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "PLAYER_FETCH_FAILED" });
+  }
 });
 
 app.post("/api/register", authLimiter, (req, res) => {
@@ -698,26 +828,6 @@ app.post("/api/tournaments/simulate", (req, res) => {
     res.status(500).json({ error: "TOURNAMENT_SIMULATION_FAILED" });
   }
 });
-
-function test(){
-  simulateData();
-  const tournament = new FootabalolGame();
-  tournament.setRegion(1);
-
-  const games = tournament.simulateTournament(1, 10);
-  console.log(games.next().value);
-  console.log(games.next().value);
-  console.log(games.next().value);
-  console.log(games.next().value);
-  console.log(games.next().value);
-  console.log(games.next().value);
-  console.log(games.next().value);
-  console.log(games.next().value);
-  console.log(games.next().value);
-  console.log(games.next().value);
-  console.log(games.next().value);//summary
-}
-test();
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
