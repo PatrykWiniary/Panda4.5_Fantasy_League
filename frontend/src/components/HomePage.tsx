@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import '../styles/LogReg.css';
+import '../styles/HomePage.css';
 import homeIcon from "../assets/home.svg";
 import userIcon from "../assets/user.svg";
 
