@@ -13,30 +13,38 @@ const playerIcons = "/src/assets/playerPics/";
 export default function PlayerPick() {
   const playersData = {
     top: [
-      { name: "Zeus", team: "HLE", region: "LCK", image: playerIcons + "Zeus.webp" },
-      { name: "Bin", team: "BLG", region: "LPL", image: playerIcons + "Bin.webp" },
+      { name: "Zeus", team: "HLE", region: "LCK", cost: 60, image: playerIcons + "Zeus.webp" },
+      { name: "Bin", team: "BLG", region: "LPL", cost: 40, image: playerIcons + "Bin.webp" },
     ],
     jungle: [
-      { name: "Oner", team: "T1", region: "LCK", image: playerIcons + "Oner.webp" },
-      { name: "Canyon", team: "Gen.G", region: "LCK", image: playerIcons + "Canyon.webp" },
+      { name: "Oner", team: "T1", region: "LCK", cost: 60, image: playerIcons + "Oner.webp" },
+      { name: "Canyon", team: "Gen.G", region: "LCK", cost: 40, image: playerIcons + "Canyon.webp" },
     ],
     mid: [
-      { name: "Faker", team: "T1", region: "LCK", image: playerIcons + "Faker.webp" },
-      { name: "Chovy", team: "Gen.G", region: "LCK", image: playerIcons + "Chovy.webp" },
+      { name: "Faker", team: "T1", region: "LCK", cost: 60, image: playerIcons + "Faker.webp" },
+      { name: "Chovy", team: "Gen.G", region: "LCK", cost: 40, image: playerIcons + "Chovy.webp" },
     ],
     adc: [
-      { name: "Gumayusi", team: "T1", region: "LCK", image: playerIcons + "Gumayusi.webp" },
-      { name: "Ruler", team: "Gen.G", region: "LCK", image: playerIcons + "Ruler.webp" },
+      { name: "Gumayusi", team: "T1", region: "LCK", cost: 60, image: playerIcons + "Gumayusi.webp" },
+      { name: "Ruler", team: "Gen.G", region: "LCK", cost: 40, image: playerIcons + "Ruler.webp" },
     ],
     support: [
-      { name: "Keria", team: "T1", region: "LCK", image: playerIcons + "Keria.webp" },
-      { name: "Duro", team: "Gen.G", region: "LCK", image: playerIcons + "Duro.webp" },
+      { name: "Keria", team: "T1", region: "LCK", cost: 60, image: playerIcons + "Keria.webp" },
+      { name: "Duro", team: "Gen.G", region: "LCK", cost: 40, image: playerIcons + "Duro.webp" },
     ],
   };
 
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<any | null>(null);
   const [draftTeam, setDraftTeam] = useState<Record<string, any>>({});
+  const [showPopup, setShowPopup] = useState(false);
+  const [isLockedIn, setIsLockedIn] = useState(false);
+  const [showLockedOverlay, setShowLockedOverlay] = useState(false);
+
+
+  const maxBudget = 250;
+  const draftCost = Object.values(draftTeam).reduce((sum, player: any) => sum + (player?.cost || 0), 0);
+  const remainingBudget = maxBudget - draftCost;
 
   const positions = [
     { id: "top", top: "15%", left: "28%", icon: iconTop },
@@ -53,7 +61,6 @@ export default function PlayerPick() {
 
   const handlePlayerSelect = (player: any) => {
     setSelectedPlayer(player);
-    // Save immediately after clicking a player
     if (selectedRole) {
       setDraftTeam((prev) => ({
         ...prev,
@@ -68,6 +75,16 @@ export default function PlayerPick() {
   };
 
   const handleSubmitTeam = () => {
+    if (draftCost > maxBudget) {
+      alert("You can’t lock in with insufficient eurogąbki!");
+      return;
+    }
+    setShowPopup(false);
+    setShowLockedOverlay(true);
+    setIsLockedIn(true);
+    setTimeout(() => {
+      setShowLockedOverlay(false);
+    }, 3000);
     console.log("Drafted team:", draftTeam);
   };
 
@@ -79,8 +96,8 @@ export default function PlayerPick() {
         {positions.map((pos) => (
           <div key={pos.id} className="player-slot" style={{ top: pos.top, left: pos.left }}>
             <div
-              className="player-circle"
-              onClick={() => handleCircleClick(pos.id)}
+              className={`player-circle ${isLockedIn ? 'disabled' : ''}`}
+              onClick={() => !isLockedIn && handleCircleClick(pos.id)}
               title={pos.id.toUpperCase()}
             >
               {draftTeam[pos.id]?.image ? (
@@ -97,10 +114,28 @@ export default function PlayerPick() {
       </div>
 
       <h1 className="title">PICK YOUR TEAM</h1>
+      <p className="deadline">⏱ DUE IN: 23.11.2025 23:59</p>
+
+      <div className="draft-info">
+        <div className="info-item">
+          <span className="label">DRAFT COST</span>
+          <span className="value">{draftCost}</span>
+        </div>
+        <div className="info-item">
+          <span className="label">REMAINING EUROGĄBKI</span>
+          <span className="value">{remainingBudget}</span>
+        </div>
+      </div>
+
 
       <div className="button-container">
         <button className="btn return"><span>RETURN</span></button>
-        <button className="btn confirm" onClick={handleSubmitTeam}><span>CONFIRM</span></button>
+        <button
+          className={`btn confirm ${isLockedIn ? 'disabled' : ''}`}
+          onClick={() => !isLockedIn && setShowPopup(true)}
+        >
+          <span>LOCK IN</span>
+        </button>
       </div>
 
 {selectedRole && (
@@ -143,9 +178,26 @@ export default function PlayerPick() {
               <h2>{selectedPlayer.name}</h2>
               <p>TEAM: {selectedPlayer.team}</p>
               <p>REGION: {selectedPlayer.region}</p>
+              <p>COST: {selectedPlayer.cost}</p>
             </div>
           </div>
         )}
+  </div>
+)}
+{showPopup && (
+  <div className="popup-overlay">
+    <div className="popup">
+      <h2>DONE PICKING YOUR TEAM?</h2>
+      <div className="popup-buttons">
+        <button className="popup-btn yes" onClick={handleSubmitTeam}>YES</button>
+        <button className="popup-btn no" onClick={() => setShowPopup(false)}>NO</button>
+      </div>
+    </div>
+  </div>
+)}
+{showLockedOverlay && (
+  <div className="locked-overlay">
+    <h1 className="locked-text">LOCKED<br/>IN</h1>
   </div>
 )}
     </div>
