@@ -16,21 +16,7 @@ import type {
   PlayerOverview,
 } from "../api/types";
 import { useSession } from "../context/SessionContext";
-
-const playerIcons = "/src/assets/playerPics/";
-const FALLBACK_IMAGE = `${playerIcons}Faker.webp`;
-const KNOWN_IMAGES = new Set([
-  "Zeus",
-  "Bin",
-  "Faker",
-  "Chovy",
-  "Gumayusi",
-  "Ruler",
-  "Oner",
-  "Canyon",
-  "Keria",
-  "Duro",
-]);
+import { resolvePlayerImage } from "../utils/playerImages";
 
 type RoleKey = "top" | "jungle" | "mid" | "adc" | "support";
 const ROLE_KEYS: RoleKey[] = ["top", "jungle", "mid", "adc", "support"];
@@ -59,10 +45,13 @@ const circlePositions: Array<{
 type UIPlayer = {
   id: number;
   name: string;
+  nickname?: string | null;
   team: string;
   region: string;
   image: string;
   deckRole: DeckRole;
+  points: number;
+  cost: number;
   source?: PlayerOverview;
   snapshot?: DeckCard;
 };
@@ -70,29 +59,12 @@ type UIPlayer = {
 type PlayersData = Record<RoleKey, UIPlayer[]>;
 type DraftTeam = Record<RoleKey, UIPlayer | null>;
 
-let staticId = 1;
-
-const defaultPlayers: PlayersData = {
-  top: [
-    makeStaticPlayer("Zeus", "HLE", "LCK", "Top", "Zeus"),
-    makeStaticPlayer("Bin", "BLG", "LPL", "Top", "Bin"),
-  ],
-  jungle: [
-    makeStaticPlayer("Oner", "T1", "LCK", "Jgl", "Oner"),
-    makeStaticPlayer("Canyon", "Gen.G", "LCK", "Jgl", "Canyon"),
-  ],
-  mid: [
-    makeStaticPlayer("Faker", "T1", "LCK", "Mid", "Faker"),
-    makeStaticPlayer("Chovy", "Gen.G", "LCK", "Mid", "Chovy"),
-  ],
-  adc: [
-    makeStaticPlayer("Gumayusi", "T1", "LCK", "Adc", "Gumayusi"),
-    makeStaticPlayer("Ruler", "Gen.G", "LCK", "Adc", "Ruler"),
-  ],
-  support: [
-    makeStaticPlayer("Keria", "T1", "LCK", "Supp", "Keria"),
-    makeStaticPlayer("Duro", "Gen.G", "LCK", "Supp", "Duro"),
-  ],
+const emptyPlayersData: PlayersData = {
+  top: [],
+  jungle: [],
+  mid: [],
+  adc: [],
+  support: [],
 };
 
 const emptyDraftTeam: DraftTeam = {
@@ -105,14 +77,21 @@ const emptyDraftTeam: DraftTeam = {
 
 export default function PlayerPick() {
   const { user } = useSession();
-  const [playersData, setPlayersData] = useState<PlayersData>(defaultPlayers);
+  const [playersData, setPlayersData] = useState<PlayersData>(emptyPlayersData);
   const [selectedRole, setSelectedRole] = useState<RoleKey | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<UIPlayer | null>(null);
   const [draftTeam, setDraftTeam] = useState<DraftTeam>({ ...emptyDraftTeam });
+  const [saveStatus, setSaveStatus] = useState<
+    { type: "success" | "error"; message: string } | null
+  >(null);
+  const [saving, setSaving] = useState(false);
+  const totalCost = calculateDraftCost(draftTeam);
+  const currency = user?.currency ?? 0;
+  const remaining = user ? currency - totalCost : null;
 
   useEffect(() => {
     let canceled = false;
-    apiFetch<GroupedPlayersResponse>("/api/players?grouped=true&regionId=1")
+    apiFetch<GroupedPlayersResponse>("/api/players?grouped=true")
       .then((payload) => {
         if (canceled) return;
         setPlayersData(buildPlayersFromApi(payload));
@@ -157,13 +136,19 @@ export default function PlayerPick() {
 
   const handleSubmitTeam = async () => {
     if (!user) {
-      console.warn("Sign in to save your deck.");
+      setSaveStatus({
+        type: "error",
+        message: "Sign in to save your deck.",
+      });
       return;
     }
 
     const missing = ROLE_KEYS.filter((key) => !draftTeam[key]);
     if (missing.length > 0) {
-      console.warn("Fill every role before saving.");
+      setSaveStatus({
+        type: "error",
+        message: "Fill every role before saving.",
+      });
       return;
     }
 
@@ -172,22 +157,57 @@ export default function PlayerPick() {
       slots: buildDeckSlots(draftTeam),
     };
 
+    setSaving(true);
+    setSaveStatus(null);
     try {
-      await apiFetch<DeckResponse>("/api/decks/save", {
+      const response = await apiFetch<DeckResponse>("/api/decks/save", {
         method: "POST",
         body: JSON.stringify({ userId: user.id, deck: deckPayload }),
       });
+      setSaveStatus({
+        type: "success",
+        message: "Deck saved successfully.",
+      });
+      setDraftTeam(mapDeckToDraft(response.deck));
     } catch (error) {
+      let message = "Deck save failed.";
       if (error instanceof ApiError) {
-        console.error("Deck save failed:", error.body);
-      } else {
-        console.error("Deck save failed:", error);
+        const body = error.body as { message?: string; error?: string };
+        message = body?.message ?? body?.error ?? `Request failed (${error.status})`;
       }
+      setSaveStatus({
+        type: "error",
+        message,
+      });
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
     <div className={`pick-your-team ${selectedRole ? "blurred" : ""}`}>
+      <div className="budget-panel">
+        <div className="budget-item">
+          <span className="label">USER SCORE</span>
+          <strong>{user ? user.score ?? 0 : "Sign in"}</strong>
+        </div>
+        <div className="budget-item">
+          <span className="label">GOLD</span>
+          <strong>{user ? currency : "--"}</strong>
+        </div>
+        <div className="budget-item">
+          <span className="label">DRAFT COST</span>
+          <strong>{totalCost}</strong>
+        </div>
+        {user && (
+          <div className="budget-item">
+            <span className="label">REMAINING</span>
+            <strong className={remaining !== null && remaining < 0 ? "over-budget" : ""}>
+              {remaining}
+            </strong>
+          </div>
+        )}
+      </div>
       <div className="rift-container">
         <img src={bg} alt="rift background" className="bg-img" />
 
@@ -224,10 +244,17 @@ export default function PlayerPick() {
         <button className="btn return" onClick={() => window.history.back()}>
           <span>RETURN</span>
         </button>
-        <button className="btn confirm" onClick={handleSubmitTeam}>
-          <span>CONFIRM</span>
+        <button
+          className="btn confirm"
+          onClick={handleSubmitTeam}
+          disabled={saving || (remaining !== null && remaining < 0)}
+        >
+          <span>{saving ? "SAVING..." : "CONFIRM"}</span>
         </button>
       </div>
+      {saveStatus && (
+        <p className={`form-status ${saveStatus.type}`}>{saveStatus.message}</p>
+      )}
 
       {selectedRole && (
         <div className="modal-overlay">
@@ -249,6 +276,7 @@ export default function PlayerPick() {
                     onClick={() => handlePlayerSelect(selectedRole, player)}
                   >
                     <img src={player.image} alt={player.name} />
+                    <span className="player-cost">{player.cost}</span>
                   </div>
                 ))}
               </div>
@@ -264,6 +292,8 @@ export default function PlayerPick() {
                     <h2>{selectedPlayer.name}</h2>
                     <p>TEAM: {selectedPlayer.team}</p>
                     <p>REGION: {selectedPlayer.region}</p>
+                    <p>POINTS: {selectedPlayer.points}</p>
+                    <p>COST: {selectedPlayer.cost}</p>
                   </div>
                 </div>
               )}
@@ -287,19 +317,23 @@ function buildPlayersFromApi(response: GroupedPlayersResponse): PlayersData {
   ROLE_KEYS.forEach((key) => {
     const deckRole = ROLE_TO_DECK[key];
     const players = response.groupedByRole[deckRole] ?? [];
-    if (players.length === 0) {
-      mapped[key] = defaultPlayers[key];
-      return;
-    }
-    mapped[key] = players.slice(0, 8).map((player) => ({
-      id: player.id,
-      name: player.name,
-      team: player.team.name,
-      region: player.region.name,
-      image: resolveImage(player.name),
-      deckRole,
-      source: player,
-    }));
+    mapped[key] = players.map((player) => {
+      const displayName = player.nickname ?? player.name;
+      const points = Math.max(20, Math.round(player.score));
+      const cost = Math.max(10, Math.round(points / 3));
+      return {
+        id: player.id,
+        name: displayName,
+        nickname: player.nickname,
+        team: player.team.name,
+        region: player.region.name,
+        image: resolvePlayerImage(player.nickname ?? player.name),
+        deckRole,
+        points,
+        cost,
+        source: player,
+      };
+    });
   });
 
   return mapped;
@@ -354,35 +388,16 @@ function mapDeckToDraft(deck: Deck): DraftTeam {
       name: card.name,
       team: "Current team",
       region: "N/A",
-      image: resolveImage(card.name),
+      image: resolvePlayerImage(card.name),
       deckRole: role,
+      points: card.points ?? 0,
+      cost: card.value ?? 0,
       snapshot: card,
     };
   });
   return next;
 }
 
-function makeStaticPlayer(
-  name: string,
-  team: string,
-  region: string,
-  deckRole: DeckRole,
-  asset: string
-): UIPlayer {
-  return {
-    id: staticId++,
-    name,
-    team,
-    region,
-    image: `${playerIcons}${asset}.webp`,
-    deckRole,
-  };
-}
-
-function resolveImage(name: string): string {
-  const cleaned = name.replace(/\s+/g, "");
-  if (KNOWN_IMAGES.has(cleaned)) {
-    return `${playerIcons}${cleaned}.webp`;
-  }
-  return FALLBACK_IMAGE;
+function calculateDraftCost(draft: DraftTeam): number {
+  return ROLE_KEYS.reduce((total, key) => total + (draft[key]?.cost ?? 0), 0);
 }

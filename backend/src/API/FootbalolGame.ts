@@ -120,7 +120,9 @@ export default class FootabalolGame {
       return;
     }
     console.log(
-      `${player.name} [Region: ${this.regionName}] → Kills: ${player.kills}, Deaths: ${player.deaths}, Assists: ${player.assists}, CS: ${player.cs}`
+      `${
+        player.nickname ?? player.name
+      } [Region: ${this.regionName}] → Kills: ${player.kills}, Deaths: ${player.deaths}, Assists: ${player.assists}, CS: ${player.cs}`
     );
   }
 }

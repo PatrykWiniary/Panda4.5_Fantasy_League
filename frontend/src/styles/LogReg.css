@@ -187,6 +187,14 @@ body {
   color: #f3c694;
 }
 
+.form-status.success {
+  color: #9af0a0;
+}
+
+.form-status.error {
+  color: #ff8f8f;
+}
+
 .profile-hint {
   margin-top: 1.5rem;
   font-size: 1rem;
@@ -519,6 +527,36 @@ body {
   background: none;
   box-shadow: none;
   transition: transform 0.3s ease;
+}
+
+.league-champion-info {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-height: 3rem;
+}
+
+.league-champion-name {
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+}
+
+.league-champion-meta {
+  font-size: 0.9rem;
+  color: #f6e7c6;
+}
+
+.league-champion-empty-label {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 0.5px;
+}
+
+.league-champion-card.empty .league-champion-portrait {
+  opacity: 0.4;
+  filter: grayscale(100%);
 }
 
 

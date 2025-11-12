@@ -17,6 +17,7 @@ import type {
   DeckSummary,
 } from "../api/types";
 import { useSession } from "../context/SessionContext";
+import { resolvePlayerImage } from "../utils/playerImages";
 
 const roleIcons: Record<DeckRole, string> = {
   Top: topIcon,
@@ -74,11 +75,15 @@ export default function OngLeaguePage() {
     };
   }, [user]);
 
-  const champions = (Object.keys(deck) as DeckRole[]).map((role) => ({
-    role,
-    card: deck[role],
-    icon: roleIcons[role],
-  }));
+  const champions = (Object.keys(deck) as DeckRole[]).map((role) => {
+    const card = deck[role];
+    return {
+      role,
+      card,
+      icon: roleIcons[role],
+      image: resolvePlayerImage(card?.name),
+    };
+  });
 
   return (
     <div
@@ -119,16 +124,28 @@ export default function OngLeaguePage() {
 
         <div className="league-right">
           <div className="league-champions">
-            {champions.map(({ role, card, icon }) => (
-              <div key={role} className="league-champion-card">
-                <div className="league-champion-portrait">
+            {champions.map(({ role, card, icon, image }) => (
+              <div
+                key={role}
+                className={`league-champion-card ${card ? "" : "empty"}`}
+              >
+                <img
+                  src={image}
+                  alt={card?.name ?? `${role} slot`}
+                  className="league-champion-portrait"
+                />
+                <div className="league-champion-info">
                   {card ? (
                     <>
-                      <strong>{card.name}</strong>
-                      <span>{card.points} pts</span>
+                      <span className="league-champion-name">{card.name}</span>
+                      <span className="league-champion-meta">
+                        {card.points ?? 0} pts / {card.value ?? 0} gold
+                      </span>
                     </>
                   ) : (
-                    <span>Empty</span>
+                    <span className="league-champion-empty-label">
+                      Empty slot
+                    </span>
                   )}
                 </div>
                 <div className="league-role-container">

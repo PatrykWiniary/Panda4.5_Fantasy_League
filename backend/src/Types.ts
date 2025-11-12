@@ -79,6 +79,7 @@ export interface Team {
 export interface Player {
   id: number;
   name: string;
+  nickname?: string | null;
   kills: number;
   deaths: number;
   assists: number;

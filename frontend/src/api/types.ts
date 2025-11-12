@@ -67,6 +67,7 @@ export type TeamOverview = {
 export type PlayerOverview = {
   id: number;
   name: string;
+  nickname?: string | null;
   role: DeckRole;
   kills: number;
   deaths: number;

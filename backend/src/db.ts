@@ -136,12 +136,44 @@ function migratePlayersTable() {
       "ALTER TABLE players ADD COLUMN gold INTEGER NOT NULL DEFAULT 0"
     ).run();
   }
+
+  const hasNicknameColumn = columns.some(
+    (column) => column.name === "nickname"
+  );
+  if (!hasNicknameColumn) {
+    db.prepare("ALTER TABLE players ADD COLUMN nickname TEXT").run();
+  }
+}
+
+function backfillPlayerNicknames() {
+  try {
+    db.prepare(
+      "UPDATE players SET nickname = name WHERE nickname IS NULL OR nickname = ''"
+    ).run();
+  } catch (error) {
+    console.warn("Failed to backfill player nicknames", error);
+  }
+}
+
+function ensureSeedData() {
+  try {
+    const row = db
+      .prepare("SELECT COUNT(*) as count FROM players")
+      .get() as { count?: number } | undefined;
+    if (!row || typeof row.count !== "number" || row.count === 0) {
+      simulateData();
+    }
+  } catch (error) {
+    console.warn("Failed to ensure seed data", error);
+  }
 }
 
 // Run lightweight migrations after loading schema.
 migrateDecksTable();
 migrateUsersTable();
 migratePlayersTable();
+backfillPlayerNicknames();
+ensureSeedData();
 
 type DebugDeckCardSeed = {
   role: Role;
@@ -267,6 +299,7 @@ export type PlayerFilters = {
 type PlayerOverviewRow = {
   id: number;
   name: string;
+  nickname?: string | null;
   role: Role;
   kills: number;
   deaths: number;
@@ -285,6 +318,7 @@ type PlayerOverviewRow = {
 export type PlayerOverview = {
   id: number;
   name: string;
+  nickname?: string | null;
   role: Role;
   kills: number;
   deaths: number;
@@ -823,6 +857,7 @@ export function getPlayersOverview(
       SELECT
         p.id,
         p.name,
+        p.nickname as nickname,
         p.role,
         p.kills,
         p.deaths,
@@ -849,6 +884,7 @@ export function getPlayersOverview(
     .map((row) => ({
       id: row.id,
       name: row.name,
+      nickname: row.nickname ?? null,
       role: row.role,
       kills: row.kills,
       deaths: row.deaths,
@@ -952,12 +988,23 @@ export function simulateData() {
   type PlayerSeed = {
     name?: string;
     nickname?: string;
+    score?: number;
+  };
+
+  const ROLE_BASE_SCORES: Record<Role, number> = {
+    Top: 95,
+    Jgl: 98,
+    Mid: 105,
+    Adc: 103,
+    Supp: 92,
   };
 
   const samplePlayers: Array<{
     name: string;
+    nickname: string | null;
     role: Role;
     team_id: number;
+    score: number;
   }> = [];
 
   if (insertedTeamIds.length === 0) {
@@ -968,13 +1015,24 @@ export function simulateData() {
   for (const teamId of insertedTeamIds) {
     for (const role of roles) {
       const seed: PlayerSeed | undefined = playerSeeds[seedIndex];
-      const displayName =
-        (seed?.nickname ?? seed?.name)?.trim() || `Player ${seedIndex + 1}`;
+      const nickname = (seed?.nickname ?? "").trim();
+      const realName = (seed?.name ?? "").trim();
+      const displayName = nickname || realName || `Player ${seedIndex + 1}`;
+      const storedName = realName || displayName;
+
+      const seededScore = Math.max(
+        60,
+        Number.isFinite(seed?.score as number)
+          ? Number(seed?.score)
+          : ROLE_BASE_SCORES[role]
+      );
 
       samplePlayers.push({
-        name: displayName,
+        name: storedName,
+        nickname: nickname || null,
         role,
         team_id: teamId,
+        score: seededScore,
       });
 
       seedIndex = (seedIndex + 1) % (playerSeeds.length || roles.length);
@@ -982,12 +1040,24 @@ export function simulateData() {
   }
 
   const playerStmt = db.prepare(`
-    INSERT INTO players (name, kills, deaths, assists, cs, region_id, role, gold, score, team_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO players (name, nickname, kills, deaths, assists, cs, region_id, role, gold, score, team_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  for (const { name, role, team_id } of samplePlayers) {
-    playerStmt.run(name, 0, 0, 0, 0, primaryRegionId, role, 0, 0, team_id);
+  for (const { name, nickname, role, team_id, score } of samplePlayers) {
+    playerStmt.run(
+      name,
+      nickname ?? name,
+      0,
+      0,
+      0,
+      0,
+      primaryRegionId,
+      role,
+      0,
+      score,
+      team_id
+    );
   }
 
   try {
@@ -1035,7 +1105,7 @@ export function simulateMatch(players: Player[], regionName: string) {
     const deltaScore = calculateScore(deltaKills, deltaDeaths, deltaAssists, deltaCs, deltaGold);
     player.score += deltaScore;
     if(deltaScore > MVP.score){
-      MVP.name = player.name;
+      MVP.name = player.nickname ?? player.name;
       MVP.score = deltaScore;
     }
 

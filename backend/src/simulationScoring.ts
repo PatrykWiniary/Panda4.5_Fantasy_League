@@ -53,6 +53,9 @@ export function scoreDeckAgainstPlayers(deck: Deck, players: Player[]): DeckScor
   for (const player of players) {
     playersById.set(player.id, player);
     playersByName.set(player.name.toLowerCase(), player);
+    if (player.nickname) {
+      playersByName.set(player.nickname.toLowerCase(), player);
+    }
   }
 
   for (const role of REQUIRED_ROLES) {
@@ -81,7 +84,7 @@ export function scoreDeckAgainstPlayers(deck: Deck, players: Player[]): DeckScor
     entries.push({
       role,
       playerId: candidate.id,
-      playerName: candidate.name,
+      playerName: candidate.nickname ?? candidate.name,
       baseScore,
       multiplier: multiplierValue,
       multiplierLabel: card.multiplier,
