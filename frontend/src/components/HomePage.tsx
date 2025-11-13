@@ -79,12 +79,17 @@ export default function App() {
           ONGOING LEAGUE
         </Link>
         <Link to="/joinnewleague" className="homepage-button">
-          JOIN NEW LEAGUE
+          CREATE NEW LOBBY
         </Link>
 
         <Link to="/createnewleague" className="homepage-button">
-          CREATE NEW LEAGUE
+          JOIN LOBBY
         </Link>
+
+        <Link to="/login" className="homepage-button">
+          SIGN OUT
+        </Link>
+
       </div>
     </div>
   );
