@@ -85,9 +85,12 @@ export default function PlayerPick() {
     { type: "success" | "error"; message: string } | null
   >(null);
   const [saving, setSaving] = useState(false);
+  const [showPopup, setShowPopup] = useState(false);
+  const [isLockedIn, setIsLockedIn] = useState(false);
+  const [showLockedOverlay, setShowLockedOverlay] = useState(false);
   const totalCost = calculateDraftCost(draftTeam);
-  const currency = user?.currency ?? 0;
-  const remaining = user ? currency - totalCost : null;
+  const maxBudget = user?.currency ?? 250;
+  const remainingBudget = maxBudget - totalCost;
 
   useEffect(() => {
     let canceled = false;
@@ -122,11 +125,17 @@ export default function PlayerPick() {
   }, [user]);
 
   const handleCircleClick = (role: RoleKey) => {
+    if (isLockedIn) {
+      return;
+    }
     setSelectedRole(role);
     setSelectedPlayer(draftTeam[role] ?? playersData[role][0] ?? null);
   };
 
   const handlePlayerSelect = (role: RoleKey, player: UIPlayer) => {
+    if (isLockedIn) {
+      return;
+    }
     setSelectedPlayer(player);
     setDraftTeam((prev) => ({
       ...prev,
@@ -134,13 +143,18 @@ export default function PlayerPick() {
     }));
   };
 
-  const handleSubmitTeam = async () => {
+  const closeModal = () => {
+    setSelectedRole(null);
+    setSelectedPlayer(null);
+  };
+
+  const handleSubmitTeam = async (): Promise<boolean> => {
     if (!user) {
       setSaveStatus({
         type: "error",
         message: "Sign in to save your deck.",
       });
-      return;
+      return false;
     }
 
     const missing = ROLE_KEYS.filter((key) => !draftTeam[key]);
@@ -149,7 +163,7 @@ export default function PlayerPick() {
         type: "error",
         message: "Fill every role before saving.",
       });
-      return;
+      return false;
     }
 
     const deckPayload: Deck = {
@@ -169,6 +183,7 @@ export default function PlayerPick() {
         message: "Deck saved successfully.",
       });
       setDraftTeam(mapDeckToDraft(response.deck));
+      return true;
     } catch (error) {
       let message = "Deck save failed.";
       if (error instanceof ApiError) {
@@ -179,35 +194,34 @@ export default function PlayerPick() {
         type: "error",
         message,
       });
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
+  const handleConfirmLockIn = async () => {
+    if (isLockedIn) {
+      return;
+    }
+    setShowPopup(false);
+    if (remainingBudget < 0) {
+      setSaveStatus({
+        type: "error",
+        message: "You can’t lock in with insufficient eurogąbki!",
+      });
+      return;
+    }
+    const success = await handleSubmitTeam();
+    if (success) {
+      setIsLockedIn(true);
+      setShowLockedOverlay(true);
+      setTimeout(() => setShowLockedOverlay(false), 3000);
+    }
+  };
+
   return (
     <div className={`pick-your-team ${selectedRole ? "blurred" : ""}`}>
-      <div className="budget-panel">
-        <div className="budget-item">
-          <span className="label">USER SCORE</span>
-          <strong>{user ? user.score ?? 0 : "Sign in"}</strong>
-        </div>
-        <div className="budget-item">
-          <span className="label">GOLD</span>
-          <strong>{user ? currency : "--"}</strong>
-        </div>
-        <div className="budget-item">
-          <span className="label">DRAFT COST</span>
-          <strong>{totalCost}</strong>
-        </div>
-        {user && (
-          <div className="budget-item">
-            <span className="label">REMAINING</span>
-            <strong className={remaining !== null && remaining < 0 ? "over-budget" : ""}>
-              {remaining}
-            </strong>
-          </div>
-        )}
-      </div>
       <div className="rift-container">
         <img src={bg} alt="rift background" className="bg-img" />
 
@@ -239,17 +253,29 @@ export default function PlayerPick() {
       </div>
 
       <h1 className="title">PICK YOUR TEAM</h1>
+      <p className="deadline">⏱ DUE IN: 23.11.2025 23:59</p>
+
+      <div className="draft-info">
+        <div className="info-item">
+          <span className="label">DRAFT COST</span>
+          <span className="value">{totalCost}</span>
+        </div>
+        <div className="info-item">
+          <span className="label">REMAINING EUROGĄBKI</span>
+          <span className="value">{remainingBudget}</span>
+        </div>
+      </div>
 
       <div className="button-container">
         <button className="btn return" onClick={() => window.history.back()}>
           <span>RETURN</span>
         </button>
         <button
-          className="btn confirm"
-          onClick={handleSubmitTeam}
-          disabled={saving || (remaining !== null && remaining < 0)}
+          className={`btn confirm ${isLockedIn ? "disabled" : ""}`}
+          onClick={() => !isLockedIn && setShowPopup(true)}
+          disabled={isLockedIn || saving}
         >
-          <span>{saving ? "SAVING..." : "CONFIRM"}</span>
+          <span>{saving ? "SAVING..." : "LOCK IN"}</span>
         </button>
       </div>
       {saveStatus && (
@@ -259,8 +285,8 @@ export default function PlayerPick() {
       {selectedRole && (
         <div className="modal-overlay">
           <div className="modal">
-            <button className="close-btn" onClick={() => setSelectedRole(null)}>
-              ✕
+            <button className="close-btn" onClick={closeModal}>
+              X
             </button>
 
             <div className="modal-header">{selectedRole.toUpperCase()}</div>
@@ -276,29 +302,60 @@ export default function PlayerPick() {
                     onClick={() => handlePlayerSelect(selectedRole, player)}
                   >
                     <img src={player.image} alt={player.name} />
-                    <span className="player-cost">{player.cost}</span>
+                    <span className="cost">{player.cost}</span>
                   </div>
                 ))}
               </div>
-
-              {selectedPlayer && (
-                <div className="player-preview">
-                  <img
-                    src={selectedPlayer.image}
-                    alt={selectedPlayer.name}
-                    className="preview-image"
-                  />
-                  <div className="preview-info">
-                    <h2>{selectedPlayer.name}</h2>
-                    <p>TEAM: {selectedPlayer.team}</p>
-                    <p>REGION: {selectedPlayer.region}</p>
-                    <p>POINTS: {selectedPlayer.points}</p>
-                    <p>COST: {selectedPlayer.cost}</p>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
+          {selectedPlayer && (
+            <div className="player-preview">
+              <img
+                src={selectedPlayer.image}
+                alt={selectedPlayer.name}
+                className="preview-image"
+              />
+              <div className="preview-info">
+                <h2>{selectedPlayer.name}</h2>
+                <p>TEAM: {selectedPlayer.team}</p>
+                <p>REGION: {selectedPlayer.region}</p>
+                <p>POINTS: {selectedPlayer.points}</p>
+                <p>COST: {selectedPlayer.cost}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {showPopup && (
+        <div className="popup-overlay">
+          <div className="popup">
+            <h2>DONE PICKING YOUR TEAM?</h2>
+            <div className="popup-buttons">
+              <button
+                className="popup-btn yes"
+                onClick={handleConfirmLockIn}
+                disabled={saving}
+              >
+                YES
+              </button>
+              <button
+                className="popup-btn no"
+                onClick={() => setShowPopup(false)}
+                disabled={saving}
+              >
+                NO
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showLockedOverlay && (
+        <div className="locked-overlay">
+          <h1 className="locked-text">
+            LOCKED
+            <br />
+            IN
+          </h1>
         </div>
       )}
     </div>
