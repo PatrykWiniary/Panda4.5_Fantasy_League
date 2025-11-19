@@ -202,3 +202,10 @@ CREATE TABLE IF NOT EXISTS match_history_players (
   team_side TEXT,
   FOREIGN KEY (match_id) REFERENCES match_history (id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS lobby (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  betValue INTEGER,
+  winner_id INTEGER,
+  FOREIGN KEY (winner_id) REFERENCES players (id) ON DELETE CASCADE
+)
