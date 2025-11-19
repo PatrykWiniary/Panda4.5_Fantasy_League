@@ -62,9 +62,7 @@ export default function HomePage() {
           JOIN LOBBY
         </Link>
 
-        <Link to="/login" className="homepage-button">
-          SIGN OUT
-        </Link>
+
 
         <Link
           to="/leaderboard"
@@ -88,6 +86,10 @@ export default function HomePage() {
           onClick={(e) => handleLinkClick(e, "/tournament")}
         >
           TOURNAMENT CONTROL
+        </Link>
+        
+        <Link to="/login" className="homepage-button">
+          SIGN OUT
         </Link>
       </div>
     </div>
