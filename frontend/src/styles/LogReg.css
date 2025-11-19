@@ -21,6 +21,7 @@ body {
   color: var(--accent);
 }
 
+/* --- LOGIN / REGISTER CONTAINERS --- */
 .login-container,
 .registration-container {
   display: flex;
@@ -33,7 +34,7 @@ body {
   background: var(--bg);
 }
 
-/* --- FORM --- */
+/* --- FORMS --- */
 .login-form,
 .registration-form {
   width: 100%;
@@ -44,8 +45,38 @@ body {
   padding: 2rem 3rem;
 }
 
+.login-container .login-input,
+.registration-container .login-input {
+  width: 100%;
+  max-width: 500px;
+  padding: 1.2rem 1.5rem;
+  border-radius: 19px;
+  border: 1.5px solid var(--accent-dark);
+  background-color: var(--bg);
+  color: var(--accent);
+  font-size: 1.3rem;
+  outline: none;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  display: flex;
+  justify-content: center;
+}
 
-/* --- MAIN TITLES --- */
+.login-container .login-input::placeholder,
+.registration-container .login-input::placeholder {
+  color: var(--accent-dark);
+  opacity: 0.8;
+  font-size: 1.2rem;
+  text-align: center;
+}
+
+.login-container .login-input:focus,
+.registration-container .login-input:focus {
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 12px rgba(201, 172, 109, 0.4);
+}
+
+/* --- TITLES --- */
 .login-title--main,
 .login-title {
   white-space: nowrap;
@@ -78,40 +109,7 @@ body {
   text-shadow: 0 0 5px rgba(0, 0, 0, 0.4);
 }
 
-.login-container .login-input,
-.registration-container .login-input {
-  width: 100%;
-  max-width: 500px;
-  padding: 1.2rem 1.5rem;
-  border-radius: 19px;
-  border: 1.5px solid var(--accent-dark);
-  background-color: var(--bg);
-  color: var(--accent);
-  font-size: 1.3rem;
-  outline: none;
-  margin-bottom: 1.5rem;
-  text-align: center;
-    display: flex;
-  justify-content: center;
-}
-
-
-.login-container .login-input::placeholder,
-.registration-container .login-input::placeholder {
-  
-  color: var(--accent-dark);
-  opacity: 0.8;
-  font-size: 1.2rem;
-  text-align: center;
-}
-
-.login-container .login-input:focus,
-.registration-container .login-input:focus {
-  border: 2px solid var(--accent);
-  box-shadow: 0 0 12px rgba(201, 172, 109, 0.4);
-}
-
-/* --- ACTIONS (BUTTONS & LINKS) --- */
+/* --- ACTION BUTTONS --- */
 .login-actions {
   display: flex;
   justify-content: center;
@@ -120,6 +118,7 @@ body {
   margin-top: 1.5rem;
   gap: 1.5rem;
 }
+
 .login-button,
 .registration-button {
   white-space: nowrap;
@@ -129,7 +128,7 @@ body {
   width: 14rem;
   height: 4rem;
   padding: 0 2rem;
-  background-color: var(--accent); /* normalny kolor */
+  background-color: var(--accent);
   color: var(--text-dark);
   border: none;
   border-radius: 24px;
@@ -140,14 +139,6 @@ body {
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
   transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.3s ease;
 }
-
-.login-button:hover,
-.registration-button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6);
-  background: linear-gradient(to bottom, #C9AC6D 0%, #FFFFFF 20%);
-}
-
 
 .login-button:hover,
 .registration-button:hover {
@@ -277,6 +268,7 @@ body {
 
 
 
+/* --- PAGE ICONS --- */
 .login-container .page-icons,
 .registration-container .page-icons {
   position: absolute;
@@ -285,15 +277,13 @@ body {
 }
 
 .page-icons {
-  position: fixed;       
-  top: 1rem;            
-  right: 1rem;          
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
   display: flex;
   gap: 1.5rem;
-  z-index: 1000;        
+  z-index: 1000;
 }
-
-
 
 .page-icon img.icon-image {
   height: clamp(24px, 3vw, 36px);
@@ -303,15 +293,10 @@ body {
   transition: transform 0.2s ease, filter 0.3s ease;
 }
 
-
-
-
-/* Efekt hover */
 .page-icon.home-icon img.icon-image:hover {
   transform: scale(1.1);
   filter: drop-shadow(0 0 6px #000) drop-shadow(0 0 12px #C9AC6D);
 }
-
 
 .page-icon.user-icon img.icon-image:hover {
   transform: scale(1.1);
@@ -865,16 +850,16 @@ body {
   margin-top: 1.5rem;
 }
 
+/* --- DISABLED ICON --- */
 .disabled-icon {
   background-color: #1E1E1E;
-  border-radius: 50%;      
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-
-  opacity: 0.7;             
+  opacity: 0.7;
   filter: grayscale(100%) brightness(0.4);
-  pointer-events: none;    
+  pointer-events: none;
   cursor: default;
   transition: all 0.3s ease;
 }
@@ -1518,4 +1503,3 @@ body {
   font-size: 0.9rem;
   opacity: 0.85;
 }
-

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { MouseEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import "../styles/LogReg.css";
+import "../styles/HomePage.css";
 import homeIcon from "../assets/home.svg";
 import userIcon from "../assets/user.svg";
 import { useSession } from "../context/SessionContext";
@@ -55,11 +55,15 @@ export default function HomePage() {
           ONGOING LEAGUE
         </Link>
         <Link to="/joinnewleague" className="homepage-button">
-          JOIN NEW LEAGUE
+          CREATE NEW LOBBY
         </Link>
 
         <Link to="/createnewleague" className="homepage-button">
-          CREATE NEW LEAGUE
+          JOIN LOBBY
+        </Link>
+
+        <Link to="/login" className="homepage-button">
+          SIGN OUT
         </Link>
 
         <Link

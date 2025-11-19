@@ -22,8 +22,7 @@ export default function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/registration" element={<RegistrationPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/ongleague" element={<OngLeaguePage />} />
+                  <Route path="/ongleague" element={<OngLeaguePage />} />
             <Route path="/createnewleague" element={<CreateNewLeaguePage />} />
             <Route path="/joinnewleague" element={<JoinNewLeaguePage />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />

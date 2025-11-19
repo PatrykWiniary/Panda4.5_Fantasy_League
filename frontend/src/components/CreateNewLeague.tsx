@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import "../styles/LogReg.css";
 import homeIcon from "../assets/home.svg";
-import userIcon from "../assets/user.svg";
 
 export default function CreateNewLeaguePage() {
   return (

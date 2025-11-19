@@ -161,7 +161,19 @@ export default function OngLeaguePage() {
               </div>
             ))}
           </div>
+
+          {/* Main Menu */}
+          <div className="main-menu-row-bottom">
+            <Link to="/" className="main-menu-button-dark" onClick={handleMainMenuClick}>
+              MAIN MENU
+            </Link>
+          </div>
         </div>
+      </div>
+
+      {/* Demo button */}
+      <div style={{ position: "fixed", left: 12, bottom: 12, zIndex: 2000 }}>
+        <button className="debug-btn" onClick={simulateEvent}>Simulate match event</button>
       </div>
     </div>
   );
