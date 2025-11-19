@@ -5,6 +5,7 @@ import ProfilePage from "./components/ProfilePage";
 import OngLeaguePage from "./components/OngLeague";
 import CreateNewLeaguePage from "./components/CreateNewLeague";
 import JoinNewLeaguePage from "./components/JoinNewLeague";
+import LeaderboardPage from "./components/LeaderboardPage";
 import PageTransition from "./components/PageTransition";
 import "./App.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
@@ -23,6 +24,7 @@ export default function App() {
             <Route path="/ongleague" element={<OngLeaguePage />} />
             <Route path="/createnewleague" element={<CreateNewLeaguePage />} />
             <Route path="/joinnewleague" element={<JoinNewLeaguePage />} />
+            <Route path="/leaderboard" element={<LeaderboardPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

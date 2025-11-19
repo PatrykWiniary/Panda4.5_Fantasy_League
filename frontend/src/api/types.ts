@@ -50,6 +50,21 @@ export type ApiUser = {
   avatar?: string | null;
 };
 
+export type LeaderboardEntry = {
+  id: number;
+  name: string;
+  score: number;
+  currency: number;
+  position: number;
+};
+
+export type LeaderboardResponse = {
+  top: LeaderboardEntry[];
+  totalUsers: number;
+  userEntry: LeaderboardEntry | null;
+  userInTop: boolean;
+};
+
 export type Region = {
   id: number;
   name: string;

@@ -61,6 +61,14 @@ export default function HomePage() {
         <Link to="/createnewleague" className="homepage-button">
           CREATE NEW LEAGUE
         </Link>
+
+        <Link
+          to="/leaderboard"
+          className="homepage-button"
+          onClick={(e) => handleLinkClick(e, "/leaderboard")}
+        >
+          LEADERBOARD
+        </Link>
       </div>
     </div>
   );

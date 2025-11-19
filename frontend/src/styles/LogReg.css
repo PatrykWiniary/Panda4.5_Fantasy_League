@@ -505,6 +505,90 @@ body {
   gap: 1.5rem;
 }
 
+.leaderboard-page {
+  min-height: 100vh;
+  width: 100vw;
+  background: var(--bg);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem 1rem 3rem;
+  position: relative;
+}
+
+.leaderboard-card {
+  width: 100%;
+  max-width: 820px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(201, 172, 109, 0.35);
+  border-radius: 24px;
+  padding: 2.5rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  text-align: center;
+  box-shadow: 0 25px 45px rgba(0, 0, 0, 0.45);
+}
+
+.leaderboard-subtitle {
+  color: #f5e8c7;
+  font-size: 1rem;
+  letter-spacing: 1px;
+}
+
+.leaderboard-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.leaderboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--accent);
+}
+
+.leaderboard-table th,
+.leaderboard-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid rgba(201, 172, 109, 0.2);
+  text-align: left;
+  letter-spacing: 0.5px;
+}
+
+.leaderboard-table th {
+  text-transform: uppercase;
+  font-size: 0.9rem;
+  letter-spacing: 1px;
+  border-bottom-width: 2px;
+}
+
+.leaderboard-row.highlighted {
+  background: rgba(201, 172, 109, 0.15);
+}
+
+.leaderboard-user-card {
+  border: 1px solid rgba(201, 172, 109, 0.35);
+  border-radius: 16px;
+  padding: 1rem 1.5rem;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.leaderboard-user-stats {
+  display: flex;
+  gap: 1rem;
+  letter-spacing: 1px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.leaderboard-user-stats span:first-child {
+  font-weight: 700;
+}
+
 .league-player-avatar{
   width: 160px;
   height: 160px;
