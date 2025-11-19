@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import LoginPage from './components/LoginPage';
 import RegistrationPage from './components/RegistrationPage';
 import HomePage from './components/HomePage';
-import ProfilePage from './components/ProfilePage';
 import OngLeaguePage from './components/OngLeague';
 import CreateNewLeaguePage from './components/CreateNewLeague';
 import JoinNewLeaguePage from './components/JoinNewLeague';
@@ -43,7 +42,6 @@ export default function App() {
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/registration" element={<RegistrationPage />} />
-      <Route path="/profile" element={<ProfilePage />} />
       <Route path="/ongleague" element={<OngLeaguePage />} />
       <Route path="/createnewleague" element={<CreateNewLeaguePage />} />
       <Route path="/joinnewleague" element={<JoinNewLeaguePage />} />

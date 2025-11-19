@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import '../styles/HomePage.css';
 import homeIcon from "../assets/home.svg";
-import userIcon from "../assets/user.svg";
 
 type Item = { id: number; name: string; qty: number };
 
@@ -59,13 +58,6 @@ export default function App() {
         <div className="page-icon home-icon disabled-icon">
           <img src={homeIcon} alt="Home (disabled)" className="icon-image" />
         </div>
-<Link
-  to="/profile"
-  className="page-icon user-icon"
-  onClick={(e) => handleLinkClick(e, "/profile")}
->
-  <img src={userIcon} alt="Profile" className="icon-image" />
-</Link>
       </div>
 
       <h1 className="homepage-title">SUMMONER’S LEAGUE</h1>

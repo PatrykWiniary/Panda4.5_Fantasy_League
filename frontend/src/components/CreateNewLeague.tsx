@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import '../styles/LogReg.css';
 import homeIcon from "../assets/home.svg";
-import userIcon from "../assets/user.svg";
 
 type Item = { id: number; name: string; qty: number };
 
@@ -34,9 +33,6 @@ export default function App() {
 <div className="page-icons">
   <Link to="/" className="page-icon home-icon">
     <img src={homeIcon} alt="Home" className="icon-image" />
-  </Link>
-  <Link to="/profile" className="page-icon user-icon">
-    <img src={userIcon} alt="Profile" className="icon-image" />
   </Link>
 </div>
   <h1 className="homepage-title">ONGOING LEAGUE</h1>

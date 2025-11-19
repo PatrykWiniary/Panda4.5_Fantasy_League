@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import '../styles/LogReg.css';
-import homeIcon from "../assets/home.svg";
-import userIcon from "../assets/user.svg";
 
 type Item = { id: number; name: string; qty: number };
 

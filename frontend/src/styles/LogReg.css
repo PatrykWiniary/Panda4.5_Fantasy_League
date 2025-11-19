@@ -197,8 +197,7 @@ body {
   transition: transform 0.2s ease, filter 0.3s ease;
 }
 
-.page-icon.home-icon img.icon-image:hover,
-.page-icon.user-icon img.icon-image:hover {
+.page-icon.home-icon img.icon-image:hover {
   transform: scale(1.1);
   filter: drop-shadow(0 0 6px #000) drop-shadow(0 0 12px #C9AC6D);
 }
