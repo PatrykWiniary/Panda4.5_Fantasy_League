@@ -83,3 +83,30 @@ CREATE TABLE IF NOT EXISTS matches (
   FOREIGN KEY (team2_id) REFERENCES teams (id) ON DELETE CASCADE,
   FOREIGN KEY (winner_team_id) REFERENCES teams (id) ON DELETE SET NULL
 );
+
+CREATE TABLE IF NOT EXISTS match_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  region TEXT NOT NULL,
+  team_a TEXT NOT NULL,
+  team_b TEXT NOT NULL,
+  winner TEXT NOT NULL,
+  mvp TEXT,
+  mvp_score REAL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS match_history_players (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  match_id INTEGER NOT NULL,
+  player_id INTEGER,
+  player_name TEXT NOT NULL,
+  nickname TEXT,
+  role TEXT,
+  kills INTEGER,
+  deaths INTEGER,
+  assists INTEGER,
+  cs INTEGER,
+  gold INTEGER,
+  score REAL,
+  FOREIGN KEY (match_id) REFERENCES match_history (id) ON DELETE CASCADE
+);

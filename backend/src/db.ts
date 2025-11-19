@@ -23,6 +23,7 @@ import {
   ensureUniqueMultipliers,
 } from "./deckManager";
 import { parseDeckPayload } from "./deckIO";
+import { scoreDeckAgainstPlayers } from "./simulationScoring";
 import { ProfileAvatarKey } from "./profileAvatars";
 import {sampleData} from "../data/SampleData.json"
 
@@ -701,6 +702,52 @@ export type LeaderboardEntry = {
   position: number;
 };
 
+export type MatchHistoryEntry = {
+  id: number;
+  region: string;
+  teamA: string;
+  teamB: string;
+  winner: string;
+  mvp?: string | null;
+  mvpScore?: number | null;
+  createdAt: string;
+};
+
+type MatchPlayerStat = {
+  playerId?: number;
+  name: string;
+  nickname?: string | null;
+  role: Role | string;
+  kills: number;
+  deaths: number;
+  assists: number;
+  cs: number;
+  gold: number;
+  score: number;
+};
+
+export type MatchPlayerHistoryEntry = {
+  id: number;
+  matchId: number;
+  playerId?: number | null;
+  name: string;
+  nickname?: string | null;
+  role?: string | null;
+  kills: number;
+  deaths: number;
+  assists: number;
+  cs: number;
+  gold: number;
+  score: number;
+};
+
+function getTeamNameById(teamId: number): string | null {
+  const row = db
+    .prepare("SELECT name FROM teams WHERE id = ?")
+    .get(teamId) as { name: string } | undefined;
+  return row?.name ?? null;
+}
+
 export function getUsersCount(): number {
   const row = db
     .prepare("SELECT COUNT(*) AS total FROM users")
@@ -762,6 +809,194 @@ export function getUserRankingEntry(
     currency: Number(userRow.currency) || 0,
     position,
   };
+}
+
+type MatchHistoryRow = {
+  id: number;
+  region: string;
+  team_a: string;
+  team_b: string;
+  winner: string;
+  mvp: string | null;
+  mvp_score: number | null;
+  created_at: string;
+};
+
+type MatchHistoryInsert = {
+  region: string;
+  teamA: string;
+  teamB: string;
+  winner: string;
+  mvp?: string | null;
+  mvpScore?: number | null;
+};
+
+function mapMatchHistoryRow(row: MatchHistoryRow): MatchHistoryEntry {
+  return {
+    id: row.id,
+    region: row.region,
+    teamA: row.team_a,
+    teamB: row.team_b,
+    winner: row.winner,
+    mvp: row.mvp ?? null,
+    mvpScore:
+      typeof row.mvp_score === "number" && Number.isFinite(row.mvp_score)
+        ? row.mvp_score
+        : null,
+    createdAt: row.created_at,
+  };
+}
+
+type MatchPlayerHistoryRow = {
+  id: number;
+  match_id: number;
+  player_id: number | null;
+  player_name: string;
+  nickname: string | null;
+  role: string | null;
+  kills: number;
+  deaths: number;
+  assists: number;
+  cs: number;
+  gold: number;
+  score: number;
+};
+
+function recordMatchHistory(
+  entry: MatchHistoryInsert,
+  players?: MatchPlayerStat[]
+) {
+  const result = db
+    .prepare(
+      `INSERT INTO match_history (region, team_a, team_b, winner, mvp, mvp_score)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      entry.region,
+      entry.teamA,
+      entry.teamB,
+      entry.winner,
+      entry.mvp ?? null,
+      typeof entry.mvpScore === "number" ? entry.mvpScore : null
+    );
+
+  const matchId = Number(result.lastInsertRowid);
+  if (!players || players.length === 0) {
+    return;
+  }
+
+  const stmt = db.prepare(
+    `INSERT INTO match_history_players
+      (match_id, player_id, player_name, nickname, role, kills, deaths, assists, cs, gold, score)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+
+  for (const player of players) {
+    stmt.run(
+      matchId,
+      player.playerId ?? null,
+      player.name,
+      player.nickname ?? null,
+      typeof player.role === "string" ? player.role : player.role ?? null,
+      player.kills,
+      player.deaths,
+      player.assists,
+      player.cs,
+      player.gold,
+      player.score
+    );
+  }
+}
+
+export function getRecentMatchHistory(
+  limit = 10,
+  offset = 0
+): MatchHistoryEntry[] {
+  const rows = db
+    .prepare(
+      "SELECT id, region, team_a, team_b, winner, mvp, mvp_score, created_at FROM match_history ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?"
+    )
+    .all(limit, offset) as MatchHistoryRow[];
+  return rows.map(mapMatchHistoryRow);
+}
+
+export function getMatchHistoryCount(): number {
+  const row = db
+    .prepare("SELECT COUNT(*) as total FROM match_history")
+    .get() as { total: number } | undefined;
+  return row?.total ?? 0;
+}
+
+export function getMatchHistoryById(
+  matchId: number
+): MatchHistoryEntry | undefined {
+  const row = db
+    .prepare(
+      "SELECT id, region, team_a, team_b, winner, mvp, mvp_score, created_at FROM match_history WHERE id = ?"
+    )
+    .get(matchId) as MatchHistoryRow | undefined;
+  return row ? mapMatchHistoryRow(row) : undefined;
+}
+
+export function getMatchHistoryPlayers(
+  matchId: number
+): MatchPlayerHistoryEntry[] {
+  const rows = db
+    .prepare(
+      `SELECT id, match_id, player_id, player_name, nickname, role, kills, deaths, assists, cs, gold, score
+       FROM match_history_players
+       WHERE match_id = ?
+       ORDER BY id ASC`
+    )
+    .all(matchId) as MatchPlayerHistoryRow[];
+
+  return rows.map((row) => ({
+    id: row.id,
+    matchId: row.match_id,
+    playerId: row.player_id,
+    name: row.player_name,
+    nickname: row.nickname,
+    role: row.role,
+    kills: row.kills ?? 0,
+    deaths: row.deaths ?? 0,
+    assists: row.assists ?? 0,
+    cs: row.cs ?? 0,
+    gold: row.gold ?? 0,
+    score: row.score ?? 0,
+  }));
+}
+
+function applyMatchResultsToDecks(players: Player[]): void {
+  if (!Array.isArray(players) || players.length === 0) {
+    return;
+  }
+
+  const decks = getAllDecks();
+  for (const storedDeck of decks) {
+    const result = scoreDeckAgainstPlayers(storedDeck.deck, players);
+    const userId = storedDeck.userId;
+    if (!userId) {
+      continue;
+    }
+
+    const awardedPoints = Math.max(result.totalScore, 0);
+    try {
+      addUserScore(userId, awardedPoints);
+    } catch (error) {
+      console.warn("Failed to add score for user after match", userId, error);
+    }
+
+    try {
+      saveDeck(userId, result.deck);
+    } catch (error) {
+      console.warn("Failed to persist deck after match simulation", userId, error);
+    }
+  }
+}
+
+export function clearMatchHistory(): void {
+  db.prepare("DELETE FROM match_history_players").run();
+  db.prepare("DELETE FROM match_history").run();
 }
 
 export function clearUsers() {
@@ -1135,34 +1370,108 @@ function calculateScore(kills:number, deaths:number, assists:number, cs:number, 
 }
 
 export function simulateMatch(players: Player[], regionName: string) {
-  let teams:string[] = [...sampleData.teams];
-  let MVP = {name: "", score: 0};
-  
-  while (teams.length > 2) {
-    const randomIndex = Math.floor(Math.random() * teams.length);
-    teams.splice(randomIndex, 1);
-  }
-  let winningTeam = teams[Math.floor(Math.random() * teams.length)];
-
+  const playersByTeam = new Map<number, Player[]>();
   for (const player of players) {
+    if (!player.team_id) continue;
+    if (!playersByTeam.has(player.team_id)) {
+      playersByTeam.set(player.team_id, []);
+    }
+    playersByTeam.get(player.team_id)!.push(player);
+  }
+
+  const teamEntries = Array.from(playersByTeam.entries()).filter(
+    ([, roster]) => roster.length > 0
+  );
+
+  const randomTeamIds: number[] = [];
+  const taken = new Set<number>();
+  while (randomTeamIds.length < 2 && teamEntries.length > 0) {
+    const index = Math.floor(Math.random() * teamEntries.length);
+    const [teamId] = teamEntries.splice(index, 1)[0];
+    if (!taken.has(teamId)) {
+      randomTeamIds.push(teamId);
+      taken.add(teamId);
+    }
+  }
+
+  let activeTeamNames: string[] = randomTeamIds
+    .map((teamId) => getTeamNameById(teamId) ?? `Team ${teamId}`)
+    .filter((name) => name);
+
+  let activePlayers: Player[] = randomTeamIds.flatMap(
+    (teamId) => playersByTeam.get(teamId) ?? []
+  );
+
+  if (activePlayers.length === 0 || randomTeamIds.length < 2) {
+    let teams = [...sampleData.teams];
+    while (teams.length > 2) {
+      const randomIndex = Math.floor(Math.random() * teams.length);
+      teams.splice(randomIndex, 1);
+    }
+    activeTeamNames = teams;
+    activePlayers = [...players];
+  }
+
+  const teamsForMatch =
+    activeTeamNames.length >= 2
+      ? activeTeamNames.slice(0, 2)
+      : [...sampleData.teams.slice(0, 2)];
+
+  let winningTeam =
+    teamsForMatch[Math.floor(Math.random() * teamsForMatch.length)] ??
+    teamsForMatch[0];
+
+  let MVP = { name: "", score: 0 };
+  const matchPlayers: Player[] = [];
+  const playerStatsForHistory: MatchPlayerStat[] = [];
+
+  for (const player of activePlayers) {
     const deltaKills = Math.floor(Math.random() * 5);
     const deltaDeaths = Math.floor(Math.random() * 3);
     const deltaAssists = Math.floor(Math.random() * 4);
     const deltaCs = Math.floor(Math.random() * 200);
     const deltaGold = Math.floor(Math.random() * 12000);
-    
+
     player.kills += deltaKills;
     player.deaths += deltaDeaths;
     player.assists += deltaAssists;
     player.cs += deltaCs;
     player.gold += deltaGold;
-    
-    const deltaScore = calculateScore(deltaKills, deltaDeaths, deltaAssists, deltaCs, deltaGold);
+
+    const deltaScore = calculateScore(
+      deltaKills,
+      deltaDeaths,
+      deltaAssists,
+      deltaCs,
+      deltaGold
+    );
     player.score += deltaScore;
-    if(deltaScore > MVP.score){
+    if (deltaScore > MVP.score) {
       MVP.name = player.nickname ?? player.name;
       MVP.score = deltaScore;
     }
+
+    matchPlayers.push({
+      ...player,
+      kills: deltaKills,
+      deaths: deltaDeaths,
+      assists: deltaAssists,
+      cs: deltaCs,
+      gold: deltaGold,
+    });
+
+    playerStatsForHistory.push({
+      playerId: player.id,
+      name: player.name,
+      nickname: player.nickname ?? null,
+      role: player.role,
+      kills: deltaKills,
+      deaths: deltaDeaths,
+      assists: deltaAssists,
+      cs: deltaCs,
+      gold: deltaGold,
+      score: deltaScore,
+    });
 
     db.prepare(
       "UPDATE players SET kills = ?, deaths = ?, assists = ?, cs = ?, gold = ?, score = ? WHERE id = ?"
@@ -1177,16 +1486,37 @@ export function simulateMatch(players: Player[], regionName: string) {
     );
   }
 
-  // console.log(`Simulated match in ${regionName}`);
-  // console.log("Team: " + teams[0] + " vs Team: " + teams[1]);
-  // console.log("Winner: " + winningTeam);
-  // console.log("MVP: " + MVP.name + ", score = " + MVP.score);
   const returnData = {
     region: regionName,
-    teams: teams,
+    teams: teamsForMatch,
     winningTeam: winningTeam,
-    MVP: MVP
+    MVP: MVP,
+  };
+
+  if (teamsForMatch.length >= 2) {
+    try {
+      recordMatchHistory(
+        {
+          region: regionName,
+          teamA: teamsForMatch[0],
+          teamB: teamsForMatch[1],
+          winner: winningTeam,
+          mvp: MVP.name || null,
+          mvpScore: MVP.score,
+        },
+        playerStatsForHistory
+      );
+    } catch (error) {
+      console.warn("Failed to record match history", error);
+    }
   }
+
+  try {
+    applyMatchResultsToDecks(matchPlayers);
+  } catch (error) {
+    console.warn("Failed to update deck scores after match", error);
+  }
+
   return returnData;
 }
 

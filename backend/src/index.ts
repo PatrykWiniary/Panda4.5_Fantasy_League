@@ -25,6 +25,11 @@ import {
   getPlayersGroupedByRole,
   PlayerFilters,
   updateUserAvatar,
+  getRecentMatchHistory,
+  getMatchHistoryCount,
+  getMatchHistoryById,
+  getMatchHistoryPlayers,
+  clearMatchHistory,
 } from "./db";
 import {
   addCardToDeck,
@@ -176,6 +181,70 @@ app.get("/api/users/leaderboard", (req, res) => {
     userEntry,
     userInTop,
   });
+});
+
+app.get("/api/matches/history", (req, res) => {
+  const rawLimit = parsePositiveIntQuery(req.query.limit) ?? 10;
+  const rawPage = parsePositiveIntQuery(req.query.page) ?? 1;
+  const limit = Math.min(Math.max(rawLimit, 1), 50);
+  const page = Math.max(rawPage, 1);
+  const offset = (page - 1) * limit;
+  try {
+    const total = getMatchHistoryCount();
+    const matches = getRecentMatchHistory(limit, offset);
+    res.json({ matches, total });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "MATCH_HISTORY_FAILED" });
+  }
+});
+
+app.delete("/api/matches/history", (_req, res) => {
+  try {
+    clearMatchHistory();
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "MATCH_HISTORY_CLEAR_FAILED" });
+  }
+});
+
+app.get("/api/matches/:matchId", (req, res) => {
+  const matchId = Number(req.params.matchId);
+  if (!Number.isInteger(matchId) || matchId <= 0) {
+    return res.status(400).json({ error: "INVALID_MATCH_ID" });
+  }
+  try {
+    const match = getMatchHistoryById(matchId);
+    if (!match) {
+      return res.status(404).json({ error: "MATCH_NOT_FOUND" });
+    }
+    const players = getMatchHistoryPlayers(matchId);
+    res.json({ match, players });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "MATCH_DETAILS_FAILED" });
+  }
+});
+
+app.post("/api/matches/simulate", (req, res) => {
+  const rawRegion =
+    req.body?.regionId ??
+    (Array.isArray(req.query.regionId)
+      ? req.query.regionId[0]
+      : req.query.regionId);
+  const parsed = Number(rawRegion);
+  const regionId =
+    Number.isInteger(parsed) && parsed > 0 ? parsed : Number(process.env.DEFAULT_REGION_ID ?? 1);
+  try {
+    const game = new FootabalolGame();
+    game.setRegion(regionId);
+    const result = game.simulateMatch();
+    res.status(201).json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "MATCH_SIMULATION_FAILED" });
+  }
 });
 
 app.post("/api/items", (req, res) => {

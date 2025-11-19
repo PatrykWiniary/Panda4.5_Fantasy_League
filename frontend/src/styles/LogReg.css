@@ -505,7 +505,8 @@ body {
   gap: 1.5rem;
 }
 
-.leaderboard-page {
+.leaderboard-page,
+.match-history-page {
   min-height: 100vh;
   width: 100vw;
   background: var(--bg);
@@ -516,7 +517,8 @@ body {
   position: relative;
 }
 
-.leaderboard-card {
+.leaderboard-card,
+.match-history-card {
   width: 100%;
   max-width: 820px;
   background: rgba(0, 0, 0, 0.55);
@@ -530,32 +532,38 @@ body {
   box-shadow: 0 25px 45px rgba(0, 0, 0, 0.45);
 }
 
-.leaderboard-subtitle {
+.leaderboard-subtitle,
+.match-history-subtitle {
   color: #f5e8c7;
   font-size: 1rem;
   letter-spacing: 1px;
 }
 
-.leaderboard-table-wrapper {
+.leaderboard-table-wrapper,
+.match-history-table-wrapper {
   width: 100%;
   overflow-x: auto;
 }
 
-.leaderboard-table {
+.leaderboard-table,
+.match-history-table {
   width: 100%;
   border-collapse: collapse;
   color: var(--accent);
 }
 
 .leaderboard-table th,
-.leaderboard-table td {
+.leaderboard-table td,
+.match-history-table th,
+.match-history-table td {
   padding: 0.75rem;
   border-bottom: 1px solid rgba(201, 172, 109, 0.2);
   text-align: left;
   letter-spacing: 0.5px;
 }
 
-.leaderboard-table th {
+.leaderboard-table th,
+.match-history-table th {
   text-transform: uppercase;
   font-size: 0.9rem;
   letter-spacing: 1px;
@@ -587,6 +595,88 @@ body {
 
 .leaderboard-user-stats span:first-child {
   font-weight: 700;
+}
+
+.match-history-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .match-history-actions {
+    flex-direction: row;
+    justify-content: center;
+  }
+
+  .match-history-actions .login-button {
+    flex: 1;
+  }
+}
+
+.match-history-row {
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.match-history-row:hover {
+  background: rgba(201, 172, 109, 0.12);
+}
+
+.match-history-detail-row td {
+  background: rgba(0, 0, 0, 0.35);
+  padding: 1rem;
+}
+
+.match-history-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--accent);
+}
+
+.match-history-detail-table th,
+.match-history-detail-table td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid rgba(201, 172, 109, 0.2);
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.match-history-pagination {
+  margin-top: 1.25rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+}
+
+.match-history-nav {
+  border: 1px solid rgba(201, 172, 109, 0.6);
+  background: transparent;
+  color: var(--accent);
+  letter-spacing: 1px;
+  padding: 0.35rem 1rem;
+  border-radius: 999px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.match-history-nav:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.match-history-nav:not(:disabled):hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+}
+
+.match-history-page-indicator {
+  font-size: 0.85rem;
+  letter-spacing: 1px;
+  color: #f5e8c7;
 }
 
 .league-player-avatar{

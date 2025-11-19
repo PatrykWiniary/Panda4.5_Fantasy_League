@@ -69,6 +69,14 @@ export default function HomePage() {
         >
           LEADERBOARD
         </Link>
+
+        <Link
+          to="/matches"
+          className="homepage-button"
+          onClick={(e) => handleLinkClick(e, "/matches")}
+        >
+          MATCH HISTORY
+        </Link>
       </div>
     </div>
   );

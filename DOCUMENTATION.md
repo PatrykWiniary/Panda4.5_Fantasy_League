@@ -81,6 +81,15 @@ Modul `backend/src/API/FootbalolGame.ts` udostepnia klase `FootabalolGame`, ktor
 
 Modul `backend/src/simulationScoring.ts` spina symulacje z taliami. Funkcja `scoreDeckAgainstPlayers` oblicza wynik talii na podstawie statystyk graczy (z uwzglednieniem mnoznikow kapitanow) i zapisuje wynik w polu `tournamentPoints` kazdej karty. Suma punktow jest nastepnie dodawana do `users.score`.
 
+### Historia meczow i ranking
+- W `init.sql` znajduje sie tabela `match_history`, a `simulateMatch` automatycznie zapisuje kazdy wygenerowany mecz (region, dwa zespoly, zwyciezca, MVP i znacznik czasu). W `db.ts` dodano helpery `recordMatchHistory`, `getRecentMatchHistory(limit, offset)` oraz `getMatchHistoryCount`.
+- Endpoint `POST /api/matches/simulate` instancjonuje `FootabalolGame`, wykonuje pojedyncza symulacje i zwraca wynik – rownoczesnie wpis trafia do historii.
+- Endpoint `GET /api/matches/history?limit=15&page=2` udostepnia stronnicowana liste ostatnich symulacji i jest wykorzystywany przez frontendowy widok historii.
+- Detale graczy sa przechowywane w tabeli match_history_players. GET /api/matches/:matchId zwraca pojedynczy mecz wraz z pełna tabela (rola, K/D/A, CS, zloto, wynik), a frontend pokazuje te dane po kliknieciu w wiersz.
+- Symulacja meczu losuje dwie faktyczne druzyny (na podstawie 	eam_id graczy w wybranym regionie) i tylko ich zawodnicy biora udzial w wydarzeniu – pozostali zawodnicy nie dostaja dodatkowych statystyk.
+- Ranking uzytkownikow (`getLeaderboardTop`, `getUserRankingEntry`) jest udostepniany przez `GET /api/users/leaderboard`, ktory zwraca TOP 10, laczna liczbe menedzerow oraz (opcjonalnie) pozycje wskazanego uzytkownika.
+- Uzytkownicy moga zapisywac wybrany avatar (`POST /api/users/:id/avatar`). Backend normalizuje klucz (tylko alfanumeryczne + mylniki) i przechowuje wartosc w kolumnie `users.avatar`.
+
 ### Endpointy REST
 Najwazniejsze sciezki serwera (wszystkie zaczynaja sie od `/api`):
 
@@ -98,6 +107,12 @@ Najwazniejsze sciezki serwera (wszystkie zaczynaja sie od `/api`):
 | `POST` | `/decks/replace-card` | Zastepuje karte na danej roli i sprawdza limit waluty.
 | `POST` | `/decks/save` | Zapisuje kompletna talie i zwraca jej podsumowanie.
 | `POST` | `/tournaments/simulate` | Uruchamia symulacje turnieju dla wskazanego uzytkownika, nalicza punkty na podstawie wybranych kart i aktualizuje `users.score`.
+| `GET` | `/users/leaderboard?userId=123` | Zwraca TOP 10 menedzerow, laczna liczbe uzytkownikow oraz (opcjonalnie) pozycje konkretnej osoby.
+| `POST` | `/users/:userId/avatar` | Aktualizuje avatar uzytkownika po stronie backendu (nowa wartosc laduje w kolumnie `users.avatar`).
+| `GET` | `/matches/history?limit=15&page=2` | Stronnicowana historia ostatnich symulacji (region, zespoly, zwyciezca, MVP, data).
+| `GET` | `/matches/:matchId` | Zwraca pojedynczy wpis z historii wraz z tabela statystyk wszystkich graczy uczestniczacych w meczu.
+| `POST` | `/matches/simulate` | Generuje nowy mecz w regionie gry i dopisuje go do historii.
+| `DELETE` | `/matches/history` | Czyści logi meczowe (zarówno główną tabelę, jak i statystyki graczy); wykorzystywane przez przycisk „Clear History”.
 | `GET` / `POST` | `/items`, `/users`, `/register`, `/login` | Endpoints CRUD/testowe z poprzednich wersji projektu.
 
 Rejestracja (`POST /api/register`) odrzuca zgloszenie, jezeli adres e-mail nie przejdzie walidacji lub haslo nie spelni wymagan bezpieczenstwa (minimum 8 znakow, mala i duza litera, cyfra). Backend zwraca odpowiednio `INVALID_EMAIL` lub `WEAK_PASSWORD`.
@@ -207,6 +222,18 @@ Wynik calkowity to `round(score * multiplier)` (zaokraglenie do najblizszej licz
 - Punkty sa dopisywane do kolumny `users.score`, a aktualna talia otrzymuje `tournamentPoints` zapisane przy kazdej karcie.
 - W odpowiedzi API znajdziesz tez `deckScore.breakdown` z tabela (rola, gracz, punkty bazowe, mnoznik, wynik) oraz `deckScore.missingRoles` z brakujacymi slotami.
 - Sekcja "Saved Decks" prezentuje te dane przy kolejnych odswiezeniach, co pozwala sledzic historie wynikow po symulacjach.
+
+### Profil uzytkownika i avatary
+- Komponenty `LoginPage`, `RegistrationPage` oraz `ProfilePage` korzystaja ze wspolnego arkusza `LogReg.css`, dzieki czemu zachowuja jednolity styl (gradientowe tytuly, zaokraglone przyciski).
+- Formularz rejestracji oraz ekran profilu posiadaja picker avatarow (`AvatarPicker`). Komponent automatycznie wykrywa wszystkie pliki w `frontend/src/assets/profilePics`, dzieli je na strony (15 pozycji) i pozwala wybrac jedna ikone.
+- Wybor jest zapisywany w backendzie (`POST /api/users/:id/avatar`), a avatar uzytkownika wyswietla sie m.in. na stronie profilu, w panelu OngLeague oraz w tabeli leaderboardu(TODO maybe).
+
+### Leaderboard i historia meczow
+- Strona `/leaderboard` (`LeaderboardPage.tsx`) pobiera `GET /api/users/leaderboard`, wyswietla TOP 10 menedzerow oraz wyróżnia zalogowanego uzytkownika (nawet jezeli nie miesci sie w czolowce). Karta informuje rowniez o liczbie zarejestrowanych graczy.
+- Strona `/matches` (`MatchHistoryPage.tsx`) prezentuje logi meczowe. Tabela wyswietla po 15 rekordow na strone, a nawigacja Prev/Next dziala analogicznie do avatarow. Przycisk "Simulate New Match" wywoluje `POST /api/matches/simulate`, a "Refresh" ponownie pobiera liste (`GET /api/matches/history?...`).
+- Klikniecie wiersza meczu pobiera `GET /api/matches/:id` i rozwija szczegoly (rola, K/D/A, CS, zloto, wynik) zapisane w tabeli `match_history_players`.
+- Dodatkowy przycisk "Clear History" korzysta z `DELETE /api/matches/history` i zeruje zawartosc tabeli.
+
 
 ---
 

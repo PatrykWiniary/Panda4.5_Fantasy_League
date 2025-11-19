@@ -65,6 +65,42 @@ export type LeaderboardResponse = {
   userInTop: boolean;
 };
 
+export type MatchHistoryEntry = {
+  id: number;
+  region: string;
+  teamA: string;
+  teamB: string;
+  winner: string;
+  mvp?: string | null;
+  mvpScore?: number | null;
+  createdAt: string;
+};
+
+export type MatchPlayerHistoryEntry = {
+  id: number;
+  matchId: number;
+  playerId?: number | null;
+  name: string;
+  nickname?: string | null;
+  role?: string | null;
+  kills: number;
+  deaths: number;
+  assists: number;
+  cs: number;
+  gold: number;
+  score: number;
+};
+
+export type MatchHistoryResponse = {
+  matches: MatchHistoryEntry[];
+  total: number;
+};
+
+export type MatchHistoryDetailResponse = {
+  match: MatchHistoryEntry;
+  players: MatchPlayerHistoryEntry[];
+};
+
 export type Region = {
   id: number;
   name: string;
