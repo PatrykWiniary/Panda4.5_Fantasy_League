@@ -26,6 +26,7 @@ import { parseDeckPayload } from "./deckIO";
 import { scoreDeckAgainstPlayers } from "./simulationScoring";
 import { ProfileAvatarKey } from "./profileAvatars";
 import {sampleData} from "../data/SampleData.json"
+import { Lobby } from "./Lobby";
 
 const DB_PATH = path.join(__dirname, "..", "data", "app.db");
 const INIT_SQL = path.join(__dirname, "init.sql");
@@ -1548,3 +1549,25 @@ export function getTeamId(teamName: string): number {
 
   return Number(row.id);
 }
+
+function test(){
+  const lobby = new Lobby(db, 1);
+
+  lobby.join(70);
+  lobby.join(71);
+  lobby.join(72);
+  lobby.join(73);
+  lobby.join(74);
+  //console.log(lobby.getUsers());
+
+  lobby.addToBet(70, 1);
+  lobby.addToBet(71, 25);
+  lobby.addToBet(72, 60);
+  lobby.addToBet(73, 100);
+  lobby.addToBet(74, 100000);
+  lobby.addToBet(74, 10);
+
+  const winnerId = lobby.decideWinner();
+  console.log("Winner:", winnerId);
+}
+test();
