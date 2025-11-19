@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import '../styles/LoginPage.css';
+import '../styles/LogReg.css';
+
 type Item = { id: number; name: string; qty: number };
 
 export default function App() {
@@ -28,24 +29,34 @@ export default function App() {
 
   return (
     <div className="login-container">
-      <form className="login-form">
-        <h2 className="login-title">Zaloguj się</h2>
-        <div className="login-field">
-          <label htmlFor="email" className="login-label">Email</label>
-          <input type="email" id="email" name="email" placeholder="Enter your email" className="login-input" />
+      <div className="login-form">
+        <h1 className="login-title login-title--main">SUMMONER'S LEAGUE</h1>
+        <h2 className="login-title login-title--sub">SIGN IN</h2>
+
+        <input
+          type="email"
+          placeholder="EMAIL"
+          className="login-input"
+          autoComplete="username"
+        />
+        <input
+          type="password"
+          placeholder="PASSWORD"
+          className="login-input"
+          autoComplete="current-password"
+        />
+
+        <div className="login-actions">
+          <a className="login-forgot">Forgot password?</a>
+          <button className="login-button">SIGN IN</button>
         </div>
-        <div className="login-field">
-          <label htmlFor="password" className="login-label">Password</label>
-          <input type="password" id="password" name="password" placeholder="Enter your password" className="login-input" />
-        </div>
-        <button type="submit" className="login-button">Login</button>
+
         <div className="login-register">
-          Nie masz konta?{' '}
-      <Link to="/registration" className="register-link">
-      Zarejestruj się
-      </Link>
+          <Link to="/registration" className="register-link">
+            Create account
+          </Link>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

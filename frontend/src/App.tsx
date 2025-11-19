@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react';
 import LoginPage from './components/LoginPage';
 import RegistrationPage from './components/RegistrationPage';
+import HomePage from './components/HomePage';
+import OngLeaguePage from './components/OngLeague';
+import CreateNewLeaguePage from './components/CreateNewLeague';
+import JoinNewLeaguePage from './components/JoinNewLeague';
+import PageTransition from "./components/PageTransition";
+import PlayerPickPage from './components/PlayerPick.tsx'
+import "./App.css";
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+
 type Item = { id: number; name: string; qty: number };
 
 export default function App() {
@@ -28,10 +36,18 @@ export default function App() {
   };
 
   return (
+
   <BrowserRouter>
     <Routes>
-      <Route path="/" element={<LoginPage />} />
+       <Route element={<PageTransition />}>
+      <Route path="/" element={<HomePage />} />
+      <Route path="/login" element={<LoginPage />} />
       <Route path="/registration" element={<RegistrationPage />} />
+      <Route path="/ongleague" element={<OngLeaguePage />} />
+      <Route path="/createnewleague" element={<CreateNewLeaguePage />} />
+      <Route path="/joinnewleague" element={<JoinNewLeaguePage />} />
+      <Route path="/playerpick" element={<PlayerPickPage />} />
+    </Route>
     </Routes>
   </BrowserRouter>
   );

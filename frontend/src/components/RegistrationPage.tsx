@@ -1,4 +1,8 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import '../styles/LogReg.css';
+import homeIcon from "../assets/home.svg";
+import userIcon from "../assets/user.svg";
 
 type Item = { id: number; name: string; qty: number };
 
@@ -25,15 +29,46 @@ export default function App() {
     setName('');
   };
 
-  return (
-    <div style={{ padding: 20 }}>
-      <h1>Items</h1>
-      <ul>
-        {items.map(i => <li key={i.id}>{i.name} ({i.qty})</li>)}
-      </ul>
-      <span> Haello! </span>
-      <input value={name} onChange={e => setName(e.target.value)} />
-      <button onClick={add}>Add</button>
+   return (
+    <div className="login-container">
+
+
+      <div className="login-form">
+        <h1 className="login-title login-title--main">SUMMONER'S LEAGUE</h1>
+        <h2 className="login-title login-title--sub">SIGN UP</h2>
+
+        <input
+          type="email"
+          placeholder="EMAIL"
+          className="login-input"
+          autoComplete="username"
+        />
+        <input
+          type="text"
+          placeholder="USERNAME"
+          className="login-input"
+          autoComplete="username"
+        />
+        <input
+          type="password"
+          placeholder="PASSWORD"
+          className="login-input"
+          autoComplete="new-password"
+        />
+
+        <div className="login-actions">
+          <button type="submit" className="login-button">
+            SIGN UP
+          </button>
+        </div>
+
+        <div className="login-register">
+          Already have an account?{' '}
+          <Link to="/login" className="register-link">
+            Sign in
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

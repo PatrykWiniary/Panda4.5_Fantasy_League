@@ -1,0 +1,222 @@
+:root {
+  --bg: #141313;
+  --accent: #C9AC6D;
+  --accent-dark: #635536;
+  --text-dark: #141313;
+}
+
+/* --- GLOBAL --- */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+  background: var(--bg);
+  font-family: 'Outfit', sans-serif;
+  color: var(--accent);
+}
+
+/* --- LOGIN / REGISTER CONTAINERS --- */
+.login-container,
+.registration-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  width: 100vw;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+/* --- FORMS --- */
+.login-form,
+.registration-form {
+  width: 100%;
+  max-width: 500px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 3rem;
+}
+
+.login-container .login-input,
+.registration-container .login-input {
+  width: 100%;
+  max-width: 500px;
+  padding: 1.2rem 1.5rem;
+  border-radius: 19px;
+  border: 1.5px solid var(--accent-dark);
+  background-color: var(--bg);
+  color: var(--accent);
+  font-size: 1.3rem;
+  outline: none;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  display: flex;
+  justify-content: center;
+}
+
+.login-container .login-input::placeholder,
+.registration-container .login-input::placeholder {
+  color: var(--accent-dark);
+  opacity: 0.8;
+  font-size: 1.2rem;
+  text-align: center;
+}
+
+.login-container .login-input:focus,
+.registration-container .login-input:focus {
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 12px rgba(201, 172, 109, 0.4);
+}
+
+/* --- TITLES --- */
+.login-title--main,
+.login-title {
+  white-space: nowrap;
+  font-size: 3.5rem;
+  font-weight: 700;
+  line-height: 1.3;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 6px;
+  text-align: center;
+  background: radial-gradient(circle at 50% 40%, var(--accent) 20%, var(--accent-dark) 80%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 5px rgba(0, 0, 0, 0.4);
+}
+
+.login-title--sub {
+  white-space: nowrap;
+  font-size: 2.2rem;
+  font-weight: 700;
+  letter-spacing: 4px;
+  margin-bottom: 2rem;
+  text-transform: uppercase;
+  background: radial-gradient(circle at center, var(--accent) 20%, var(--accent-dark) 80%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 0 5px rgba(0, 0, 0, 0.4);
+}
+
+/* --- ACTION BUTTONS --- */
+.login-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin-top: 1.5rem;
+  gap: 1.5rem;
+}
+
+.login-button,
+.registration-button {
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14rem;
+  height: 4rem;
+  padding: 0 2rem;
+  background-color: var(--accent);
+  color: var(--text-dark);
+  border: none;
+  border-radius: 24px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.3s ease;
+}
+
+.login-button:hover,
+.registration-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6);
+  background: linear-gradient(to bottom, var(--accent) 0%, #BFA96B 40%, #AD9767 80%);
+}
+
+/* --- LINKS --- */
+.login-forgot,
+.register-link {
+  white-space: nowrap;
+  font-size: 1.1rem;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.login-forgot:hover,
+.register-link:hover {
+  color: #E0C878;
+}
+
+/* --- REGISTER SECTION --- */
+.login-register {
+  text-align: center;
+  margin-top: 2rem;
+  color: var(--accent);
+  font-size: 1.1rem;
+  letter-spacing: 1px;
+}
+
+/* --- PAGE ICONS --- */
+.login-container .page-icons,
+.registration-container .page-icons {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+}
+
+.page-icons {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  gap: 1.5rem;
+  z-index: 1000;
+}
+
+.page-icon img.icon-image {
+  height: clamp(24px, 3vw, 36px);
+  width: auto;
+  object-fit: contain;
+  cursor: pointer;
+  transition: transform 0.2s ease, filter 0.3s ease;
+}
+
+.page-icon.home-icon img.icon-image:hover {
+  transform: scale(1.1);
+  filter: drop-shadow(0 0 6px #000) drop-shadow(0 0 12px #C9AC6D);
+}
+
+/* --- DISABLED ICON --- */
+.disabled-icon {
+  background-color: #1E1E1E;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  filter: grayscale(100%) brightness(0.4);
+  pointer-events: none;
+  cursor: default;
+  transition: all 0.3s ease;
+}
+
+.disabled-icon img.icon-image {
+  filter: brightness(0.4) grayscale(100%);
+  transform: none !important;
+}
