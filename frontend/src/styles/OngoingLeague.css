@@ -135,6 +135,7 @@
   align-items: center;
   gap: 0.6rem;
   width: 300px;
+  margin-top: -1rem;
 }
 
 .league-avatar-wrapper {
@@ -384,7 +385,7 @@
 /* Responsive */
 @media (max-width: 1000px) {
   .league-layout { flex-direction: column; gap: 1.4rem; padding: 1rem; align-items: center; }
-  .league-left { width: auto; margin-top: 18px; }
+  .league-left { width: auto; margin-top: 0; }
   .league-champion-card { width: 120px; }
   .league-champion-portrait { width: 120px; height: 150px; }
   .league-role-icon { width: 44px; }

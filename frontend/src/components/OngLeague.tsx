@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import "../styles/LogReg.css";
+import "../styles/OngoingLeague.css";
 import homeIcon from "../assets/home.svg";
 import userIcon from "../assets/user.svg";
 import mapBackground from "../assets/rift.png";
@@ -9,6 +10,7 @@ import jungleIcon from "../assets/roleIcons/jungle.png";
 import midIcon from "../assets/roleIcons/mid.png";
 import adcIcon from "../assets/roleIcons/adc.png";
 import supportIcon from "../assets/roleIcons/support.png";
+import fallbackPortrait from "../assets/playerPics/Bin.webp";
 import { apiFetch, ApiError } from "../api/client";
 import type {
   DeckResponse,
@@ -28,7 +30,27 @@ const roleIcons: Record<DeckRole, string> = {
   Supp: supportIcon,
 };
 
-export default function OngLeaguePage() {
+type ChampCard = {
+  id: number;
+  icon: string;
+  portrait: string;
+  name?: string;
+  role: DeckRole;
+  kdA?: string;
+  pointsDelta?: number;
+  isMvp?: boolean;
+};
+
+type OngLeagueProps = {
+  popupEvent?: boolean;
+  onPopupHandled?: () => void;
+};
+
+export default function OngLeaguePage({
+  popupEvent,
+  onPopupHandled,
+}: OngLeagueProps) {
+  const navigate = useNavigate();
   const { user } = useSession();
   const [deck, setDeck] = useState<Record<DeckRole, DeckCard | null>>({
     Top: null,
@@ -39,6 +61,8 @@ export default function OngLeaguePage() {
   });
   const [summary, setSummary] = useState<DeckSummary | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [showPopup, setShowPopup] = useState(false);
+  const [fadeOut, setFadeOut] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -76,26 +100,90 @@ export default function OngLeaguePage() {
     };
   }, [user]);
 
-  const champions = (Object.keys(deck) as DeckRole[]).map((role) => {
-    const card = deck[role];
-    return {
-      role,
-      card,
-      icon: roleIcons[role],
-      image: resolvePlayerImage(card?.name),
-    };
-  });
+  useEffect(() => {
+    if (popupEvent) {
+      setShowPopup(true);
+      const timer = setTimeout(() => {
+        setShowPopup(false);
+        onPopupHandled?.();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [popupEvent, onPopupHandled]);
+
+  const handleMainMenuClick = (event: React.MouseEvent) => {
+    event.preventDefault();
+    setFadeOut(true);
+    setTimeout(() => navigate("/"), 600);
+  };
+
+  const simulateEvent = () => {
+    setShowPopup(true);
+    setTimeout(() => setShowPopup(false), 3000);
+  };
+
   const playerAvatar = resolveProfileAvatar(user?.avatar);
+
+  const champions = useMemo(() => {
+    const entries: ChampCard[] = (Object.keys(deck) as DeckRole[]).map(
+      (role, index) => {
+        const card = deck[role];
+        const resolvedPortrait =
+          card?.name && resolvePlayerImage(card.name)
+            ? resolvePlayerImage(card.name)
+            : fallbackPortrait;
+        return {
+          id: index + 1,
+          icon: roleIcons[role],
+          portrait: resolvedPortrait,
+          name: card?.name,
+          role,
+          kdA:
+            typeof card?.tournamentPoints === "number"
+              ? `Score ${card.tournamentPoints.toFixed(1)}`
+              : undefined,
+          pointsDelta: card?.points,
+        };
+      }
+    );
+
+    const best = entries.reduce(
+      (acc, champ) =>
+        champ.pointsDelta !== undefined && champ.pointsDelta > acc.value
+          ? { value: champ.pointsDelta, id: champ.id }
+          : acc,
+      { value: -Infinity, id: -1 }
+    );
+    if (best.id !== -1) {
+      entries.forEach((champ) => {
+        if (champ.id === best.id) {
+          champ.isMvp = true;
+        }
+      });
+    }
+
+    return entries;
+  }, [deck]);
+
+  const playedGames = summary?.totalValue ?? 0;
+  const totalGames = summary?.currencyCap ?? "?";
 
   return (
     <div
-      className="ongleague-page fade-in"
+      className={`ongleague-page ${fadeOut ? "fade-out" : "fade-in"}`}
       style={{
         backgroundImage: `url(${mapBackground})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
       }}
     >
+      <div className={`match-popup ${showPopup ? "visible" : ""}`} role="status">
+        <div className="match-popup-inner">
+          Match just finished. New points added.
+        </div>
+      </div>
+
       <div className="page-icons">
         <Link to="/" className="page-icon home-icon">
           <img src={homeIcon} alt="Home" className="icon-image" />
@@ -106,74 +194,103 @@ export default function OngLeaguePage() {
       </div>
 
       <div className="league-title-bg">
-        <h1 className="league-title">
-          {user ? `${user.name.toUpperCase()}'S ROSTER` : "JOIN A LEAGUE"}
+        <h1 className="league-title gradient-text">
+          {user ? `${user.name.toUpperCase()}'S LOBBY` : "JOIN A LEAGUE"}
         </h1>
+        <div className="league-played-count gradient-text">
+          {playedGames}/{totalGames}
+        </div>
       </div>
 
       <div className="league-layout">
         <div className="league-left">
-          <img
-            src={playerAvatar}
-            alt={user ? `${user.name} avatar` : "Avatar"}
-            className="league-player-avatar"
-          />
-          <h2 className="league-player-name">
+          <div className="league-avatar-wrapper">
+            <img
+              src={playerAvatar}
+              alt={user ? `${user.name} avatar` : "Avatar"}
+              className="league-avatar"
+            />
+          </div>
+          <h2 className="league-player-name gradient-text">
             {user ? user.name : "Unassigned"}
           </h2>
-          <p className="league-player-points">
-            {summary
-              ? `Deck value: ${summary.totalValue}/${summary.currencyCap ?? "?"}`
-              : "No deck saved"}
-          </p>
-          {status && <p className="form-status">{status}</p>}
+          <div className="league-player-meta">
+            <div className="league-player-rank gradient-text">
+              {user
+                ? `Ranking position: ${user.score ?? "?"}`
+                : "Ranking position: -"}
+            </div>
+            <div className="league-player-points gradient-text">
+              Deck value: {summary?.totalValue ?? 0}/
+              {summary?.currencyCap ?? "?"}
+            </div>
+            {status && <p className="form-status">{status}</p>}
+          </div>
         </div>
 
         <div className="league-right">
           <div className="league-champions">
-            {champions.map(({ role, card, icon, image }) => (
+            {champions.map((champ) => (
               <div
-                key={role}
-                className={`league-champion-card ${card ? "" : "empty"}`}
+                key={champ.id}
+                className={`league-champion-card ${
+                  champ.name ? "" : "empty"
+                }`}
               >
-                <img
-                  src={image}
-                  alt={card?.name ?? `${role} slot`}
-                  className="league-champion-portrait"
-                />
-                <div className="league-champion-info">
-                  {card ? (
-                    <>
-                      <span className="league-champion-name">{card.name}</span>
-                      <span className="league-champion-meta">
-                        {card.points ?? 0} pts / {card.value ?? 0} gold
-                      </span>
-                    </>
-                  ) : (
-                    <span className="league-champion-empty-label">
-                      Empty slot
-                    </span>
+                <div
+                  className={`portrait-wrapper ${champ.isMvp ? "mvp" : ""}`}
+                >
+                  <img
+                    src={champ.portrait}
+                    alt={champ.name ?? `Champion ${champ.id}`}
+                    className="league-champion-portrait"
+                  />
+                  {champ.isMvp && (
+                    <div className="mvp-label gradient-text">MVP</div>
+                  )}
+                  {(champ.kdA || champ.pointsDelta !== undefined) && (
+                    <div className="champ-overlay">
+                      {champ.kdA && <div className="kd">{champ.kdA}</div>}
+                      {champ.pointsDelta !== undefined && (
+                        <div className="delta">
+                          {champ.pointsDelta >= 0 ? "+" : ""}
+                          {champ.pointsDelta} pts
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
-                <div className="league-role-container">
-                  <img src={icon} alt={`${role} icon`} className="league-role-icon" />
+                <div className="champ-name">{champ.name ?? "Empty Slot"}</div>
+                <div className="league-role-container" aria-hidden>
+                  <div className="role-icon-wrapper">
+                    <img
+                      src={champ.icon}
+                      alt={`${champ.role} icon`}
+                      className="league-role-icon"
+                    />
+                    <div className="role-tooltip">{`Position: ${champ.role}`}</div>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
 
-          {/* Main Menu */}
           <div className="main-menu-row-bottom">
-            <Link to="/" className="main-menu-button-dark" onClick={handleMainMenuClick}>
+            <Link
+              to="/"
+              className="main-menu-button-dark"
+              onClick={handleMainMenuClick}
+            >
               MAIN MENU
             </Link>
           </div>
         </div>
       </div>
 
-      {/* Demo button */}
       <div style={{ position: "fixed", left: 12, bottom: 12, zIndex: 2000 }}>
-        <button className="debug-btn" onClick={simulateEvent}>Simulate match event</button>
+        <button className="debug-btn" onClick={simulateEvent}>
+          Simulate match event
+        </button>
       </div>
     </div>
   );

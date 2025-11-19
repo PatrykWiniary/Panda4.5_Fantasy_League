@@ -2,6 +2,8 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "../styles/LogReg.css";
+import homeIcon from "../assets/home.svg";
+import userIcon from "../assets/user.svg";
 import { apiFetch, ApiError } from "../api/client";
 import type { ApiUser } from "../api/types";
 import { useSession } from "../context/SessionContext";
