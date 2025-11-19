@@ -173,7 +173,6 @@ migrateDecksTable();
 migrateUsersTable();
 migratePlayersTable();
 backfillPlayerNicknames();
-ensureSeedData();
 
 type DebugDeckCardSeed = {
   role: Role;
@@ -427,6 +426,8 @@ try {
 } catch (error) {
   console.warn("Failed to initialize debug users", error);
 }
+
+ensureSeedData();
 
 type DeckRow = {
   user_id: number;
