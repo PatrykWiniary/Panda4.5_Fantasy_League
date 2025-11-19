@@ -112,9 +112,10 @@ export default function PlayerPick() {
           </div>
         ))}
       </div>
-
-      <h1 className="title">PICK YOUR TEAM</h1>
-      <p className="deadline">⏱ DUE IN: 23.11.2025 23:59</p>
+      <div className="title-wrapper">
+        <h1 className="title">PICK YOUR TEAM</h1>
+        <p className="deadline">⏱ DUE IN: 23.11.2025 23:59</p>
+      </div>
 
       <div className="draft-info">
         <div className="info-item">

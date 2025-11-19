@@ -6,7 +6,8 @@ import OngLeaguePage from './components/OngLeague';
 import CreateNewLeaguePage from './components/CreateNewLeague';
 import JoinNewLeaguePage from './components/JoinNewLeague';
 import PageTransition from "./components/PageTransition";
-import PlayerPickPage from './components/PlayerPick.tsx'
+import PlayerPickPage from './components/PlayerPick.tsx';
+import WaitingRoomPage from './components/WaitingRoom.tsx';
 import "./App.css";
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
@@ -47,6 +48,7 @@ export default function App() {
       <Route path="/createnewleague" element={<CreateNewLeaguePage />} />
       <Route path="/joinnewleague" element={<JoinNewLeaguePage />} />
       <Route path="/playerpick" element={<PlayerPickPage />} />
+      <Route path="/waitingroom" element={<WaitingRoomPage />} />
     </Route>
     </Routes>
   </BrowserRouter>
