@@ -23,6 +23,7 @@ import {
   ensureUniqueMultipliers,
 } from "./deckManager";
 import { parseDeckPayload } from "./deckIO";
+import { ProfileAvatarKey } from "./profileAvatars";
 import {sampleData} from "../data/SampleData.json"
 
 const DB_PATH = path.join(__dirname, "..", "data", "app.db");
@@ -109,11 +110,16 @@ function migrateUsersTable() {
   }
 
   const hasScoreColumn = columns.some((column) => column.name === "score");
+  const hasAvatarColumn = columns.some((column) => column.name === "avatar");
 
   if (!hasScoreColumn) {
     db.prepare(
       "ALTER TABLE users ADD COLUMN score NUMBER NOT NULL DEFAULT 0"
     ).run();
+  }
+
+  if (!hasAvatarColumn) {
+    db.prepare("ALTER TABLE users ADD COLUMN avatar TEXT").run();
   }
 }
 
@@ -189,6 +195,7 @@ type DebugUserSeed = {
   password: string;
   currency: number;
   score: number;
+  avatar?: ProfileAvatarKey;
   deck: DebugDeckCardSeed[];
 };
 
@@ -199,6 +206,7 @@ const DEBUG_USER_SEEDS: DebugUserSeed[] = [
     password: "Debug123!",
     currency: 160,
     score: 240,
+    avatar: "jinx",
     deck: [
       {
         role: "Top",
@@ -245,6 +253,7 @@ const DEBUG_USER_SEEDS: DebugUserSeed[] = [
     password: "Debug123!",
     currency: 165,
     score: 190,
+    avatar: "pyke",
     deck: [
       {
         role: "Top",
@@ -386,6 +395,7 @@ function ensureSampleUsersWithDecks(): void {
         password: sample.password,
         currency: requiredCurrency,
         score: sample.score,
+        avatar: sample.avatar ?? null,
       });
       userId = created.id;
     } else {
@@ -401,8 +411,8 @@ function ensureSampleUsersWithDecks(): void {
         sample.score
       );
       db.prepare(
-        "UPDATE users SET name = ?, currency = ?, score = ? WHERE id = ?"
-      ).run(sample.name, nextCurrency, nextScore, userId);
+        "UPDATE users SET name = ?, currency = ?, score = ?, avatar = ? WHERE id = ?"
+      ).run(sample.name, nextCurrency, nextScore, sample.avatar ?? null, userId);
     }
 
     const deckToSave = buildDeckFromSeed(userId, sample.deck);
@@ -442,7 +452,15 @@ type DbUserRow = {
   password: string;
   currency: number;
   score: number;
+  avatar: string | null;
 };
+
+type SafeUser = Omit<DbUserRow, "password">;
+
+function toSafeUser(row: DbUserRow): SafeUser {
+  const { password: _password, ...safeUser } = row;
+  return safeUser;
+}
 
 function hashPassword(password: string) {
   const salt = crypto.randomBytes(PASSWORD_SALT_BYTES).toString("hex");
@@ -635,14 +653,30 @@ export function addItem(name: string, qty = 0) {
   return { id: info.lastInsertRowid, name, qty };
 }
 
-export function addUser({ name, mail, password, currency, score }: User) {
+export function addUser({
+  name,
+  mail,
+  password,
+  currency,
+  score,
+  avatar,
+}: User) {
   const hashedPassword = hashPassword(password);
   const normalizedScore =
     typeof score === "number" && Number.isFinite(score) ? score : 0;
+  const normalizedAvatar =
+    typeof avatar === "string" && avatar.length > 0 ? avatar : null;
   const stmt = db.prepare(
-    "INSERT INTO users (name, mail, password, currency, score) VALUES (?, ?, ?, ?, ?)"
+    "INSERT INTO users (name, mail, password, currency, score, avatar) VALUES (?, ?, ?, ?, ?, ?)"
   );
-  const info = stmt.run(name, mail, hashedPassword, currency, normalizedScore);
+  const info = stmt.run(
+    name,
+    mail,
+    hashedPassword,
+    currency,
+    normalizedScore,
+    normalizedAvatar
+  );
   return {
     id: Number(info.lastInsertRowid),
     name,
@@ -650,6 +684,7 @@ export function addUser({ name, mail, password, currency, score }: User) {
     password: hashedPassword,
     currency,
     score: normalizedScore,
+    avatar: normalizedAvatar,
   };
 }
 
@@ -744,14 +779,13 @@ export function registerUser(user: User) {
   }
 
   const insertedUser = addUser(user);
-  const { password, ...safeUser } = insertedUser;
-  return safeUser;
+  return toSafeUser(insertedUser);
 }
 
 export function loginUser(mail: string, password: string) {
   const storedUser = db
     .prepare(
-      "SELECT id, name, mail, password, currency, score FROM users WHERE mail = ?"
+      "SELECT id, name, mail, password, currency, score, avatar FROM users WHERE mail = ?"
     )
     .get(mail) as DbUserRow | undefined;
 
@@ -763,8 +797,28 @@ export function loginUser(mail: string, password: string) {
     throw new Error("INVALID_CREDENTIALS");
   }
 
-  const { password: _password, ...safeUser } = storedUser;
-  return safeUser;
+  return toSafeUser(storedUser);
+}
+
+function fetchUserRowById(userId: number): DbUserRow | undefined {
+  return db
+    .prepare(
+      "SELECT id, name, mail, password, currency, score, avatar FROM users WHERE id = ?"
+    )
+    .get(userId) as DbUserRow | undefined;
+}
+
+export function getUserById(userId: number): SafeUser | undefined {
+  const row = fetchUserRowById(userId);
+  return row ? toSafeUser(row) : undefined;
+}
+
+export function updateUserAvatar(
+  userId: number,
+  avatar: string | null
+): SafeUser | undefined {
+  db.prepare("UPDATE users SET avatar = ? WHERE id = ?").run(avatar, userId);
+  return getUserById(userId);
 }
 
 export function getRegions(): Region[] {

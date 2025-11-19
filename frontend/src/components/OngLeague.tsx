@@ -18,6 +18,7 @@ import type {
 } from "../api/types";
 import { useSession } from "../context/SessionContext";
 import { resolvePlayerImage } from "../utils/playerImages";
+import { resolveProfileAvatar } from "../utils/profileAvatars";
 
 const roleIcons: Record<DeckRole, string> = {
   Top: topIcon,
@@ -84,6 +85,7 @@ export default function OngLeaguePage() {
       image: resolvePlayerImage(card?.name),
     };
   });
+  const playerAvatar = resolveProfileAvatar(user?.avatar);
 
   return (
     <div
@@ -111,6 +113,11 @@ export default function OngLeaguePage() {
 
       <div className="league-layout">
         <div className="league-left">
+          <img
+            src={playerAvatar}
+            alt={user ? `${user.name} avatar` : "Avatar"}
+            className="league-player-avatar"
+          />
           <h2 className="league-player-name">
             {user ? user.name : "Unassigned"}
           </h2>

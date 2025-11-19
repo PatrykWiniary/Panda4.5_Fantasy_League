@@ -24,6 +24,7 @@ import {
   getPlayersOverview,
   getPlayersGroupedByRole,
   PlayerFilters,
+  updateUserAvatar,
 } from "./db";
 import {
   addCardToDeck,
@@ -49,6 +50,7 @@ import {
   isPasswordStrong,
   PASSWORD_REQUIREMENTS_DESCRIPTION,
 } from "./validation";
+import { normalizeProfileAvatar } from "./profileAvatars";
 import FootabalolGame from "./API/FootbalolGame";
 
 const parsePositiveIntFromEnv = (value: string | undefined, fallback: number) => {
@@ -186,7 +188,7 @@ app.post("/api/items", (req, res) => {
 app.post("/api/users", (req, res) => {
   const { name, mail, password, currency } = req.body;
   if (!name) return res.status(400).json({ error: "name required" });
-  const user = addUser({ name, mail, password, currency });
+  const user = addUser({ name, mail, password, currency, avatar: null });
   res.status(201).json(user);
 });
 
@@ -293,12 +295,23 @@ app.post("/api/register", authLimiter, (req, res) => {
     });
   }
 
+  const rawAvatar = req.body?.avatar;
+  let avatar: string | null = null;
+  if (rawAvatar !== undefined && rawAvatar !== null && rawAvatar !== "") {
+    const normalized = normalizeProfileAvatar(rawAvatar);
+    if (!normalized) {
+      return res.status(400).json({ error: "INVALID_AVATAR" });
+    }
+    avatar = normalized;
+  }
+
   try {
     const user = registerUser({
       name,
       mail,
       password,
       currency: Number.isFinite(currency) ? Number(currency) : 0,
+      avatar,
     });
     res.status(201).json(user);
   } catch (error) {
@@ -325,6 +338,34 @@ app.post("/api/login", authLimiter, (req, res) => {
     }
     console.error(error);
     res.status(500).json({ error: "LOGIN_FAILED" });
+  }
+});
+
+app.post("/api/users/:userId/avatar", (req, res) => {
+  const userId = Number(req.params.userId);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(400).json({ error: "INVALID_USER_ID" });
+  }
+
+  const rawAvatar = req.body?.avatar;
+  let avatar: string | null = null;
+  if (rawAvatar !== undefined && rawAvatar !== null && rawAvatar !== "") {
+    const normalized = normalizeProfileAvatar(rawAvatar);
+    if (!normalized) {
+      return res.status(400).json({ error: "INVALID_AVATAR" });
+    }
+    avatar = normalized;
+  }
+
+  try {
+    const updated = updateUserAvatar(userId, avatar);
+    if (!updated) {
+      return res.status(404).json({ error: "USER_NOT_FOUND" });
+    }
+    res.json(updated);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "AVATAR_UPDATE_FAILED" });
   }
 });
 

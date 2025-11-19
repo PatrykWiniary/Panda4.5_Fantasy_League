@@ -55,7 +55,7 @@ export interface User {
   password: string;
   currency: number;
   score?: number;
-  //deck: Deck
+  avatar?: string | null;
 }
 
 export interface Region {

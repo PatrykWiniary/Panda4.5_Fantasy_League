@@ -18,8 +18,8 @@ export default function CreateNewLeaguePage() {
       <div className="login-form">
         <h1 className="login-title login-title--main">CREATE LEAGUE</h1>
         <p className="profile-hint">
-          League management is coming soon. In the meantime head to “Join new
-          league” to draft a roster using live data from the backend.
+          League management is coming soon. In the meantime head to "Join new
+          league" to draft a roster using live data from the backend.
         </p>
       </div>
     </div>

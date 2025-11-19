@@ -12,7 +12,8 @@ CREATE TABLE
     mail TEXT,
     password TEXT NOT NULL,
     currency NUMBER NOT NULL,
-    score NUMBER NOT NULL DEFAULT 0
+    score NUMBER NOT NULL DEFAULT 0,
+    avatar TEXT
   );
 
 CREATE TABLE

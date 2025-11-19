@@ -7,6 +7,8 @@ import userIcon from "../assets/user.svg";
 import { apiFetch, ApiError } from "../api/client";
 import type { ApiUser } from "../api/types";
 import { useSession } from "../context/SessionContext";
+import { PROFILE_AVATAR_OPTIONS } from "../utils/profileAvatars";
+import AvatarPicker from "./AvatarPicker";
 
 export default function RegistrationPage() {
   const navigate = useNavigate();
@@ -15,6 +17,9 @@ export default function RegistrationPage() {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [currency, setCurrency] = useState("150");
+  const [avatar, setAvatar] = useState(
+    PROFILE_AVATAR_OPTIONS[0]?.key ?? ""
+  );
   const [status, setStatus] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -28,6 +33,7 @@ export default function RegistrationPage() {
         mail,
         password,
         currency: Number(currency) || 0,
+        avatar: avatar || null,
       };
       const user = await apiFetch<ApiUser>("/api/register", {
         method: "POST",
@@ -97,6 +103,12 @@ export default function RegistrationPage() {
           className="login-input"
           value={currency}
           onChange={(event) => setCurrency(event.target.value)}
+        />
+        <AvatarPicker
+          value={avatar}
+          onChange={setAvatar}
+          disabled={submitting}
+          title="Choose your profile icon"
         />
 
         <div className="login-actions">

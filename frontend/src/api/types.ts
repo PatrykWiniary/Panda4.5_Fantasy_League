@@ -47,6 +47,7 @@ export type ApiUser = {
   mail: string;
   currency: number;
   score?: number;
+  avatar?: string | null;
 };
 
 export type Region = {

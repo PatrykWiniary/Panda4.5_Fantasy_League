@@ -335,6 +335,184 @@ body {
   object-fit: cover;
   margin-bottom: 1.5rem;
 }
+.profile-page {
+  min-height: 100vh;
+  width: 100vw;
+  background: var(--bg);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem 1rem 3rem;
+  position: relative;
+}
+
+.profile-card {
+  width: 100%;
+  max-width: 640px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(201, 172, 109, 0.35);
+  border-radius: 24px;
+  padding: 2.5rem 3rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1.25rem;
+  box-shadow: 0 25px 45px rgba(0, 0, 0, 0.45);
+}
+
+.profile-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.profile-meta {
+  margin-top: 0.35rem;
+  color: #f5e8c7;
+  font-size: 1rem;
+  letter-spacing: 1px;
+}
+
+.avatar-picker-wrapper {
+  width: 100%;
+}
+
+.avatar-picker-title {
+  font-size: 1rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #f5e8c7;
+  margin-bottom: 0.75rem;
+}
+
+.avatar-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  gap: 1rem;
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid rgba(201, 172, 109, 0.35);
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.4);
+  min-height: 130px;
+}
+
+.avatar-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.avatar-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.avatar-option img {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  object-fit: cover;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.4);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.avatar-option.selected img {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(201, 172, 109, 0.4);
+  transform: scale(1.05);
+}
+
+.avatar-option-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.5px;
+}
+
+.avatar-picker-pagination {
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.avatar-picker-nav {
+  border: 1px solid rgba(201, 172, 109, 0.6);
+  background: transparent;
+  color: var(--accent);
+  letter-spacing: 1px;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.avatar-picker-nav:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.avatar-picker-nav:not(:disabled):hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+}
+
+.avatar-picker-page-indicator {
+  font-size: 0.85rem;
+  letter-spacing: 1px;
+  color: #f5e8c7;
+}
+
+.profile-actions {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .profile-actions {
+    flex-direction: row;
+  }
+
+  .profile-actions .login-button {
+    flex: 1;
+  }
+}
+
+.login-button.outline {
+  background: transparent;
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+}
+
+.login-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.profile-empty-card {
+  gap: 1.5rem;
+}
+
+.league-player-avatar{
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  object-fit: cover;
+  margin-bottom: 1rem;
+}
 
 .champion-card{
   width: 120px;
