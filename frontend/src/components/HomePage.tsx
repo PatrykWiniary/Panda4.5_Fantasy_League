@@ -77,6 +77,14 @@ export default function HomePage() {
         >
           MATCH HISTORY
         </Link>
+
+        <Link
+          to="/tournament"
+          className="homepage-button"
+          onClick={(e) => handleLinkClick(e, "/tournament")}
+        >
+          TOURNAMENT CONTROL
+        </Link>
       </div>
     </div>
   );

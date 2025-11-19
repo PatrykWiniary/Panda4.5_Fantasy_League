@@ -356,3 +356,17 @@ Ta sekcja zbiera najwazniejsze elementy kodu, tak aby osoba mogla szybko zorient
 - Przy zmianach w hashowaniu/bezpieczenstwie: parametry PBKDF2 sa konfigurowalne zmiennymi srodowiskowymi (opisane w sekcji [Rejestracja i logowanie](#rejestracja-i-logowanie)).
 
 Ten rozdział ma byc rozwijany na bieżąco – jezeli dodajesz wiekszy modul, dopisz tu 1-2 zdania, aby nastepne osoby wiedzialy, gdzie szukac kodu.***
+## Regional Tournament Flow
+
+- **Nowe tabele**: `tournament_groups`, `tournament_group_teams`, `tournament_matches`, `tournament_games` realizuja losowanie 4 grup oraz drabinke BO5.
+- **API**:
+  - `GET /api/regions/:regionId/tournament` – zwraca stan turnieju (grupy, bracket, kolejne serie).
+  - `POST /api/regions/:regionId/tournament/start` – startuje lub resetuje zmagania (`body { name?: string, force?: boolean }`).
+  - `POST /api/regions/:regionId/tournament/simulate` – `body { mode: "next" | "round" | "full" }` symuluje odpowiednio nastepna serie, cala kolejke lub caly turniej.
+- **Match history** – `/api/matches/history` zwraca serie zagniezdzone (lista gier z runda/stage), a frontend pozwala rozwijac kazda gre wraz ze statystykami graczy. Friendly mecze sa blokowane, gdy region ma aktywny turniej (backend zwraca `TOURNAMENT_ACTIVE`).
+- **Frontend**:
+  - Strona *Match History* grupuje gry w serie, pokazuje rundy, najlepsze z X i MVP.
+  - *Leaderboard* ma dodatkowa karte z aktywnym turniejem.
+  - Nowa strona *Tournament Control* (link z Home) korzysta z tego samego stylu co reszta aplikacji, posiada opisy akcji (pojedyncza seria vs cala runda vs caly turniej) i dodatkowy moduł historii gier, w ktorym mozna klikac na serie i przegladac poszczegolne mapy bez opuszczania widoku turnieju.
+- Zarowno w *Match History*, jak i w panelu turnieju, po rozwinięciu gry widoczna jest tabelka z zawodnikami pogrupowanymi wg druzyn i posortowanymi po rolach.
+- Klikni�cie w dowolnego zawodnika w tabeli otwiera profil z jego statystykami, avatarem i lista ostatnich meczy (z wynikami indywidualnymi).

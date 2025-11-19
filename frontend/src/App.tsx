@@ -7,6 +7,7 @@ import CreateNewLeaguePage from "./components/CreateNewLeague";
 import JoinNewLeaguePage from "./components/JoinNewLeague";
 import LeaderboardPage from "./components/LeaderboardPage";
 import MatchHistoryPage from "./components/MatchHistoryPage";
+import TournamentPage from "./components/TournamentPage";
 import PageTransition from "./components/PageTransition";
 import "./App.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
@@ -27,6 +28,7 @@ export default function App() {
             <Route path="/joinnewleague" element={<JoinNewLeaguePage />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
             <Route path="/matches" element={<MatchHistoryPage />} />
+            <Route path="/tournament" element={<TournamentPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

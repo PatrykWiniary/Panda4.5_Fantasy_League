@@ -152,6 +152,51 @@ function migratePlayersTable() {
   }
 }
 
+function migrateMatchHistoryTable() {
+  const columns = tableColumns("match_history");
+  if (columns.length === 0) {
+    return;
+  }
+
+  const ensureColumn = (name: string, definition: string) => {
+    const exists = columns.some((column) => column.name === name);
+    if (!exists) {
+      db.prepare(
+        `ALTER TABLE match_history ADD COLUMN ${name} ${definition}`
+      ).run();
+    }
+  };
+
+  ensureColumn("is_tournament", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn("tournament_id", "INTEGER");
+  ensureColumn("tournament_match_id", "INTEGER");
+  ensureColumn("tournament_game_id", "INTEGER");
+  ensureColumn("stage", "TEXT");
+  ensureColumn("round_name", "TEXT");
+  ensureColumn("game_number", "INTEGER");
+  ensureColumn("series_best_of", "INTEGER");
+  ensureColumn("series_score", "TEXT");
+}
+
+function migrateMatchHistoryPlayersTable() {
+  const columns = tableColumns("match_history_players");
+  if (columns.length === 0) {
+    return;
+  }
+
+  const ensureColumn = (name: string, definition: string) => {
+    const exists = columns.some((column) => column.name === name);
+    if (!exists) {
+      db.prepare(
+        `ALTER TABLE match_history_players ADD COLUMN ${name} ${definition}`
+      ).run();
+    }
+  };
+
+  ensureColumn("team_name", "TEXT");
+  ensureColumn("team_side", "TEXT");
+}
+
 function backfillPlayerNicknames() {
   try {
     db.prepare(
@@ -179,6 +224,8 @@ function ensureSeedData() {
 migrateDecksTable();
 migrateUsersTable();
 migratePlayersTable();
+migrateMatchHistoryTable();
+migrateMatchHistoryPlayersTable();
 backfillPlayerNicknames();
 
 type DebugDeckCardSeed = {
@@ -711,6 +758,15 @@ export type MatchHistoryEntry = {
   mvp?: string | null;
   mvpScore?: number | null;
   createdAt: string;
+  isTournament: boolean;
+  tournamentId?: number | null;
+  tournamentMatchId?: number | null;
+  tournamentGameId?: number | null;
+  stage?: string | null;
+  roundName?: string | null;
+  gameNumber?: number | null;
+  seriesBestOf?: number | null;
+  seriesScore?: string | null;
 };
 
 type MatchPlayerStat = {
@@ -724,6 +780,9 @@ type MatchPlayerStat = {
   cs: number;
   gold: number;
   score: number;
+  teamId?: number | null;
+  teamName?: string | null;
+  teamSide?: "A" | "B" | null;
 };
 
 export type MatchPlayerHistoryEntry = {
@@ -739,6 +798,178 @@ export type MatchPlayerHistoryEntry = {
   cs: number;
   gold: number;
   score: number;
+  teamName?: string | null;
+  teamSide?: "A" | "B" | null;
+};
+
+export type MatchHistorySeriesEntry = {
+  id: number;
+  isTournament: boolean;
+  stage?: string | null;
+  roundName?: string | null;
+  bestOf: number;
+  completed: boolean;
+  startedAt: string;
+  completedAt: string;
+  seriesScore?: string | null;
+  tournamentId?: number | null;
+  teamA: {
+    name: string;
+    id?: number | null;
+    score: number;
+  };
+  teamB: {
+    name: string;
+    id?: number | null;
+    score: number;
+  };
+  games: MatchHistoryEntry[];
+};
+
+export type TournamentGroupStanding = {
+  teamId: number;
+  teamName: string;
+  wins: number;
+  losses: number;
+  gamesPlayed: number;
+  seed?: number | null;
+};
+
+export type TournamentMatchTeam = {
+  id?: number | null;
+  name?: string | null;
+  score: number;
+};
+
+export type TournamentMatchSummary = {
+  id: number;
+  stage: string;
+  roundName: string;
+  roundNumber: number;
+  matchNumber: number;
+  bestOf: number;
+  status: string;
+  teamA: TournamentMatchTeam | null;
+  teamB: TournamentMatchTeam | null;
+  winnerTeamId?: number | null;
+  seriesScore?: string | null;
+  games?: MatchHistoryEntry[];
+};
+
+export type TournamentGroupSummary = {
+  id: number;
+  name: string;
+  teams: TournamentGroupStanding[];
+  matches: TournamentMatchSummary[];
+};
+
+export type TournamentBracketRound = {
+  name: string;
+  matches: TournamentMatchSummary[];
+};
+
+export type TournamentControlState = {
+  tournament: {
+    id: number;
+    name: string;
+    region: Region;
+    status: string;
+    stage: string;
+    isActive: boolean;
+    startedAt?: string | null;
+    completedAt?: string | null;
+    nextMatch?: TournamentMatchSummary | null;
+  } | null;
+  groups: TournamentGroupSummary[];
+  bracket: {
+    rounds: TournamentBracketRound[];
+  };
+};
+
+export type TournamentSimulationMode = "next" | "round" | "full";
+
+export type TournamentSimulationResult = {
+  matches: TournamentMatchSummary[];
+  state: TournamentControlState;
+};
+
+export type PlayerProfileDetails = {
+  id: number;
+  name: string;
+  nickname?: string | null;
+  role: Role;
+  kills: number;
+  deaths: number;
+  assists: number;
+  cs: number;
+  gold: number;
+  score: number;
+  team: {
+    id: number;
+    name: string;
+    tournamentName: string;
+  };
+  region: Region;
+};
+
+export type PlayerMatchAppearance = {
+  matchId: number;
+  createdAt: string;
+  region: string;
+  stage?: string | null;
+  roundName?: string | null;
+  bestOf?: number | null;
+  isTournament: boolean;
+  teamA: string;
+  teamB: string;
+  winner: string;
+  stats: {
+    role?: string | null;
+    kills: number;
+    deaths: number;
+    assists: number;
+    cs: number;
+    gold: number;
+    score: number;
+    teamName?: string | null;
+    teamSide?: "A" | "B" | null;
+  };
+};
+
+type TournamentRow = {
+  id: number;
+  name: string;
+  region_id: number;
+  type: string;
+  status: string;
+  stage: string;
+  is_active: number;
+  current_round: number;
+  started_at: string | null;
+  completed_at: string | null;
+};
+
+type TournamentGroupRow = {
+  id: number;
+  name: string;
+};
+
+type TournamentMatchRow = {
+  id: number;
+  tournament_id: number;
+  region_id: number;
+  stage: string;
+  round_name: string;
+  round_number: number;
+  match_number: number;
+  best_of: number;
+  group_id: number | null;
+  team1_id: number | null;
+  team2_id: number | null;
+  team1_score: number;
+  team2_score: number;
+  winner_team_id: number | null;
+  status: string;
 };
 
 function getTeamNameById(teamId: number): string | null {
@@ -776,6 +1007,7 @@ export function getLeaderboardTop(limit = 10): LeaderboardEntry[] {
   }));
 }
 
+migrateMatchHistoryPlayersTable
 export function getUserRankingEntry(
   userId: number
 ): LeaderboardEntry | undefined {
@@ -819,6 +1051,15 @@ type MatchHistoryRow = {
   winner: string;
   mvp: string | null;
   mvp_score: number | null;
+  is_tournament: number;
+  tournament_id: number | null;
+  tournament_match_id: number | null;
+  tournament_game_id: number | null;
+  stage: string | null;
+  round_name: string | null;
+  game_number: number | null;
+  series_best_of: number | null;
+  series_score: string | null;
   created_at: string;
 };
 
@@ -829,6 +1070,15 @@ type MatchHistoryInsert = {
   winner: string;
   mvp?: string | null;
   mvpScore?: number | null;
+  isTournament?: boolean;
+  tournamentId?: number | null;
+  tournamentMatchId?: number | null;
+  tournamentGameId?: number | null;
+  stage?: string | null;
+  roundName?: string | null;
+  gameNumber?: number | null;
+  seriesBestOf?: number | null;
+  seriesScore?: string | null;
 };
 
 function mapMatchHistoryRow(row: MatchHistoryRow): MatchHistoryEntry {
@@ -843,6 +1093,21 @@ function mapMatchHistoryRow(row: MatchHistoryRow): MatchHistoryEntry {
       typeof row.mvp_score === "number" && Number.isFinite(row.mvp_score)
         ? row.mvp_score
         : null,
+    isTournament: Boolean(row.is_tournament),
+    tournamentId: row.tournament_id ?? null,
+    tournamentMatchId: row.tournament_match_id ?? null,
+    tournamentGameId: row.tournament_game_id ?? null,
+    stage: row.stage ?? null,
+    roundName: row.round_name ?? null,
+    gameNumber:
+      typeof row.game_number === "number" && Number.isFinite(row.game_number)
+        ? row.game_number
+        : null,
+    seriesBestOf:
+      typeof row.series_best_of === "number" && Number.isFinite(row.series_best_of)
+        ? row.series_best_of
+        : null,
+    seriesScore: row.series_score ?? null,
     createdAt: row.created_at,
   };
 }
@@ -860,16 +1125,23 @@ type MatchPlayerHistoryRow = {
   cs: number;
   gold: number;
   score: number;
+  team_name: string | null;
+  team_side: string | null;
 };
 
-function recordMatchHistory(
+function buildInClausePlaceholders(count: number): string {
+  return new Array(Math.max(count, 0)).fill("?").join(",");
+}
+
+export function recordMatchHistory(
   entry: MatchHistoryInsert,
   players?: MatchPlayerStat[]
-) {
+): number | undefined {
   const result = db
     .prepare(
-      `INSERT INTO match_history (region, team_a, team_b, winner, mvp, mvp_score)
-       VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO match_history
+        (region, team_a, team_b, winner, mvp, mvp_score, is_tournament, tournament_id, tournament_match_id, tournament_game_id, stage, round_name, game_number, series_best_of, series_score)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       entry.region,
@@ -877,18 +1149,27 @@ function recordMatchHistory(
       entry.teamB,
       entry.winner,
       entry.mvp ?? null,
-      typeof entry.mvpScore === "number" ? entry.mvpScore : null
+      typeof entry.mvpScore === "number" ? entry.mvpScore : null,
+      entry.isTournament ? 1 : 0,
+      entry.tournamentId ?? null,
+      entry.tournamentMatchId ?? null,
+      entry.tournamentGameId ?? null,
+      entry.stage ?? null,
+      entry.roundName ?? null,
+      typeof entry.gameNumber === "number" ? entry.gameNumber : null,
+      typeof entry.seriesBestOf === "number" ? entry.seriesBestOf : null,
+      entry.seriesScore ?? null
     );
 
   const matchId = Number(result.lastInsertRowid);
   if (!players || players.length === 0) {
-    return;
+    return matchId;
   }
 
   const stmt = db.prepare(
     `INSERT INTO match_history_players
-      (match_id, player_id, player_name, nickname, role, kills, deaths, assists, cs, gold, score)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      (match_id, player_id, player_name, nickname, role, kills, deaths, assists, cs, gold, score, team_name, team_side)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
 
   for (const player of players) {
@@ -903,26 +1184,272 @@ function recordMatchHistory(
       player.assists,
       player.cs,
       player.gold,
-      player.score
+      player.score,
+      player.teamName ?? null,
+      player.teamSide ?? null
     );
   }
+
+  return matchId;
 }
 
 export function getRecentMatchHistory(
   limit = 10,
   offset = 0
-): MatchHistoryEntry[] {
-  const rows = db
+): MatchHistorySeriesEntry[] {
+  type MatchHistorySeriesRow = {
+    series_id: number;
+    is_tournament: number;
+    tournament_id: number | null;
+    stage: string | null;
+    round_name: string | null;
+    series_best_of: number | null;
+    started_at: string;
+    completed_at: string;
+    series_score: string | null;
+  };
+
+  const seriesRows = db
     .prepare(
-      "SELECT id, region, team_a, team_b, winner, mvp, mvp_score, created_at FROM match_history ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?"
+      `
+      WITH normalized AS (
+        SELECT
+          CASE
+            WHEN tournament_match_id IS NOT NULL THEN tournament_match_id
+            ELSE id
+          END AS series_id,
+          CASE WHEN tournament_match_id IS NOT NULL THEN 1 ELSE 0 END AS is_tournament,
+          MAX(tournament_id) AS tournament_id,
+          MAX(stage) AS stage,
+          MAX(round_name) AS round_name,
+          MAX(series_best_of) AS series_best_of,
+          MIN(created_at) AS started_at,
+          MAX(created_at) AS completed_at,
+          MAX(series_score) AS series_score
+        FROM match_history
+        GROUP BY series_id, is_tournament
+      )
+      SELECT *
+      FROM normalized
+      ORDER BY completed_at DESC
+      LIMIT ? OFFSET ?
+    `
     )
-    .all(limit, offset) as MatchHistoryRow[];
-  return rows.map(mapMatchHistoryRow);
+    .all(limit, offset) as MatchHistorySeriesRow[];
+
+  if (seriesRows.length === 0) {
+    return [];
+  }
+
+  const tournamentSeriesIds = seriesRows
+    .filter((row) => row.is_tournament)
+    .map((row) => row.series_id);
+  const friendlySeriesIds = seriesRows
+    .filter((row) => !row.is_tournament)
+    .map((row) => row.series_id);
+
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+
+  if (tournamentSeriesIds.length > 0) {
+    clauses.push(
+      `tournament_match_id IN (${buildInClausePlaceholders(tournamentSeriesIds.length)})`
+    );
+    params.push(...tournamentSeriesIds);
+  }
+
+  if (friendlySeriesIds.length > 0) {
+    clauses.push(
+      `id IN (${buildInClausePlaceholders(friendlySeriesIds.length)})`
+    );
+    params.push(...friendlySeriesIds);
+  }
+
+  if (clauses.length === 0) {
+    return [];
+  }
+
+  const gamesRows = db
+    .prepare(
+      `
+      SELECT
+        id,
+        region,
+        team_a,
+        team_b,
+        winner,
+        mvp,
+        mvp_score,
+        is_tournament,
+        tournament_id,
+        tournament_match_id,
+        tournament_game_id,
+        stage,
+        round_name,
+        game_number,
+        series_best_of,
+        series_score,
+        created_at
+      FROM match_history
+      WHERE ${clauses.join(" OR ")}
+      ORDER BY created_at ASC, id ASC
+    `
+    )
+    .all(...params) as MatchHistoryRow[];
+
+  const gamesBySeries = new Map<number, MatchHistoryEntry[]>();
+  for (const row of gamesRows) {
+    const seriesKey = row.tournament_match_id ?? row.id;
+    if (!gamesBySeries.has(seriesKey)) {
+      gamesBySeries.set(seriesKey, []);
+    }
+    gamesBySeries.get(seriesKey)!.push(mapMatchHistoryRow(row));
+  }
+
+  const tournamentMatchMap = new Map<
+    number,
+    {
+      id: number;
+      stage: string;
+      round_name: string;
+      best_of: number;
+      team1_id: number | null;
+      team2_id: number | null;
+      team1_name: string | null;
+      team2_name: string | null;
+      team1_score: number;
+      team2_score: number;
+    }
+  >();
+
+  if (tournamentSeriesIds.length > 0) {
+    const matchRows = db
+      .prepare(
+        `
+        SELECT
+          tm.id,
+          tm.stage,
+          tm.round_name,
+          tm.best_of,
+          tm.team1_id,
+          tm.team2_id,
+          tm.team1_score,
+          tm.team2_score,
+          t1.name AS team1_name,
+          t2.name AS team2_name
+        FROM tournament_matches tm
+        LEFT JOIN teams t1 ON t1.id = tm.team1_id
+        LEFT JOIN teams t2 ON t2.id = tm.team2_id
+        WHERE tm.id IN (${buildInClausePlaceholders(tournamentSeriesIds.length)})
+      `
+      )
+      .all(...tournamentSeriesIds) as Array<{
+      id: number;
+      stage: string;
+      round_name: string;
+      best_of: number;
+      team1_id: number | null;
+      team2_id: number | null;
+      team1_name: string | null;
+      team2_name: string | null;
+      team1_score: number;
+      team2_score: number;
+    }>;
+
+    for (const row of matchRows) {
+      tournamentMatchMap.set(row.id, row);
+    }
+  }
+
+  return seriesRows.map((series) => {
+    const games = gamesBySeries.get(series.series_id) ?? [];
+    const firstGame = games[0];
+    const lastGame = games[games.length - 1];
+    const startedAt = firstGame?.createdAt ?? series.started_at;
+    const completedAt = lastGame?.createdAt ?? series.completed_at;
+
+    let teamAName = firstGame?.teamA ?? "Team A";
+    let teamBName = firstGame?.teamB ?? "Team B";
+    let teamAId: number | null = null;
+    let teamBId: number | null = null;
+    let scoreA = 0;
+    let scoreB = 0;
+    let bestOf =
+      typeof series.series_best_of === "number"
+        ? series.series_best_of
+        : games.length || 1;
+    let stage = series.stage;
+    let roundName = series.round_name;
+
+    if (series.is_tournament) {
+      const matchDetail = tournamentMatchMap.get(series.series_id);
+      if (matchDetail) {
+        teamAName = matchDetail.team1_name ?? teamAName;
+        teamBName = matchDetail.team2_name ?? teamBName;
+        teamAId = matchDetail.team1_id ?? null;
+        teamBId = matchDetail.team2_id ?? null;
+        scoreA = Number(matchDetail.team1_score) || 0;
+        scoreB = Number(matchDetail.team2_score) || 0;
+        bestOf = matchDetail.best_of ?? bestOf;
+        stage = stage ?? matchDetail.stage;
+        roundName = roundName ?? matchDetail.round_name;
+      }
+    } else {
+      for (const game of games) {
+        if (game.winner === teamAName) {
+          scoreA += 1;
+        } else if (game.winner === teamBName) {
+          scoreB += 1;
+        }
+      }
+      bestOf = 1;
+      stage = stage ?? "Friendly";
+    }
+
+    const seriesScore = series.series_score ?? `${scoreA}-${scoreB}`;
+
+    return {
+      id: series.series_id,
+      isTournament: Boolean(series.is_tournament),
+      tournamentId: series.tournament_id ?? null,
+      stage: stage ?? null,
+      roundName: roundName ?? null,
+      bestOf,
+      completed: true,
+      startedAt,
+      completedAt,
+      seriesScore,
+      teamA: {
+        name: teamAName,
+        id: teamAId,
+        score: scoreA,
+      },
+      teamB: {
+        name: teamBName,
+        id: teamBId,
+        score: scoreB,
+      },
+      games,
+    };
+  });
 }
 
 export function getMatchHistoryCount(): number {
   const row = db
-    .prepare("SELECT COUNT(*) as total FROM match_history")
+    .prepare(
+      `
+      SELECT COUNT(*) as total FROM (
+        SELECT
+          CASE
+            WHEN tournament_match_id IS NOT NULL THEN tournament_match_id
+            ELSE id
+          END AS series_id,
+          CASE WHEN tournament_match_id IS NOT NULL THEN 1 ELSE 0 END AS is_tournament
+        FROM match_history
+        GROUP BY series_id, is_tournament
+      )
+    `
+    )
     .get() as { total: number } | undefined;
   return row?.total ?? 0;
 }
@@ -932,7 +1459,28 @@ export function getMatchHistoryById(
 ): MatchHistoryEntry | undefined {
   const row = db
     .prepare(
-      "SELECT id, region, team_a, team_b, winner, mvp, mvp_score, created_at FROM match_history WHERE id = ?"
+      `
+      SELECT
+        id,
+        region,
+        team_a,
+        team_b,
+        winner,
+        mvp,
+        mvp_score,
+        is_tournament,
+        tournament_id,
+        tournament_match_id,
+        tournament_game_id,
+        stage,
+        round_name,
+        game_number,
+        series_best_of,
+        series_score,
+        created_at
+      FROM match_history
+      WHERE id = ?
+    `
     )
     .get(matchId) as MatchHistoryRow | undefined;
   return row ? mapMatchHistoryRow(row) : undefined;
@@ -943,7 +1491,7 @@ export function getMatchHistoryPlayers(
 ): MatchPlayerHistoryEntry[] {
   const rows = db
     .prepare(
-      `SELECT id, match_id, player_id, player_name, nickname, role, kills, deaths, assists, cs, gold, score
+      `SELECT id, match_id, player_id, player_name, nickname, role, kills, deaths, assists, cs, gold, score, team_name, team_side
        FROM match_history_players
        WHERE match_id = ?
        ORDER BY id ASC`
@@ -963,6 +1511,194 @@ export function getMatchHistoryPlayers(
     cs: row.cs ?? 0,
     gold: row.gold ?? 0,
     score: row.score ?? 0,
+    teamName: row.team_name ?? null,
+    teamSide:
+      row.team_side === "A" || row.team_side === "B"
+        ? (row.team_side as "A" | "B")
+        : null,
+  }));
+}
+
+export function getPlayerProfileDetails(
+  playerId: number
+): PlayerProfileDetails | undefined {
+  const row = db
+    .prepare(
+      `
+      SELECT
+        p.id,
+        p.name,
+        p.nickname,
+        p.role,
+        p.kills,
+        p.deaths,
+        p.assists,
+        p.cs,
+        p.gold,
+        p.score,
+        p.region_id as regionId,
+        r.name as regionName,
+        p.team_id as teamId,
+        t.name as teamName,
+        tr.name as tournamentName
+      FROM players p
+      JOIN regions r ON r.id = p.region_id
+      JOIN teams t ON t.id = p.team_id
+      JOIN tournaments tr ON tr.id = t.tournament_id
+      WHERE p.id = ?
+    `
+    )
+    .get(playerId) as
+    | {
+        id: number;
+        name: string;
+        nickname: string | null;
+        role: Role;
+        kills: number;
+        deaths: number;
+        assists: number;
+        cs: number;
+        gold: number;
+        score: number;
+        regionId: number;
+        regionName: string;
+        teamId: number;
+        teamName: string;
+        tournamentName: string;
+      }
+    | undefined;
+
+  if (!row) {
+    return undefined;
+  }
+
+  const totals = db
+    .prepare(
+      `
+      SELECT
+        COALESCE(SUM(kills), 0) as totalKills,
+        COALESCE(SUM(deaths), 0) as totalDeaths,
+        COALESCE(SUM(assists), 0) as totalAssists,
+        COALESCE(SUM(cs), 0) as totalCs,
+        COALESCE(SUM(gold), 0) as totalGold
+      FROM match_history_players
+      WHERE player_id = ?
+    `
+    )
+    .get(playerId) as
+    | {
+        totalKills: number;
+        totalDeaths: number;
+        totalAssists: number;
+        totalCs: number;
+        totalGold: number;
+      }
+    | undefined;
+
+  return {
+    id: row.id,
+    name: row.name,
+    nickname: row.nickname,
+    role: row.role,
+    kills: totals?.totalKills ?? row.kills,
+    deaths: totals?.totalDeaths ?? row.deaths,
+    assists: totals?.totalAssists ?? row.assists,
+    cs: totals?.totalCs ?? row.cs,
+    gold: totals?.totalGold ?? row.gold,
+    score: row.score,
+    team: {
+      id: row.teamId,
+      name: row.teamName,
+      tournamentName: row.tournamentName,
+    },
+    region: {
+      id: row.regionId,
+      name: row.regionName,
+    },
+  };
+}
+
+export function getPlayerMatchAppearances(
+  playerId: number,
+  limit = 25
+): PlayerMatchAppearance[] {
+  const rows = db
+    .prepare(
+      `
+      SELECT
+        m.id as matchId,
+        m.region,
+        m.team_a as teamA,
+        m.team_b as teamB,
+        m.winner,
+        m.stage,
+        m.round_name as roundName,
+        m.series_best_of as bestOf,
+        m.is_tournament as isTournament,
+        m.created_at as createdAt,
+        mh.role,
+        mh.kills,
+        mh.deaths,
+        mh.assists,
+        mh.cs,
+        mh.gold,
+        mh.score,
+        mh.team_name as playerTeamName,
+        mh.team_side as playerTeamSide
+      FROM match_history_players mh
+      JOIN match_history m ON m.id = mh.match_id
+      WHERE mh.player_id = ?
+      ORDER BY m.created_at DESC, m.id DESC
+      LIMIT ?
+    `
+    )
+    .all(playerId, limit) as Array<{
+    matchId: number;
+    region: string;
+    teamA: string;
+    teamB: string;
+    winner: string;
+    stage: string | null;
+    roundName: string | null;
+    bestOf: number | null;
+    isTournament: number;
+    createdAt: string;
+    role: string | null;
+    kills: number;
+    deaths: number;
+    assists: number;
+    cs: number;
+    gold: number;
+    score: number;
+    playerTeamName: string | null;
+    playerTeamSide: string | null;
+  }>;
+
+  return rows.map((row) => ({
+    matchId: row.matchId,
+    createdAt: row.createdAt,
+    region: row.region,
+    stage: row.stage ?? null,
+    roundName: row.roundName ?? null,
+    bestOf: row.bestOf ?? null,
+    isTournament: Boolean(row.isTournament),
+    teamA: row.teamA,
+    teamB: row.teamB,
+    winner: row.winner,
+    stats: {
+      role: row.role,
+      kills: row.kills ?? 0,
+      deaths: row.deaths ?? 0,
+      assists: row.assists ?? 0,
+      cs: row.cs ?? 0,
+      gold: row.gold ?? 0,
+      score: row.score ?? 0,
+      teamName: row.playerTeamName ?? null,
+      teamSide:
+        row.playerTeamSide === "A" || row.playerTeamSide === "B"
+          ? (row.playerTeamSide as "A" | "B")
+          : null,
+    },
   }));
 }
 
@@ -1387,7 +2123,11 @@ export function simulateMatch(players: Player[], regionName: string) {
   const taken = new Set<number>();
   while (randomTeamIds.length < 2 && teamEntries.length > 0) {
     const index = Math.floor(Math.random() * teamEntries.length);
-    const [teamId] = teamEntries.splice(index, 1)[0];
+    const entry = teamEntries.splice(index, 1)[0];
+    if (!entry) {
+      continue;
+    }
+    const [teamId] = entry;
     if (!taken.has(teamId)) {
       randomTeamIds.push(teamId);
       taken.add(teamId);
@@ -1417,9 +2157,61 @@ export function simulateMatch(players: Player[], regionName: string) {
       ? activeTeamNames.slice(0, 2)
       : [...sampleData.teams.slice(0, 2)];
 
-  let winningTeam =
-    teamsForMatch[Math.floor(Math.random() * teamsForMatch.length)] ??
-    teamsForMatch[0];
+  const teamNameCache = new Map<number, string | null>();
+  const resolveTeamNameByIdCached = (teamId: number): string | null => {
+    if (!teamNameCache.has(teamId)) {
+      teamNameCache.set(teamId, getTeamNameById(teamId));
+    }
+    return teamNameCache.get(teamId) ?? null;
+  };
+
+  const assignmentById = new Map<
+    number,
+    { name: string; side: "A" | "B" }
+  >();
+  const assignmentByName = new Map<
+    string,
+    { name: string; side: "A" | "B" }
+  >();
+
+  const sideAssignments = teamsForMatch.slice(0, 2).map((name, index) => ({
+    name,
+    side: index === 0 ? ("A" as const) : ("B" as const),
+  }));
+
+  sideAssignments.forEach((assignment, index) => {
+    assignmentByName.set(assignment.name.toLowerCase(), assignment);
+    const teamId = randomTeamIds[index];
+    if (typeof teamId === "number") {
+      assignmentById.set(teamId, assignment);
+    }
+  });
+
+  const resolveTeamAssignment = (
+    playerTeamId?: number | null
+  ): { name: string | null; side: "A" | "B" | null } => {
+    if (typeof playerTeamId === "number") {
+      const mapped = assignmentById.get(playerTeamId);
+      if (mapped) {
+        return { name: mapped.name, side: mapped.side };
+      }
+      const cachedName = resolveTeamNameByIdCached(playerTeamId);
+      if (cachedName) {
+        const mappedByName =
+          assignmentByName.get(cachedName.toLowerCase()) ?? null;
+        return {
+          name: cachedName,
+          side: mappedByName?.side ?? null,
+        };
+      }
+    }
+    return { name: null, side: null };
+  };
+
+  const winningIndex = Math.floor(Math.random() * teamsForMatch.length);
+  const winningTeam =
+    teamsForMatch[winningIndex] ?? teamsForMatch[0] ?? "Unknown";
+  const winningTeamId = randomTeamIds[winningIndex] ?? randomTeamIds[0];
 
   let MVP = { name: "", score: 0 };
   const matchPlayers: Player[] = [];
@@ -1451,6 +2243,8 @@ export function simulateMatch(players: Player[], regionName: string) {
       MVP.score = deltaScore;
     }
 
+    const teamInfo = resolveTeamAssignment(player.team_id ?? null);
+
     matchPlayers.push({
       ...player,
       kills: deltaKills,
@@ -1471,6 +2265,9 @@ export function simulateMatch(players: Player[], regionName: string) {
       cs: deltaCs,
       gold: deltaGold,
       score: deltaScore,
+      teamId: player.team_id ?? null,
+      teamName: teamInfo.name,
+      teamSide: teamInfo.side,
     });
 
     db.prepare(
@@ -1489,27 +2286,12 @@ export function simulateMatch(players: Player[], regionName: string) {
   const returnData = {
     region: regionName,
     teams: teamsForMatch,
+    teamIds: randomTeamIds,
     winningTeam: winningTeam,
+    winningTeamId,
     MVP: MVP,
+    playerStats: playerStatsForHistory,
   };
-
-  if (teamsForMatch.length >= 2) {
-    try {
-      recordMatchHistory(
-        {
-          region: regionName,
-          teamA: teamsForMatch[0],
-          teamB: teamsForMatch[1],
-          winner: winningTeam,
-          mvp: MVP.name || null,
-          mvpScore: MVP.score,
-        },
-        playerStatsForHistory
-      );
-    } catch (error) {
-      console.warn("Failed to record match history", error);
-    }
-  }
 
   try {
     applyMatchResultsToDecks(matchPlayers);
@@ -1518,6 +2300,1015 @@ export function simulateMatch(players: Player[], regionName: string) {
   }
 
   return returnData;
+}
+
+const GROUP_NAMES = ["Group A", "Group B", "Group C", "Group D"];
+const BRACKET_BEST_OF = 5;
+
+type SimpleTeam = {
+  id: number;
+  name: string;
+};
+
+function shuffleArray<T>(items: T[]): T[] {
+  const clone = [...items];
+  for (let i = clone.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const temp = clone[i]!;
+    clone[i] = clone[j]!;
+    clone[j] = temp;
+  }
+  return clone;
+}
+
+function fetchRegionRecord(regionId: number): Region | undefined {
+  const row = db
+    .prepare("SELECT id, name FROM regions WHERE id = ?")
+    .get(regionId) as Region | undefined;
+  return row;
+}
+
+function fetchTeamsForRegion(regionId: number): SimpleTeam[] {
+  const rows = db
+    .prepare(
+      `
+      SELECT tm.id, tm.name
+      FROM teams tm
+      JOIN tournaments tr ON tr.id = tm.tournament_id
+      WHERE tr.region_id = ?
+      ORDER BY tm.name
+    `
+    )
+    .all(regionId) as SimpleTeam[];
+  return rows;
+}
+
+function fetchTournamentRow(
+  regionId: number,
+  predicate: string,
+  params: unknown[] = []
+): TournamentRow | undefined {
+  const row = db
+    .prepare(
+      `
+      SELECT
+        id,
+        name,
+        region_id,
+        type,
+        status,
+        stage,
+        is_active,
+        current_round,
+        started_at,
+        completed_at
+      FROM tournaments
+      WHERE region_id = ?
+        AND type = 'worlds'
+        ${predicate}
+      ORDER BY COALESCE(started_at, completed_at, CURRENT_TIMESTAMP) DESC, id DESC
+      LIMIT 1
+    `
+    )
+    .get(regionId, ...params) as TournamentRow | undefined;
+  return row;
+}
+
+function getActiveTournamentRow(regionId: number): TournamentRow | undefined {
+  return fetchTournamentRow(
+    regionId,
+    "AND is_active = 1 AND stage <> 'completed'"
+  );
+}
+
+function getLatestTournamentRow(regionId: number): TournamentRow | undefined {
+  return fetchTournamentRow(regionId, "", []);
+}
+
+type GroupAssignment = {
+  id: number;
+  name: string;
+  teams: SimpleTeam[];
+};
+
+function createTournamentGroups(
+  tournament: TournamentRow,
+  teams: SimpleTeam[]
+): GroupAssignment[] {
+  const insertGroupStmt = db.prepare(
+    `
+    INSERT INTO tournament_groups (tournament_id, region_id, name)
+    VALUES (?, ?, ?)
+  `
+  );
+  const insertMemberStmt = db.prepare(
+    `
+    INSERT INTO tournament_group_teams (group_id, team_id, seed)
+    VALUES (?, ?, ?)
+  `
+  );
+
+  const groups: GroupAssignment[] = [];
+  for (const name of GROUP_NAMES) {
+    const info = insertGroupStmt.run(tournament.id, tournament.region_id, name);
+    groups.push({
+      id: Number(info.lastInsertRowid),
+      name,
+      teams: [],
+    });
+  }
+
+  const shuffled = shuffleArray(teams);
+  if (groups.length === 0) {
+    return [];
+  }
+  shuffled.forEach((team, index) => {
+    const group = groups[index % groups.length];
+    if (!group) {
+      return;
+    }
+    group.teams.push(team);
+    insertMemberStmt.run(group.id, team.id, group.teams.length);
+  });
+
+  return groups;
+}
+
+function scheduleGroupMatches(
+  tournament: TournamentRow,
+  groups: GroupAssignment[]
+): void {
+  const insertMatchStmt = db.prepare(
+    `
+    INSERT INTO tournament_matches (
+      tournament_id,
+      region_id,
+      stage,
+      round_name,
+      round_number,
+      match_number,
+      group_id,
+      best_of,
+      team1_id,
+      team2_id
+    )
+    VALUES (?, ?, 'group', ?, ?, ?, ?, 1, ?, ?)
+  `
+  );
+
+  const maxMatchRow = db
+    .prepare(
+      "SELECT MAX(match_number) as maxMatch FROM tournament_matches WHERE tournament_id = ?"
+    )
+    .get(tournament.id) as { maxMatch?: number } | undefined;
+  let matchNumber = Number(maxMatchRow?.maxMatch ?? 0) + 1;
+
+  for (const group of groups) {
+    const teamIds: number[] = group.teams.map((team) => team.id);
+    if (teamIds.length < 2) {
+      continue;
+    }
+
+    const pairings: Array<[number, number]> = [];
+    for (let i = 0; i < teamIds.length; i++) {
+      for (let j = i + 1; j < teamIds.length; j++) {
+        const firstId = teamIds[i];
+        const secondId = teamIds[j];
+        if (
+          typeof firstId !== "number" ||
+          typeof secondId !== "number"
+        ) {
+          continue;
+        }
+        pairings.push([firstId, secondId]);
+      }
+    }
+
+    const matchesPerRound = Math.max(1, Math.floor(teamIds.length / 2));
+    pairings.forEach((pair, index) => {
+      const roundNumber = Math.floor(index / matchesPerRound) + 1;
+      const roundName = `${group.name} - Round ${roundNumber}`;
+      insertMatchStmt.run(
+        tournament.id,
+        tournament.region_id,
+        roundName,
+        roundNumber,
+        matchNumber++,
+        group.id,
+        pair[0],
+        pair[1]
+      );
+    });
+  }
+}
+
+type MatchRowWithNames = TournamentMatchRow & {
+  team1_name: string | null;
+  team2_name: string | null;
+};
+
+function fetchTournamentMatchRows(
+  tournamentId: number
+): MatchRowWithNames[] {
+  const rows = db
+    .prepare(
+      `
+      SELECT
+        tm.id,
+        tm.tournament_id,
+        tm.region_id,
+        tm.stage,
+        tm.round_name,
+        tm.round_number,
+        tm.match_number,
+        tm.best_of,
+        tm.group_id,
+        tm.team1_id,
+        tm.team2_id,
+        tm.team1_score,
+        tm.team2_score,
+        tm.winner_team_id,
+        tm.status,
+        t1.name AS team1_name,
+        t2.name AS team2_name
+      FROM tournament_matches tm
+      LEFT JOIN teams t1 ON t1.id = tm.team1_id
+      LEFT JOIN teams t2 ON t2.id = tm.team2_id
+      WHERE tm.tournament_id = ?
+      ORDER BY CASE tm.stage WHEN 'group' THEN 0 ELSE 1 END, tm.round_number, tm.match_number
+    `
+    )
+    .all(tournamentId) as MatchRowWithNames[];
+  return rows;
+}
+
+function matchRowToSummary(
+  row: MatchRowWithNames,
+  games?: MatchHistoryEntry[]
+): TournamentMatchSummary {
+  const resolvedTeamAName =
+    row.team1_name ??
+    (typeof row.team1_id === "number" ? getTeamNameById(row.team1_id) : null);
+  const resolvedTeamBName =
+    row.team2_name ??
+    (typeof row.team2_id === "number" ? getTeamNameById(row.team2_id) : null);
+
+  const hasTeamA =
+    row.team1_id !== null &&
+    row.team1_id !== undefined &&
+    row.team1_id >= 0
+      ? true
+      : Boolean(resolvedTeamAName);
+  const hasTeamB =
+    row.team2_id !== null &&
+    row.team2_id !== undefined &&
+    row.team2_id >= 0
+      ? true
+      : Boolean(resolvedTeamBName);
+
+  const teamA: TournamentMatchTeam | null = hasTeamA
+    ? {
+        id: row.team1_id ?? null,
+        name: resolvedTeamAName ?? null,
+        score: Number(row.team1_score) || 0,
+      }
+    : null;
+  const teamB: TournamentMatchTeam | null = hasTeamB
+    ? {
+        id: row.team2_id ?? null,
+        name: resolvedTeamBName ?? null,
+        score: Number(row.team2_score) || 0,
+      }
+    : null;
+
+  const summary: TournamentMatchSummary = {
+    id: row.id,
+    stage: row.stage,
+    roundName: row.round_name,
+    roundNumber: row.round_number,
+    matchNumber: row.match_number,
+    bestOf: row.best_of,
+    status: row.status,
+    teamA,
+    teamB,
+    winnerTeamId: row.winner_team_id ?? null,
+    seriesScore: `${teamA?.score ?? 0}-${teamB?.score ?? 0}`,
+  };
+
+  if (games) {
+    summary.games = games;
+  }
+
+  return summary;
+}
+
+function fetchGroupSummaries(
+  tournamentId: number
+): TournamentGroupSummary[] {
+  const rows = db
+    .prepare(
+      `
+      SELECT
+        g.id as group_id,
+        g.name as group_name,
+        tgt.team_id,
+        t.name as team_name,
+        tgt.wins,
+        tgt.losses,
+        tgt.games_played,
+        tgt.seed
+      FROM tournament_groups g
+      LEFT JOIN tournament_group_teams tgt ON tgt.group_id = g.id
+      LEFT JOIN teams t ON t.id = tgt.team_id
+      WHERE g.tournament_id = ?
+      ORDER BY g.name, tgt.wins DESC, tgt.losses ASC, tgt.games_played DESC, t.name
+    `
+    )
+    .all(tournamentId) as Array<{
+    group_id: number;
+    group_name: string;
+    team_id: number | null;
+    team_name: string | null;
+    wins: number | null;
+    losses: number | null;
+    games_played: number | null;
+    seed: number | null;
+  }>;
+
+  const matchRows = fetchTournamentMatchRows(tournamentId);
+  const matchesByGroup = new Map<number, TournamentMatchSummary[]>();
+  for (const row of matchRows.filter((match) => match.stage === "group")) {
+    const summary = matchRowToSummary(row);
+    const groupId = row.group_id;
+    if (!groupId) continue;
+    if (!matchesByGroup.has(groupId)) {
+      matchesByGroup.set(groupId, []);
+    }
+    matchesByGroup.get(groupId)!.push(summary);
+  }
+
+  const summaries = new Map<number, TournamentGroupSummary>();
+  for (const row of rows) {
+    if (!summaries.has(row.group_id)) {
+      summaries.set(row.group_id, {
+        id: row.group_id,
+        name: row.group_name,
+        teams: [],
+        matches: matchesByGroup.get(row.group_id) ?? [],
+      });
+    }
+    if (row.team_id) {
+      summaries.get(row.group_id)!.teams.push({
+        teamId: row.team_id,
+        teamName: row.team_name ?? "TBD",
+        wins: Number(row.wins) || 0,
+        losses: Number(row.losses) || 0,
+        gamesPlayed: Number(row.games_played) || 0,
+        seed: row.seed ?? null,
+      });
+    }
+  }
+
+  return Array.from(summaries.values());
+}
+
+function fetchBracketRounds(tournamentId: number): TournamentBracketRound[] {
+  const matchRows = fetchTournamentMatchRows(tournamentId).filter(
+    (match) => match.stage === "bracket"
+  );
+  const roundOrder = new Map<string, number>();
+  for (const row of matchRows) {
+    if (!roundOrder.has(row.round_name)) {
+      roundOrder.set(row.round_name, row.round_number);
+    }
+  }
+  const rounds = new Map<string, TournamentBracketRound>();
+  for (const row of matchRows) {
+    const key = `${row.round_number}:${row.round_name}`;
+    if (!rounds.has(key)) {
+      rounds.set(key, {
+        name: row.round_name,
+        matches: [],
+      });
+    }
+    rounds.get(key)!.matches.push(matchRowToSummary(row));
+  }
+  return Array.from(rounds.values()).sort((a, b) => {
+    const aIdx = roundOrder.get(a.name) ?? 0;
+    const bIdx = roundOrder.get(b.name) ?? 0;
+    return aIdx - bIdx;
+  });
+}
+
+function findNextMatchSummary(
+  tournamentId: number
+): TournamentMatchSummary | null {
+  const row = db
+    .prepare(
+      `
+      SELECT
+        tm.id,
+        tm.tournament_id,
+        tm.region_id,
+        tm.stage,
+        tm.round_name,
+        tm.round_number,
+        tm.match_number,
+        tm.best_of,
+        tm.group_id,
+        tm.team1_id,
+        tm.team2_id,
+        tm.team1_score,
+        tm.team2_score,
+        tm.winner_team_id,
+        tm.status,
+        t1.name as team1_name,
+        t2.name as team2_name
+      FROM tournament_matches tm
+      LEFT JOIN teams t1 ON t1.id = tm.team1_id
+      LEFT JOIN teams t2 ON t2.id = tm.team2_id
+      WHERE tm.tournament_id = ?
+        AND tm.team1_id IS NOT NULL
+        AND tm.team2_id IS NOT NULL
+        AND tm.status <> 'completed'
+      ORDER BY CASE tm.stage WHEN 'group' THEN 0 ELSE 1 END, tm.round_number, tm.match_number
+      LIMIT 1
+    `
+    )
+    .get(tournamentId) as MatchRowWithNames | undefined;
+  return row ? matchRowToSummary(row) : null;
+}
+
+export function getTournamentState(
+  regionId: number
+): TournamentControlState {
+  const tournament = getLatestTournamentRow(regionId);
+  const region = fetchRegionRecord(regionId) ?? {
+    id: regionId,
+    name: fetchRegionNameById(regionId),
+  };
+
+  if (!tournament) {
+    return {
+      tournament: null,
+      groups: [],
+      bracket: { rounds: [] },
+    };
+  }
+
+  return {
+    tournament: {
+      id: tournament.id,
+      name: tournament.name,
+      region,
+      status: tournament.status,
+      stage: tournament.stage,
+      isActive: Boolean(tournament.is_active),
+      startedAt: tournament.started_at,
+      completedAt: tournament.completed_at,
+      nextMatch: findNextMatchSummary(tournament.id),
+    },
+    groups: fetchGroupSummaries(tournament.id),
+    bracket: {
+      rounds: fetchBracketRounds(tournament.id),
+    },
+  };
+}
+
+export function startTournamentForRegion(
+  regionId: number,
+  options: { name?: string; force?: boolean } = {}
+): TournamentControlState {
+  const region = fetchRegionRecord(regionId);
+  if (!region) {
+    throw new Error("REGION_NOT_FOUND");
+  }
+
+  const allTeams = fetchTeamsForRegion(regionId);
+  if (allTeams.length < 2) {
+    throw new Error("NOT_ENOUGH_TEAMS");
+  }
+
+  const teams = allTeams.slice(0, 16);
+  const active = getActiveTournamentRow(regionId);
+  const force = options.force === true;
+
+  const tournamentId = db.transaction(() => {
+    if (active) {
+      if (!force) {
+        throw new Error("TOURNAMENT_ALREADY_ACTIVE");
+      }
+      db.prepare(
+        "UPDATE tournaments SET status = 'cancelled', stage = 'completed', is_active = 0, completed_at = CURRENT_TIMESTAMP WHERE id = ?"
+      ).run(active.id);
+    }
+
+    const fallbackName = `${region.name} Worlds ${new Date().getFullYear()}`;
+    const name =
+      typeof options.name === "string" && options.name.trim().length > 0
+        ? options.name.trim()
+        : fallbackName;
+
+    const insertInfo = db
+      .prepare(
+        `
+        INSERT INTO tournaments (name, region_id, type, status, stage, is_active, current_round, started_at)
+        VALUES (?, ?, 'worlds', 'running', 'groups', 1, 1, CURRENT_TIMESTAMP)
+      `
+      )
+      .run(name, regionId);
+
+    const newTournament: TournamentRow = {
+      id: Number(insertInfo.lastInsertRowid),
+      name,
+      region_id: regionId,
+      type: "worlds",
+      status: "running",
+      stage: "groups",
+      is_active: 1,
+      current_round: 1,
+      started_at: new Date().toISOString(),
+      completed_at: null,
+    };
+
+    const groups = createTournamentGroups(newTournament, teams);
+    scheduleGroupMatches(newTournament, groups);
+    return newTournament.id;
+  })();
+
+  return getTournamentState(regionId);
+}
+
+function updateGroupStandingsAfterMatch(
+  matchRow: MatchRowWithNames,
+  winnerTeamId?: number | null
+): void {
+  if (
+    !matchRow.group_id ||
+    !matchRow.team1_id ||
+    !matchRow.team2_id ||
+    !winnerTeamId
+  ) {
+    return;
+  }
+
+  const loserTeamId =
+    winnerTeamId === matchRow.team1_id
+      ? matchRow.team2_id
+      : matchRow.team1_id;
+
+  const updateStmt = db.prepare(
+    `
+    UPDATE tournament_group_teams
+    SET wins = wins + ?, losses = losses + ?, games_played = games_played + 1
+    WHERE group_id = ? AND team_id = ?
+  `
+  );
+
+  updateStmt.run(1, 0, matchRow.group_id, winnerTeamId);
+  updateStmt.run(0, 1, matchRow.group_id, loserTeamId);
+}
+
+function propagateWinnerToNextRounds(
+  matchId: number,
+  winnerTeamId?: number | null
+): void {
+  if (!winnerTeamId) {
+    return;
+  }
+
+  const dependents = db
+    .prepare(
+      `
+      SELECT id, source_match1_id, source_match2_id
+      FROM tournament_matches
+      WHERE source_match1_id = ? OR source_match2_id = ?
+    `
+    )
+    .all(matchId, matchId) as Array<{
+    id: number;
+    source_match1_id: number | null;
+    source_match2_id: number | null;
+  }>;
+
+  for (const dependent of dependents) {
+    const column =
+      dependent.source_match1_id === matchId ? "team1_id" : "team2_id";
+    db.prepare(
+      `UPDATE tournament_matches SET ${column} = ? WHERE id = ?`
+    ).run(winnerTeamId, dependent.id);
+  }
+}
+
+function ensureBracketMatches(tournament: TournamentRow): void {
+  const existing = db
+    .prepare(
+      "SELECT COUNT(*) as total FROM tournament_matches WHERE tournament_id = ? AND stage = 'bracket'"
+    )
+    .get(tournament.id) as { total: number } | undefined;
+  if (Number(existing?.total ?? 0) > 0) {
+    return;
+  }
+
+  const standings = db
+    .prepare(
+      `
+      SELECT
+        g.name as group_name,
+        tgt.team_id,
+        t.name as team_name,
+        tgt.wins,
+        tgt.losses,
+        tgt.games_played,
+        tgt.seed
+      FROM tournament_group_teams tgt
+      JOIN tournament_groups g ON g.id = tgt.group_id
+      JOIN teams t ON t.id = tgt.team_id
+      WHERE g.tournament_id = ?
+      ORDER BY g.name, tgt.wins DESC, tgt.losses ASC, tgt.games_played DESC, tgt.seed ASC
+    `
+    )
+    .all(tournament.id) as Array<{
+    group_name: string;
+    team_id: number;
+    team_name: string | null;
+  }>;
+
+  const grouped = new Map<string, Array<{ id: number; name: string | null }>>();
+  for (const row of standings) {
+    if (!grouped.has(row.group_name)) {
+      grouped.set(row.group_name, []);
+    }
+    grouped.get(row.group_name)!.push({
+      id: row.team_id,
+      name: row.team_name,
+    });
+  }
+
+  const quarterPairs: Array<{
+    a: string;
+    aIndex: number;
+    b: string;
+    bIndex: number;
+  }> = [
+    { a: "Group A", aIndex: 0, b: "Group B", bIndex: 1 },
+    { a: "Group C", aIndex: 0, b: "Group D", bIndex: 1 },
+    { a: "Group B", aIndex: 0, b: "Group A", bIndex: 1 },
+    { a: "Group D", aIndex: 0, b: "Group C", bIndex: 1 },
+  ];
+
+  const insertMatchStmt = db.prepare(
+    `
+    INSERT INTO tournament_matches (
+      tournament_id,
+      region_id,
+      stage,
+      round_name,
+      round_number,
+      match_number,
+      group_id,
+      best_of,
+      team1_id,
+      team2_id,
+      source_match1_id,
+      source_match2_id
+    ) VALUES (?, ?, 'bracket', ?, ?, ?, NULL, ?, ?, ?, ?, ?)
+  `
+  );
+
+  const maxMatchRow = db
+    .prepare(
+      "SELECT MAX(match_number) as maxMatch FROM tournament_matches WHERE tournament_id = ?"
+    )
+    .get(tournament.id) as { maxMatch?: number } | undefined;
+  let matchNumber = Number(maxMatchRow?.maxMatch ?? 0) + 1;
+
+  const quarterMatchIds: number[] = [];
+  for (const pair of quarterPairs) {
+    const teamA = grouped.get(pair.a)?.[pair.aIndex];
+    const teamB = grouped.get(pair.b)?.[pair.bIndex];
+    if (!teamA || !teamB) {
+      continue;
+    }
+    const info = insertMatchStmt.run(
+      tournament.id,
+      tournament.region_id,
+      "Quarterfinals",
+      1,
+      matchNumber++,
+      BRACKET_BEST_OF,
+      teamA.id,
+      teamB.id,
+      null,
+      null
+    );
+    quarterMatchIds.push(Number(info.lastInsertRowid));
+  }
+
+  const semifinalPairs: Array<[number, number]> = [
+    [quarterMatchIds[0], quarterMatchIds[1]],
+    [quarterMatchIds[2], quarterMatchIds[3]],
+  ].filter(
+    (pair): pair is [number, number] =>
+      typeof pair[0] === "number" && typeof pair[1] === "number"
+  );
+
+  const semifinalIds: number[] = [];
+  for (const [first, second] of semifinalPairs) {
+    const info = insertMatchStmt.run(
+      tournament.id,
+      tournament.region_id,
+      "Semifinals",
+      2,
+      matchNumber++,
+      BRACKET_BEST_OF,
+      null,
+      null,
+      first,
+      second
+    );
+    semifinalIds.push(Number(info.lastInsertRowid));
+  }
+
+  if (semifinalIds.length >= 2) {
+    insertMatchStmt.run(
+      tournament.id,
+      tournament.region_id,
+      "Finals",
+      3,
+      matchNumber++,
+      BRACKET_BEST_OF,
+      null,
+      null,
+      semifinalIds[0],
+      semifinalIds[1]
+    );
+  }
+}
+
+function refreshTournamentStatus(tournament: TournamentRow): void {
+  const pendingGroup = db
+    .prepare(
+      "SELECT COUNT(*) as total FROM tournament_matches WHERE tournament_id = ? AND stage = 'group' AND status <> 'completed'"
+    )
+    .get(tournament.id) as { total: number };
+  if (Number(pendingGroup.total ?? 0) === 0) {
+    ensureBracketMatches(tournament);
+    db.prepare(
+      "UPDATE tournaments SET stage = CASE WHEN stage = 'groups' THEN 'bracket' ELSE stage END WHERE id = ?"
+    ).run(tournament.id);
+  }
+
+  const pendingBracket = db
+    .prepare(
+      "SELECT COUNT(*) as total FROM tournament_matches WHERE tournament_id = ? AND stage = 'bracket' AND status <> 'completed'"
+    )
+    .get(tournament.id) as { total: number };
+
+  if (
+    Number(pendingGroup.total ?? 0) === 0 &&
+    Number(pendingBracket.total ?? 0) === 0
+  ) {
+    db.prepare(
+      "UPDATE tournaments SET stage = 'completed', status = 'completed', is_active = 0, completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) WHERE id = ?"
+    ).run(tournament.id);
+  }
+}
+
+type PendingMatchRow = MatchRowWithNames;
+
+function fetchPendingMatches(
+  tournamentId: number
+): PendingMatchRow[] {
+  const rows = db
+    .prepare(
+      `
+      SELECT
+        tm.id,
+        tm.tournament_id,
+        tm.region_id,
+        tm.stage,
+        tm.round_name,
+        tm.round_number,
+        tm.match_number,
+        tm.best_of,
+        tm.group_id,
+        tm.team1_id,
+        tm.team2_id,
+        tm.team1_score,
+        tm.team2_score,
+        tm.winner_team_id,
+        tm.status,
+        t1.name as team1_name,
+        t2.name as team2_name
+      FROM tournament_matches tm
+      LEFT JOIN teams t1 ON t1.id = tm.team1_id
+      LEFT JOIN teams t2 ON t2.id = tm.team2_id
+      WHERE tm.tournament_id = ?
+        AND tm.team1_id IS NOT NULL
+        AND tm.team2_id IS NOT NULL
+        AND tm.status <> 'completed'
+      ORDER BY CASE tm.stage WHEN 'group' THEN 0 ELSE 1 END, tm.round_number, tm.match_number
+    `
+    )
+    .all(tournamentId) as PendingMatchRow[];
+  return rows;
+}
+
+function simulateTournamentMatchRow(
+  matchRow: PendingMatchRow
+): { summary: TournamentMatchSummary; games: MatchHistoryEntry[] } {
+  if (!matchRow.team1_id || !matchRow.team2_id) {
+    throw new Error("MATCH_NOT_READY");
+  }
+
+  const regionName = fetchRegionNameById(matchRow.region_id);
+  const players = [
+    ...fetchPlayersByTeamId(matchRow.team1_id),
+    ...fetchPlayersByTeamId(matchRow.team2_id),
+  ];
+  const winsNeeded = Math.ceil(Math.max(matchRow.best_of, 1) / 2);
+  let wins1 = Number(matchRow.team1_score) || 0;
+  let wins2 = Number(matchRow.team2_score) || 0;
+  let gameCounter = wins1 + wins2;
+  const games: MatchHistoryEntry[] = [];
+
+  while (wins1 < winsNeeded && wins2 < winsNeeded) {
+    gameCounter += 1;
+    const result = simulateMatch(players, regionName);
+    const gameWinnerTeamId: number | null =
+      result.winningTeamId === matchRow.team1_id
+        ? matchRow.team1_id ?? null
+        : matchRow.team2_id ?? null;
+
+    if (gameWinnerTeamId === matchRow.team1_id) {
+      wins1 += 1;
+    } else {
+      wins2 += 1;
+    }
+
+    const gameInfo = db
+      .prepare(
+        `
+        INSERT INTO tournament_games (tournament_id, match_id, region_id, game_number, winner_team_id)
+        VALUES (?, ?, ?, ?, ?)
+      `
+      )
+      .run(
+        matchRow.tournament_id,
+        matchRow.id,
+        matchRow.region_id,
+        gameCounter,
+        gameWinnerTeamId ?? null
+      );
+
+    const matchHistoryId = recordMatchHistory(
+      {
+        region: regionName,
+        teamA: matchRow.team1_name ?? "Team A",
+        teamB: matchRow.team2_name ?? "Team B",
+        winner: result.winningTeam,
+        mvp: result.MVP.name || null,
+        mvpScore: result.MVP.score,
+        isTournament: true,
+        tournamentId: matchRow.tournament_id,
+        tournamentMatchId: matchRow.id,
+        tournamentGameId: Number(gameInfo.lastInsertRowid),
+        stage: matchRow.stage,
+        roundName: matchRow.round_name,
+        gameNumber: gameCounter,
+        seriesBestOf: matchRow.best_of,
+        seriesScore: `${wins1}-${wins2}`,
+      },
+      result.playerStats
+    );
+
+    if (matchHistoryId) {
+      const recorded = getMatchHistoryById(matchHistoryId);
+      if (recorded) {
+        games.push(recorded);
+      }
+    }
+  }
+
+  const winnerTeamId: number | null =
+    wins1 > wins2
+      ? matchRow.team1_id ?? null
+      : matchRow.team2_id ?? null;
+
+  db.prepare(
+    `
+    UPDATE tournament_matches
+    SET team1_score = ?, team2_score = ?, winner_team_id = ?, status = 'completed', completed_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `
+  ).run(wins1, wins2, winnerTeamId, matchRow.id);
+
+  updateGroupStandingsAfterMatch(matchRow, winnerTeamId);
+  propagateWinnerToNextRounds(matchRow.id, winnerTeamId ?? undefined);
+
+  const summary = matchRowToSummary(
+    {
+      ...matchRow,
+      team1_score: wins1,
+      team2_score: wins2,
+      winner_team_id: winnerTeamId ?? null,
+      status: "completed",
+    },
+    games
+  );
+
+  return { summary, games };
+}
+
+function simulateTournamentBatch(
+  tournament: TournamentRow,
+  selection: "next" | "round"
+): TournamentMatchSummary[] {
+  const pending = fetchPendingMatches(tournament.id);
+  if (pending.length === 0) {
+    refreshTournamentStatus(tournament);
+    throw new Error("NO_PENDING_MATCHES");
+  }
+
+  const [first] = pending;
+  if (!first) {
+    refreshTournamentStatus(tournament);
+    throw new Error("NO_PENDING_MATCHES");
+  }
+
+  let selected: PendingMatchRow[] = [];
+  if (selection === "round") {
+    selected = pending.filter(
+      (match) =>
+        match.stage === first.stage && match.round_number === first.round_number
+    );
+  } else {
+    selected = pending.slice(0, 1);
+  }
+
+  const summaries: TournamentMatchSummary[] = [];
+  db.transaction(() => {
+    for (const match of selected) {
+      const { summary } = simulateTournamentMatchRow(match);
+      summaries.push(summary);
+      db.prepare(
+        "UPDATE tournaments SET current_round = ? WHERE id = ?"
+      ).run(match.round_number, tournament.id);
+    }
+  })();
+
+  refreshTournamentStatus(tournament);
+  return summaries;
+}
+
+export function simulateTournamentMatches(
+  regionId: number,
+  mode: TournamentSimulationMode
+): TournamentSimulationResult {
+  const initialTournament = getActiveTournamentRow(regionId);
+  if (!initialTournament) {
+    throw new Error("NO_ACTIVE_TOURNAMENT");
+  }
+
+  if (mode === "full") {
+    const aggregated: TournamentMatchSummary[] = [];
+    let currentTournament: TournamentRow | undefined = initialTournament;
+    while (currentTournament) {
+      try {
+        const batch = simulateTournamentBatch(currentTournament, "round");
+        aggregated.push(...batch);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message === "NO_PENDING_MATCHES"
+        ) {
+          if (aggregated.length === 0) {
+            throw error;
+          }
+          break;
+        }
+        throw error;
+      }
+      currentTournament = getActiveTournamentRow(regionId);
+    }
+
+    return {
+      matches: aggregated,
+      state: getTournamentState(regionId),
+    };
+  }
+
+  const selection = mode === "round" ? "round" : "next";
+  const matches = simulateTournamentBatch(initialTournament, selection);
+  return {
+    matches,
+    state: getTournamentState(regionId),
+  };
+}
+
+export function isTournamentActiveForRegion(regionId: number): boolean {
+  return Boolean(getActiveTournamentRow(regionId));
 }
 
 export function fetchRegionNameById(regionId: number): string {

@@ -6,6 +6,7 @@ import {
   getTeamId,
   getTeamsOverview,
   TeamOverview,
+  recordMatchHistory,
 } from "../db";
 import { Player } from "../Types";
 
@@ -37,6 +38,23 @@ export default class FootabalolGame {
 
   simulateMatch() {
     const stats = simulatePlayerStats(this.players, this.regionName);
+    if (stats.teams.length >= 2 && stats.teams[0] && stats.teams[1]) {
+      try {
+        recordMatchHistory(
+          {
+            region: stats.region,
+            teamA: stats.teams[0],
+            teamB: stats.teams[1],
+            winner: stats.winningTeam,
+            mvp: stats.MVP.name || null,
+            mvpScore: stats.MVP.score,
+          },
+          stats.playerStats
+        );
+      } catch (error) {
+        console.warn("Failed to record friendly match", error);
+      }
+    }
     if (this.teams.length < 2) {
       return { ...stats };
     }
@@ -84,10 +102,20 @@ export default class FootabalolGame {
 
       const roster =
         idsFromMatch.length >= 2
-          ? [
-              ...fetchPlayersByTeamId(idsFromMatch[0]),
-              ...fetchPlayersByTeamId(idsFromMatch[1]),
-            ]
+          ? (() => {
+              const teamAId = idsFromMatch[0];
+              const teamBId = idsFromMatch[1];
+              if (
+                typeof teamAId !== "number" ||
+                typeof teamBId !== "number"
+              ) {
+                return fetchAllPlayers(this.regionId);
+              }
+              return [
+                ...fetchPlayersByTeamId(teamAId),
+                ...fetchPlayersByTeamId(teamBId),
+              ];
+            })()
           : fetchAllPlayers(this.regionId);
 
       yield {

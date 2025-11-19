@@ -30,6 +30,12 @@ import {
   getMatchHistoryById,
   getMatchHistoryPlayers,
   clearMatchHistory,
+  getTournamentState,
+  startTournamentForRegion,
+  simulateTournamentMatches,
+  isTournamentActiveForRegion,
+  getPlayerProfileDetails,
+  getPlayerMatchAppearances,
 } from "./db";
 import {
   addCardToDeck,
@@ -112,6 +118,17 @@ function parseBooleanQuery(value: unknown): boolean {
   return raw === "1" || raw.toLowerCase() === "true";
 }
 
+function parseRegionIdParam(raw: string | undefined): number | null {
+  if (!raw) {
+    return null;
+  }
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return null;
+  }
+  return parsed;
+}
+
 const AUTH_RATE_LIMIT_WINDOW_MS = parsePositiveIntFromEnv(
   process.env.AUTH_RATE_LIMIT_WINDOW_MS,
   60_000
@@ -191,8 +208,8 @@ app.get("/api/matches/history", (req, res) => {
   const offset = (page - 1) * limit;
   try {
     const total = getMatchHistoryCount();
-    const matches = getRecentMatchHistory(limit, offset);
-    res.json({ matches, total });
+    const series = getRecentMatchHistory(limit, offset);
+    res.json({ series, total });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "MATCH_HISTORY_FAILED" });
@@ -227,6 +244,24 @@ app.get("/api/matches/:matchId", (req, res) => {
   }
 });
 
+app.get("/api/players/:playerId/profile", (req, res) => {
+  const playerId = Number(req.params.playerId);
+  if (!Number.isInteger(playerId) || playerId <= 0) {
+    return res.status(400).json({ error: "INVALID_PLAYER_ID" });
+  }
+  try {
+    const player = getPlayerProfileDetails(playerId);
+    if (!player) {
+      return res.status(404).json({ error: "PLAYER_NOT_FOUND" });
+    }
+    const matches = getPlayerMatchAppearances(playerId, 25);
+    res.json({ player, matches });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "PLAYER_PROFILE_FAILED" });
+  }
+});
+
 app.post("/api/matches/simulate", (req, res) => {
   const rawRegion =
     req.body?.regionId ??
@@ -236,6 +271,12 @@ app.post("/api/matches/simulate", (req, res) => {
   const parsed = Number(rawRegion);
   const regionId =
     Number.isInteger(parsed) && parsed > 0 ? parsed : Number(process.env.DEFAULT_REGION_ID ?? 1);
+  if (isTournamentActiveForRegion(regionId)) {
+    return res.status(409).json({
+      error: "TOURNAMENT_ACTIVE",
+      message: "Friendly matches are disabled while a tournament is active for this region.",
+    });
+  }
   try {
     const game = new FootabalolGame();
     game.setRegion(regionId);
@@ -244,6 +285,85 @@ app.post("/api/matches/simulate", (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "MATCH_SIMULATION_FAILED" });
+  }
+});
+
+app.get("/api/regions/:regionId/tournament", (req, res) => {
+  const regionId = parseRegionIdParam(req.params.regionId);
+  if (!regionId) {
+    return res.status(400).json({ error: "INVALID_REGION_ID" });
+  }
+  try {
+    const state = getTournamentState(regionId);
+    res.json(state);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "TOURNAMENT_STATE_FAILED" });
+  }
+});
+
+app.post("/api/regions/:regionId/tournament/start", (req, res) => {
+  const regionId = parseRegionIdParam(req.params.regionId);
+  if (!regionId) {
+    return res.status(400).json({ error: "INVALID_REGION_ID" });
+  }
+  const { name, force } = req.body ?? {};
+  const options: { name?: string; force?: boolean } = {};
+  if (typeof name === "string" && name.trim().length > 0) {
+    options.name = name.trim();
+  }
+  if (force === true) {
+    options.force = true;
+  }
+  try {
+    const state = startTournamentForRegion(regionId, {
+      ...options,
+    });
+    res.status(201).json(state);
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === "REGION_NOT_FOUND") {
+        return res.status(404).json({ error: "REGION_NOT_FOUND" });
+      }
+      if (error.message === "NOT_ENOUGH_TEAMS") {
+        return res.status(400).json({ error: "NOT_ENOUGH_TEAMS" });
+      }
+      if (error.message === "TOURNAMENT_ALREADY_ACTIVE") {
+        return res.status(409).json({ error: "TOURNAMENT_ALREADY_ACTIVE" });
+      }
+    }
+    console.error(error);
+    res.status(500).json({ error: "TOURNAMENT_START_FAILED" });
+  }
+});
+
+app.post("/api/regions/:regionId/tournament/simulate", (req, res) => {
+  const regionId = parseRegionIdParam(req.params.regionId);
+  if (!regionId) {
+    return res.status(400).json({ error: "INVALID_REGION_ID" });
+  }
+  const rawMode =
+    (typeof req.body?.mode === "string" && req.body.mode) ||
+    (typeof req.query.mode === "string" && req.query.mode) ||
+    "next";
+  const mode = rawMode.toLowerCase();
+  if (!["next", "round", "full"].includes(mode)) {
+    return res.status(400).json({ error: "INVALID_MODE" });
+  }
+  try {
+    const result = simulateTournamentMatches(regionId, mode as "next" | "round" | "full");
+    res.json(result);
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === "NO_ACTIVE_TOURNAMENT") {
+        return res.status(409).json({ error: "NO_ACTIVE_TOURNAMENT" });
+      }
+      if (error.message === "NO_PENDING_MATCHES") {
+        return res.status(409).json({ error: "NO_PENDING_MATCHES" });
+      }
+    }
+    console.error(error);
+    res.status(500).json({ error: "TOURNAMENT_SIMULATION_FAILED" });
   }
 });
 
@@ -267,7 +387,8 @@ app.get("/api/cards", (_req, res) => {
 
 app.get("/api/regions", (_req, res) => {
   try {
-    res.json({ regions: getRegions() });
+    const regions = getRegions();
+    res.json(regions);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "REGION_FETCH_FAILED" });
@@ -787,8 +908,15 @@ app.post("/api/tournaments/simulate", (req, res) => {
     const game = new FootabalolGame();
     game.setRegion(regionId);
 
-    const rounds: Array<{ region: number; players: Player[]; gameNumber: number }> =
-      [];
+    const rounds: Array<{
+      region: string;
+      teams: string[];
+      winner: string;
+      MVP: { name?: string; score?: number };
+      players: Player[];
+      teamIds: number[];
+      gameNumber: number;
+    }> = [];
     const iterator = game.simulateTournament(regionId, gameCount);
     let iteration = iterator.next();
 
@@ -801,9 +929,13 @@ app.post("/api/tournaments/simulate", (req, res) => {
       rounds.length > 0 ? rounds[rounds.length - 1] : undefined;
     const finalResult =
       iteration.value ?? {
-        region: regionId,
+        region: game.getRegion().name,
+        teams: lastRound ? lastRound.teams : [],
         players: lastRound ? lastRound.players : ([] as Player[]),
         winner: "Blue" as const,
+        MVP: lastRound?.MVP ?? { name: "", score: 0 },
+        teamIds: lastRound?.teamIds ?? [],
+        gameNumber: lastRound?.gameNumber ?? gameCount,
       };
 
     const finalPlayers = finalResult.players ?? [];

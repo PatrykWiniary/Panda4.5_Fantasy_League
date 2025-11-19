@@ -4,13 +4,19 @@ import "../styles/LogReg.css";
 import homeIcon from "../assets/home.svg";
 import userIcon from "../assets/user.svg";
 import { apiFetch, ApiError } from "../api/client";
-import type { LeaderboardResponse, LeaderboardEntry } from "../api/types";
+import type {
+  LeaderboardResponse,
+  LeaderboardEntry,
+  TournamentControlState,
+} from "../api/types";
 import { useSession } from "../context/SessionContext";
 
 export default function LeaderboardPage() {
   const { user } = useSession();
   const [data, setData] = useState<LeaderboardResponse | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [tournamentState, setTournamentState] =
+    useState<TournamentControlState | null>(null);
 
   useEffect(() => {
     let canceled = false;
@@ -35,6 +41,16 @@ export default function LeaderboardPage() {
       canceled = true;
     };
   }, [user?.id]);
+
+  useEffect(() => {
+    apiFetch<TournamentControlState>(`/api/regions/1/tournament`)
+      .then((payload) => {
+        setTournamentState(payload);
+      })
+      .catch(() => {
+        setTournamentState(null);
+      });
+  }, []);
 
   const highlightId = user?.id ?? data?.userEntry?.id;
 
@@ -109,6 +125,25 @@ export default function LeaderboardPage() {
           </>
         )}
       </div>
+
+      {tournamentState?.tournament && (
+        <div className="leaderboard-card tournament-summary">
+          <h2>Regional Tournament</h2>
+          <p>
+            <strong>{tournamentState.tournament.name}</strong> • Stage:{" "}
+            {tournamentState.tournament.stage}
+          </p>
+          {tournamentState.tournament.nextMatch ? (
+            <p>
+              Next series:{" "}
+              {tournamentState.tournament.nextMatch.teamA?.name ?? "TBD"} vs{" "}
+              {tournamentState.tournament.nextMatch.teamB?.name ?? "TBD"}
+            </p>
+          ) : (
+            <p>No upcoming series.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
