@@ -133,6 +133,13 @@ export default function OngLeaguePage({
           card?.name && resolvePlayerImage(card.name)
             ? resolvePlayerImage(card.name)
             : fallbackPortrait;
+        const tournamentScore =
+          typeof card?.tournamentPoints === "number"
+            ? card.tournamentPoints
+            : undefined;
+        const basePoints =
+          typeof card?.points === "number" ? card.points : undefined;
+
         return {
           id: index + 1,
           icon: roleIcons[role],
@@ -140,10 +147,10 @@ export default function OngLeaguePage({
           name: card?.name,
           role,
           kdA:
-            typeof card?.tournamentPoints === "number"
-              ? `Score ${card.tournamentPoints.toFixed(1)}`
+            tournamentScore !== undefined
+              ? `Score ${tournamentScore.toFixed(1)}`
               : undefined,
-          pointsDelta: card?.points,
+          pointsDelta: tournamentScore ?? basePoints ?? 0,
         };
       }
     );
