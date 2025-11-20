@@ -358,9 +358,16 @@ Ta sekcja zbiera najwazniejsze elementy kodu, tak aby osoba mogla szybko zorient
 Ten rozdział ma byc rozwijany na bieżąco – jezeli dodajesz wiekszy modul, dopisz tu 1-2 zdania, aby nastepne osoby wiedzialy, gdzie szukac kodu.***
 ## Regional Tournament Flow
 
+- **Silnik meczowy (`simulateMatch` w `backend/src/db.ts`)**
+  - Losuje czas gry (20–40 min) i na tej podstawie oblicza pasywny dochód, wartość minionów oraz premie za obiekty.
+  - Gracze trafiają do stron A/B zgodnie z drużynami (z fallbackiem, gdy danych brakuje). Liczba zabójstw w meczu zależy od czasu i jest dzielona 55–80% na zwycięzcę, reszta na przegranego; suma zabójstw jednej strony = suma zgonów drugiej.
+  - Zabójstwa / zgony są rozdzielane wśród graczy proporcjonalnie do roli (ADC/Mid biorą więcej fragów, supporty częściej giną). Asysty i CS wynikają z tych wartości oraz profilu roli.
+  - Złoto = pasywny tick + udział w wieżach/smokach/Baronie + miniony + bounty za kille/asyty – kara za zgony ± niewielki losowy szum. Dzięki temu overlay kart w OngLeague jest spójny z pozostałymi statystykami.
+  - MVP to gracz z najwyższym `deltaScore` (funkcja `calculateScore`). Statystyki trafiają następnie do `simulationScoring.ts`, który aktualizuje `tournamentPoints` kart i `users.score`.
+
 - **Nowe tabele**: `tournament_groups`, `tournament_group_teams`, `tournament_matches`, `tournament_games` realizuja losowanie 4 grup oraz drabinke BO5.
 - **API**:
-  - `GET /api/regions/:regionId/tournament` – zwraca stan turnieju (grupy, bracket, kolejne serie).
+  - `GET /api/regions/:regionId/tournament` - zwraca stan turnieju (grupy, bracket, kolejne serie).
   - `POST /api/regions/:regionId/tournament/start` – startuje lub resetuje zmagania (`body { name?: string, force?: boolean }`).
   - `POST /api/regions/:regionId/tournament/simulate` – `body { mode: "next" | "round" | "full" }` symuluje odpowiednio nastepna serie, cala kolejke lub caly turniej.
 - **Match history** – `/api/matches/history` zwraca serie zagniezdzone (lista gier z runda/stage), a frontend pozwala rozwijac kazda gre wraz ze statystykami graczy. Friendly mecze sa blokowane, gdy region ma aktywny turniej (backend zwraca `TOURNAMENT_ACTIVE`).

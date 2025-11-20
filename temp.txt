@@ -2213,215 +2213,17 @@ export function simulateMatch(players: Player[], regionName: string) {
   const winningTeam =
     teamsForMatch[winningIndex] ?? teamsForMatch[0] ?? "Unknown";
   const winningTeamId = randomTeamIds[winningIndex] ?? randomTeamIds[0];
-  const winningSide = sideAssignments[winningIndex]?.side ?? "A";
-  const losingSide = winningSide === "A" ? ("B" as const) : ("A" as const);
 
   let MVP = { name: "", score: 0 };
   const matchPlayers: Player[] = [];
   const playerStatsForHistory: MatchPlayerStat[] = [];
-  const matchDurationMinutes = 20 + Math.random() * 20;
-  const passiveGoldPerPlayer = Math.round(
-    ((matchDurationMinutes * 60) / 5) * 5
-  );
-  const towerTakedowns = Math.floor(Math.random() * 5);
-  const dragonTakedowns = Math.floor(Math.random() * 4);
-  const baronTakedowns = Math.random() < 0.4 ? 1 : 0;
-  const sharedObjectiveGold = Math.round(
-    (towerTakedowns * 250 + dragonTakedowns * 25 + baronTakedowns * 300) / 5
-  );
-  const averageMinionGold = Math.min(35, 18 + matchDurationMinutes * 0.6);
-
-  const roleProfiles: Record<
-    Role,
-    {
-      cs: [number, number];
-      kills: [number, number];
-      deaths: [number, number];
-      assists: [number, number];
-    }
-  > = {
-    Top: { cs: [90, 280], kills: [1, 9], deaths: [0, 7], assists: [2, 14] },
-    Jgl: { cs: [70, 240], kills: [2, 11], deaths: [1, 6], assists: [4, 18] },
-    Mid: { cs: [100, 320], kills: [3, 13], deaths: [1, 8], assists: [3, 16] },
-    Adc: { cs: [120, 360], kills: [3, 15], deaths: [0, 7], assists: [3, 14] },
-    Supp: { cs: [20, 120], kills: [0, 5], deaths: [1, 8], assists: [6, 24] },
-  };
-  const randomInt = (min: number, max: number) =>
-    Math.floor(Math.random() * (max - min + 1)) + min;
-  const playerTeamInfo = new Map<
-    number,
-    { name: string | null; side: "A" | "B" | null }
-  >();
-  const sidePlayers: Record<"A" | "B", Player[]> = { A: [], B: [] };
-
-  activePlayers.forEach((player) => {
-    const info = resolveTeamAssignment(player.team_id ?? null);
-    playerTeamInfo.set(player.id, info);
-    if (info.side === "A" || info.side === "B") {
-      sidePlayers[info.side].push(player);
-    }
-  });
-
-  if (sidePlayers.A.length === 0 || sidePlayers.B.length === 0) {
-    const midpoint = Math.max(1, Math.ceil(activePlayers.length / 2));
-    const fallbackA = activePlayers.slice(0, midpoint);
-    const fallbackB = activePlayers.slice(midpoint);
-    if (fallbackB.length === 0 && fallbackA.length > 1) {
-      fallbackB.push(fallbackA.pop()!);
-    } else if (fallbackB.length === 0) {
-      fallbackB.push(...fallbackA);
-    }
-    sidePlayers.A = fallbackA;
-    sidePlayers.B = fallbackB;
-    sidePlayers.A.forEach((player) => {
-      const existing = playerTeamInfo.get(player.id) ?? { name: null, side: null };
-      if (!existing.side) {
-        playerTeamInfo.set(player.id, { ...existing, side: "A" });
-      }
-    });
-    sidePlayers.B.forEach((player) => {
-      const existing = playerTeamInfo.get(player.id) ?? { name: null, side: null };
-      if (!existing.side) {
-        playerTeamInfo.set(player.id, { ...existing, side: "B" });
-      }
-    });
-  }
-
-  const killWeights: Record<Role, number> = {
-    Top: 1.05,
-    Jgl: 1.15,
-    Mid: 1.35,
-    Adc: 1.5,
-    Supp: 0.6,
-  };
-  const deathWeights: Record<Role, number> = {
-    Top: 1.0,
-    Jgl: 1.05,
-    Mid: 0.9,
-    Adc: 1.2,
-    Supp: 1.4,
-  };
-
-  const allocateStat = (
-    roster: Player[],
-    total: number,
-    weightResolver: (player: Player) => number
-  ) => {
-    const allocations = new Map<number, number>();
-    if (roster.length === 0 || total <= 0) {
-      return allocations;
-    }
-    const weighted = roster.map((player) => {
-      const weight = Math.max(0.1, weightResolver(player));
-      return { player, weight };
-    });
-    const weightSum = weighted.reduce((sum, entry) => sum + entry.weight, 0);
-    let assigned = 0;
-    const fractional: {
-      player: Player;
-      fraction: number;
-    }[] = [];
-    weighted.forEach((entry) => {
-      const raw = (entry.weight / weightSum) * total;
-      const base = Math.floor(raw);
-      allocations.set(entry.player.id, base);
-      assigned += base;
-      fractional.push({ player: entry.player, fraction: raw - base });
-    });
-    let remaining = total - assigned;
-    fractional
-      .sort((a, b) => b.fraction - a.fraction)
-      .forEach((entry) => {
-        if (remaining <= 0) return;
-        allocations.set(entry.player.id, (allocations.get(entry.player.id) ?? 0) + 1);
-        remaining--;
-      });
-    let index = 0;
-    while (remaining > 0 && roster.length > 0) {
-      const target = roster[index % roster.length];
-      allocations.set(target.id, (allocations.get(target.id) ?? 0) + 1);
-      remaining--;
-      index++;
-    }
-    return allocations;
-  };
-
-  const baseKillRate = 0.8 + Math.random() * 0.9;
-  const totalKills = Math.max(
-    10,
-    Math.round(matchDurationMinutes * baseKillRate + randomInt(0, 6))
-  );
-  const winnerKillShare = 0.55 + Math.random() * 0.25;
-  let winnerKills = Math.max(5, Math.round(totalKills * winnerKillShare));
-  let loserKills = Math.max(1, totalKills - winnerKills);
-  if (loserKills < 0) {
-    loserKills = 0;
-    winnerKills = totalKills;
-  }
-  const sideKillTargets: Record<"A" | "B", number> = {
-    [winningSide]: winnerKills,
-    [losingSide]: loserKills,
-  };
-  const sideDeathTargets: Record<"A" | "B", number> = {
-    A: sideKillTargets.B,
-    B: sideKillTargets.A,
-  };
-
-  const killAllocations = new Map<number, number>();
-  const deathAllocations = new Map<number, number>();
-  (["A", "B"] as const).forEach((side) => {
-    const killMap = allocateStat(
-      sidePlayers[side],
-      sideKillTargets[side] ?? 0,
-      (player) => killWeights[player.role as Role] ?? 1
-    );
-    killMap.forEach((value, playerId) => killAllocations.set(playerId, value));
-    const deathMap = allocateStat(
-      sidePlayers[side],
-      sideDeathTargets[side] ?? 0,
-      (player) => deathWeights[player.role as Role] ?? 1
-    );
-    deathMap.forEach((value, playerId) => deathAllocations.set(playerId, value));
-  });
 
   for (const player of activePlayers) {
-    const roleKey = player.role as Role;
-    const profile = roleProfiles[roleKey] ?? roleProfiles.Top;
-    const deltaKills =
-      killAllocations.get(player.id) ??
-      randomInt(profile.kills[0], profile.kills[1]);
-    const deltaDeaths =
-      deathAllocations.get(player.id) ??
-      randomInt(profile.deaths[0], profile.deaths[1]);
-    const assistBase = randomInt(profile.assists[0], profile.assists[1]);
-    const deltaAssists = Math.min(
-      profile.assists[1],
-      Math.max(assistBase, deltaKills + randomInt(0, 4))
-    );
-    const csScale = 0.6 + Math.min(1.2, matchDurationMinutes / 30);
-    const csMin = Math.max(0, Math.round(profile.cs[0] * csScale * 0.6));
-    const csMax = Math.max(csMin + 10, Math.round(profile.cs[1] * csScale));
-    const deltaCs = randomInt(csMin, csMax);
-
-    let killGold = 0;
-    for (let k = 0; k < deltaKills; k++) {
-      killGold += 300 + Math.max(0, k - 2) * 40;
-    }
-    const assistGold = deltaAssists * 150;
-    const csGold = Math.round(deltaCs * averageMinionGold);
-    const deathPenalty = deltaDeaths * 35;
-    const deltaGold = Math.max(
-      50,
-      Math.round(
-        passiveGoldPerPlayer +
-          sharedObjectiveGold +
-          killGold +
-          assistGold +
-          csGold -
-          deathPenalty +
-          randomInt(-150, 150)
-      )
-    );
+    const deltaKills = Math.floor(Math.random() * 5);
+    const deltaDeaths = Math.floor(Math.random() * 3);
+    const deltaAssists = Math.floor(Math.random() * 4);
+    const deltaCs = Math.floor(Math.random() * 200);
+    const deltaGold = Math.floor(Math.random() * 12000);
 
     player.kills += deltaKills;
     player.deaths += deltaDeaths;
@@ -2442,8 +2244,7 @@ export function simulateMatch(players: Player[], regionName: string) {
       MVP.score = deltaScore;
     }
 
-    const teamInfo =
-      playerTeamInfo.get(player.id) ?? resolveTeamAssignment(player.team_id ?? null);
+    const teamInfo = resolveTeamAssignment(player.team_id ?? null);
 
     matchPlayers.push({
       ...player,
@@ -3561,3 +3362,4 @@ function test(){
   console.log("Winner:", winnerId);
 }
 test();
+
