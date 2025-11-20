@@ -193,81 +193,6 @@ body {
   line-height: 1.6;
 }
 
-/* --- HOMEPAGE --- */
-.homepage {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  min-height: 100vh;
-  width: 100vw;
-  background: var(--bg);
-  color: var(--accent);
-  max-width: 100%;
-  padding: 1rem;
-  overflow-x: hidden; /* zapobiega przesuwaniu poziomemu */
-}
-
-/* TytuĹ‚ gĹ‚Ăłwny */
-.homepage-title {
-  font-size: clamp(2rem, 5vw, 3.5rem);
-  font-weight: 700;
-  letter-spacing: 6px;
-  text-transform: uppercase;
-  margin-bottom: 3rem;
-  background: radial-gradient(circle at 50% 40%, var(--accent) 20%, var(--accent-dark) 80%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  color: transparent;
-  text-shadow: 0 0 5px rgba(0, 0, 0, 0.4);
-}
-
-.homepage-subtitle {
-  font-size: 1.2rem;
-  margin-bottom: 2rem;
-  color: #f6e7c6;
-}
-
-/* Sekcja przyciskĂłw */
-.homepage-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  align-items: center;
-}
-
-/* Przyciski homepage */
-.homepage-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 420px; 
-  height: 75px;
-  font-size: 1.3rem;
-  font-weight: 600;
-  letter-spacing: 1px;
-  border: 1.5px solid var(--accent);
-  border-radius: 12px;
-  color: var(--accent);
-  background: transparent;
-  text-decoration: none;
-  transition: all 0.2s ease;
-}
-
-
-.homepage-button:hover { 
-  background: var(--accent); 
-  color: var(--text-dark); 
-  box-shadow: 0 0 12px rgba(201, 172, 109, 0.4); 
-  transform: translateY(-2px); }
-
-
-
-
-
 /* --- PAGE ICONS --- */
 .login-container .page-icons,
 .registration-container .page-icons {
@@ -293,26 +218,12 @@ body {
   transition: transform 0.2s ease, filter 0.3s ease;
 }
 
-.page-icon.home-icon img.icon-image:hover {
-  transform: scale(1.1);
-  filter: drop-shadow(0 0 6px #000) drop-shadow(0 0 12px #C9AC6D);
-}
-
+.page-icon.home-icon img.icon-image:hover,
 .page-icon.user-icon img.icon-image:hover {
   transform: scale(1.1);
   filter: drop-shadow(0 0 6px #000) drop-shadow(0 0 12px #C9AC6D);
 }
 
-/* --- HOMEPAGE BUTTON DISABLED --- */
-.homepage-button.disabled {
-  background: #1E1E1E;
-  color: #555;
-  border: 1.5px solid #1E1E1E;
-  pointer-events: none;
-  box-shadow: none;
-  transform: none;
-  cursor: default;
-}
 .profile-avatar{
   width: 236px;
   height: 236px;
@@ -1126,4 +1037,5 @@ body {
   font-size: 0.9rem;
   opacity: 0.85;
 }
+
 

@@ -1,24 +1,47 @@
-import { useEffect, useState, MouseEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import "../styles/LogReg.css";
 import "../styles/OngoingLeague.css";
-import avatarIcon from "../assets/man.jpg";
-import champPortrait from "../assets/playerPics/Bin.webp";
+import homeIcon from "../assets/home.svg";
+import userIcon from "../assets/user.svg";
+import mapBackground from "../assets/rift.png";
 import topIcon from "../assets/roleIcons/top.png";
 import jungleIcon from "../assets/roleIcons/jungle.png";
 import midIcon from "../assets/roleIcons/mid.png";
 import adcIcon from "../assets/roleIcons/adc.png";
 import supportIcon from "../assets/roleIcons/support.png";
-import mapBackground from "../assets/rift.png";
+import fallbackPortrait from "../assets/playerPics/Bin.webp";
+import { apiFetch, ApiError } from "../api/client";
+import type {
+  DeckResponse,
+  DeckRole,
+  DeckCard,
+  DeckSummary,
+  MatchHistoryResponse,
+  MatchHistoryDetailResponse,
+  MatchPlayerHistoryEntry,
+} from "../api/types";
+import { useSession } from "../context/SessionContext";
+import { resolvePlayerImage } from "../utils/playerImages";
+import { resolveProfileAvatar } from "../utils/profileAvatars";
 
-type Champ = {
+const roleIcons: Record<DeckRole, string> = {
+  Top: topIcon,
+  Jgl: jungleIcon,
+  Mid: midIcon,
+  Adc: adcIcon,
+  Supp: supportIcon,
+};
+
+type ChampCard = {
   id: number;
-  name?: string;
   icon: string;
   portrait: string;
-  isMvp?: boolean;
+  name?: string;
+  role: DeckRole;
   kdA?: string;
   pointsDelta?: number;
-  position?: string;
+  isMvp?: boolean;
 };
 
 type OngLeagueProps = {
@@ -26,42 +49,232 @@ type OngLeagueProps = {
   onPopupHandled?: () => void;
 };
 
-export default function OngLeague({
+export default function OngLeaguePage({
   popupEvent,
   onPopupHandled,
 }: OngLeagueProps) {
   const navigate = useNavigate();
+  const { user } = useSession();
+  const [deck, setDeck] = useState<Record<DeckRole, DeckCard | null>>({
+    Top: null,
+    Jgl: null,
+    Mid: null,
+    Adc: null,
+    Supp: null,
+  });
+  const [summary, setSummary] = useState<DeckSummary | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
   const [showPopup, setShowPopup] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
+  const [latestStats, setLatestStats] = useState<{
+    byName: Map<string, { kdA?: string; score?: number; isMvp?: boolean }>;
+    byId: Map<number, { kdA?: string; score?: number; isMvp?: boolean }>;
+  }>({
+    byName: new Map(),
+    byId: new Map(),
+  });
+  const [latestProgress, setLatestProgress] = useState<{
+    played: number;
+    total: number;
+  } | null>(null);
+  const [latestLobby, setLatestLobby] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!popupEvent) {
+    if (!user) {
+      setStatus("Sign in to view your current league roster.");
+      setLatestStats({ byName: new Map(), byId: new Map() });
       return;
     }
-    setShowPopup(true);
-    const timer = setTimeout(() => {
-      setShowPopup(false);
-      onPopupHandled?.();
-    }, 4000);
-    return () => clearTimeout(timer);
+
+    let canceled = false;
+    setStatus("Loading deck...");
+    apiFetch<DeckResponse>(`/api/decks/${user.id}`)
+      .then((response) => {
+        if (canceled) return;
+        setDeck(response.deck.slots);
+        setSummary(response.summary);
+        setStatus(null);
+      })
+      .catch((error) => {
+        if (canceled) return;
+        if (error instanceof ApiError && error.status === 404) {
+          setStatus("No deck saved yet.");
+          setDeck({
+            Top: null,
+            Jgl: null,
+            Mid: null,
+            Adc: null,
+            Supp: null,
+          });
+        } else {
+          setStatus("Failed to load deck.");
+        }
+      });
+
+    return () => {
+      canceled = true;
+    };
+  }, [user]);
+
+  useEffect(() => {
+    let canceled = false;
+
+    const loadLatestMatch = async () => {
+      try {
+        const history = await apiFetch<MatchHistoryResponse>(
+          "/api/matches/history?limit=1&page=1"
+        );
+        const series = history.series?.[0];
+        const latestGame =
+          series?.games?.[series.games.length - 1];
+        if (!latestGame) {
+          if (!canceled)
+            setLatestStats({ byName: new Map(), byId: new Map() });
+          setLatestProgress(null);
+          setLatestLobby(null);
+          return;
+        }
+        const detail = await apiFetch<MatchHistoryDetailResponse>(
+          `/api/matches/${latestGame.id}`
+        );
+        if (canceled) return;
+        const byName = new Map<
+          string,
+          { kdA?: string; score?: number; isMvp?: boolean }
+        >();
+        const byId = new Map<
+          number,
+          { kdA?: string; score?: number; isMvp?: boolean }
+        >();
+        let top: MatchPlayerHistoryEntry | null = null;
+        for (const player of detail.players) {
+          if (
+            !top ||
+            (player.score ?? 0) > (top.score ?? 0)
+          ) {
+            top = player;
+          }
+        }
+        detail.players.forEach((player) => {
+          const key = player.name.trim().toLowerCase();
+          const stat = {
+            kdA: `${player.kills}/${player.deaths}/${player.assists}`,
+            score: player.score ?? 0,
+            isMvp: top ? player.id === top.id : false,
+          };
+          byName.set(key, stat);
+          if (typeof player.playerId === "number") {
+            byId.set(player.playerId, stat);
+          }
+        });
+        setLatestStats({ byName, byId });
+        setLatestProgress({
+          played: series?.games.length ?? 0,
+          total: series?.bestOf ?? series?.games.length ?? 0,
+        });
+        setLatestLobby(
+          series?.roundName ??
+            series?.stage ??
+            `${series?.teamA.name ?? ""} vs ${
+              series?.teamB.name ?? ""
+            }`
+        );
+      } catch {
+        if (!canceled) {
+          setLatestStats({ byName: new Map(), byId: new Map() });
+          setLatestProgress(null);
+          setLatestLobby(null);
+        }
+      }
+    };
+
+    loadLatestMatch();
+    return () => {
+      canceled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (popupEvent) {
+      setShowPopup(true);
+      const timer = setTimeout(() => {
+        setShowPopup(false);
+        onPopupHandled?.();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
   }, [popupEvent, onPopupHandled]);
+
+  const handleMainMenuClick = (event: React.MouseEvent) => {
+    event.preventDefault();
+    setFadeOut(true);
+    setTimeout(() => navigate("/"), 600);
+  };
 
   const simulateEvent = () => {
     setShowPopup(true);
-    setTimeout(() => {
-      setShowPopup(false);
-      onPopupHandled?.();
-    }, 4000);
+    setTimeout(() => setShowPopup(false), 3000);
   };
 
-  const handleMainMenuClick = (e: MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault();
-    setFadeOut(true);
-    setTimeout(() => navigate("/"), 700);
-  };
+  const playerAvatar = resolveProfileAvatar(user?.avatar);
 
-  const played = 2;
-  const total = 56;
+  const champions = useMemo(() => {
+    const entries: ChampCard[] = (Object.keys(deck) as DeckRole[]).map(
+      (role, index) => {
+        const card = deck[role];
+        const resolvedPortrait =
+          card?.name && resolvePlayerImage(card.name)
+            ? resolvePlayerImage(card.name)
+            : fallbackPortrait;
+        const tournamentScore =
+          typeof card?.tournamentPoints === "number"
+            ? card.tournamentPoints
+            : undefined;
+        const basePoints =
+          typeof card?.points === "number" ? card.points : undefined;
+        const normalizedName = card?.name?.trim().toLowerCase();
+        const latest =
+          (card?.playerId !== undefined &&
+            latestStats.byId.get(card.playerId)) ||
+          (normalizedName ? latestStats.byName.get(normalizedName) : undefined);
+        return {
+          id: index + 1,
+          icon: roleIcons[role],
+          portrait: resolvedPortrait,
+          name: card?.name,
+          role,
+          kdA: latest?.kdA,
+          pointsDelta: latest?.score ?? tournamentScore ?? basePoints ?? 0,
+          isMvp: latest?.isMvp,
+        };
+      }
+    );
+
+    if (!entries.some((champ) => champ.isMvp)) {
+      const best = entries.reduce(
+        (acc, champ) =>
+          champ.pointsDelta !== undefined && champ.pointsDelta > acc.value
+            ? { value: champ.pointsDelta, id: champ.id }
+            : acc,
+        { value: -Infinity, id: -1 }
+      );
+      if (best.id !== -1) {
+        entries.forEach((champ) => {
+          if (champ.id === best.id) {
+            champ.isMvp = true;
+          }
+        });
+      }
+    }
+
+    return entries;
+  }, [deck, latestStats]);
+
+  const spentPoints = summary?.totalValue ?? 0;
+  const maxPoints = summary?.currencyCap ?? "?";
+  const formatPoints = (value: number | string) =>
+    typeof value === "number" ? value.toLocaleString() : value;
 
   return (
     <div
@@ -74,62 +287,91 @@ export default function OngLeague({
     >
       <div className={`match-popup ${showPopup ? "visible" : ""}`} role="status">
         <div className="match-popup-inner">
-          Match just finished. New points added
+          Match just finished. New points added.
         </div>
       </div>
 
       <div className="league-title-bg">
-        <h1 className="league-title gradient-text">&lt;LOBBY NAME&gt;</h1>
+        <h1 className="league-title gradient-text">
+          {user ? `${user.name.toUpperCase()}'S LOBBY` : "JOIN A LEAGUE"}
+        </h1>
         <div className="league-played-count gradient-text">
-          {played}/{total}
+          {formatPoints(spentPoints)}/{formatPoints(maxPoints)} POINTS
         </div>
       </div>
 
       <div className="league-layout">
         <div className="league-left">
           <div className="league-avatar-wrapper">
-            <img src={player.avatar} alt="Avatar" className="league-avatar" />
+            <img
+              src={playerAvatar}
+              alt={user ? `${user.name} avatar` : "Avatar"}
+              className="league-avatar"
+            />
           </div>
-          <h2 className="league-player-name gradient-text">{player.name}</h2>
+          <h2 className="league-player-name gradient-text">
+            {user ? user.name : "Unassigned"}
+          </h2>
           <div className="league-player-meta">
             <div className="league-player-rank gradient-text">
-              RANKING POSITION: {player.rankPosition}
+              {user
+                ? `Ranking position: ${user.score ?? "?"}`
+                : "Ranking position: -"}
             </div>
             <div className="league-player-points gradient-text">
-              POINTS: {player.points.toLocaleString()}
+              Deck value: {summary?.totalValue ?? 0}/
+              {summary?.currencyCap ?? "?"}
             </div>
+            {status && <p className="form-status">{status}</p>}
           </div>
         </div>
 
         <div className="league-right">
           <div className="league-champions">
-            {player.champions.map((champ) => (
+            {champions.map((champ) => (
               <div
                 key={champ.id}
-                className="league-champion-card"
-                aria-label={`Champion card ${champ.id}`}
+                className={`league-champion-card ${
+                  champ.name ? "" : "empty"
+                }`}
               >
-                <div className={`portrait-wrapper ${champ.isMvp ? "mvp" : ""}`}>
+                <div
+                  className={`portrait-wrapper ${champ.isMvp ? "mvp" : ""}`}
+                >
                   <img
                     src={champ.portrait}
-                    alt={`Champion ${champ.id}`}
+                    alt={champ.name ?? `Champion ${champ.id}`}
                     className="league-champion-portrait"
                   />
                   {champ.isMvp && (
                     <div className="mvp-label gradient-text">MVP</div>
                   )}
-                  <div className="champ-overlay">
-                    {champ.kdA && <div className="kd">{`K/D/A ${champ.kdA}`}</div>}
-                    {champ.pointsDelta !== undefined && (
-                      <div className="delta">{`+${champ.pointsDelta} POINTS`}</div>
-                    )}
-                  </div>
+                  {(champ.kdA || champ.pointsDelta !== undefined) && (
+                    <div className="champ-overlay">
+                      {champ.kdA && (
+                        <>
+                          <div className="kd-label">K/D/A</div>
+                          <div className="kd-value">{champ.kdA}</div>
+                        </>
+                      )}
+                      {champ.pointsDelta !== undefined && (
+                        <div className="delta">
+                          {champ.pointsDelta >= 0 ? "+" : ""}
+                          {champ.pointsDelta} POINTS
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className="champ-name">{champ.name ?? "Player"}</div>
+                <div className="champ-name">{champ.name ?? "Empty Slot"}</div>
                 <div className="league-role-container" aria-hidden>
                   <div className="role-icon-wrapper">
-                    <img src={champ.icon} alt="role" className="league-role-icon" />
-                    <div className="role-tooltip">{`Position: ${champ.position}`}</div>
+                    <img
+                      src={champ.icon}
+                      alt={`${champ.role} icon`}
+                      className="league-role-icon"
+                    />
+                    <div className="role-tooltip">{`Position: ${champ.role}`}</div>
                   </div>
                 </div>
               </div>
@@ -148,11 +390,6 @@ export default function OngLeague({
         </div>
       </div>
 
-      <div style={{ position: "fixed", left: 12, bottom: 12, zIndex: 2000 }}>
-        <button className="debug-btn" onClick={simulateEvent}>
-          Simulate match event
-        </button>
-      </div>
     </div>
   );
 }
