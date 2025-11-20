@@ -342,16 +342,16 @@ export default function OngLeaguePage({
               className="league-avatar"
             />
           </div>
-          <h2 className="league-player-name gradient-text">
+          <h2 className="league-player-name ">
             {user ? user.name : "Unassigned"}
           </h2>
           <div className="league-player-meta">
-            <div className="league-player-rank gradient-text">
+            <div className="league-player-rank">
               {user
                 ? `Ranking position: ${rankingPosition ?? "?"}`
                 : "Ranking position: -"}
             </div>
-            <div className="league-player-points gradient-text">
+            <div className="league-player-points">
               Points: {formatPoints(leaguePoints)}
             </div>
             {status && <p className="form-status">{status}</p>}
