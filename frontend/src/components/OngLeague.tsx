@@ -17,6 +17,9 @@ import type {
   DeckRole,
   DeckCard,
   DeckSummary,
+  MatchHistoryResponse,
+  MatchHistoryDetailResponse,
+  MatchPlayerHistoryEntry,
 } from "../api/types";
 import { useSession } from "../context/SessionContext";
 import { resolvePlayerImage } from "../utils/playerImages";
@@ -63,10 +66,23 @@ export default function OngLeaguePage({
   const [status, setStatus] = useState<string | null>(null);
   const [showPopup, setShowPopup] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
+  const [latestStats, setLatestStats] = useState<{
+    byName: Map<string, { kdA?: string; score?: number; isMvp?: boolean }>;
+    byId: Map<number, { kdA?: string; score?: number; isMvp?: boolean }>;
+  }>({
+    byName: new Map(),
+    byId: new Map(),
+  });
+  const [latestProgress, setLatestProgress] = useState<{
+    played: number;
+    total: number;
+  } | null>(null);
+  const [latestLobby, setLatestLobby] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
       setStatus("Sign in to view your current league roster.");
+      setLatestStats({ byName: new Map(), byId: new Map() });
       return;
     }
 
@@ -99,6 +115,84 @@ export default function OngLeaguePage({
       canceled = true;
     };
   }, [user]);
+
+  useEffect(() => {
+    let canceled = false;
+
+    const loadLatestMatch = async () => {
+      try {
+        const history = await apiFetch<MatchHistoryResponse>(
+          "/api/matches/history?limit=1&page=1"
+        );
+        const series = history.series?.[0];
+        const latestGame =
+          series?.games?.[series.games.length - 1];
+        if (!latestGame) {
+          if (!canceled)
+            setLatestStats({ byName: new Map(), byId: new Map() });
+          setLatestProgress(null);
+          setLatestLobby(null);
+          return;
+        }
+        const detail = await apiFetch<MatchHistoryDetailResponse>(
+          `/api/matches/${latestGame.id}`
+        );
+        if (canceled) return;
+        const byName = new Map<
+          string,
+          { kdA?: string; score?: number; isMvp?: boolean }
+        >();
+        const byId = new Map<
+          number,
+          { kdA?: string; score?: number; isMvp?: boolean }
+        >();
+        let top: MatchPlayerHistoryEntry | null = null;
+        for (const player of detail.players) {
+          if (
+            !top ||
+            (player.score ?? 0) > (top.score ?? 0)
+          ) {
+            top = player;
+          }
+        }
+        detail.players.forEach((player) => {
+          const key = player.name.trim().toLowerCase();
+          const stat = {
+            kdA: `${player.kills}/${player.deaths}/${player.assists}`,
+            score: player.score ?? 0,
+            isMvp: top ? player.id === top.id : false,
+          };
+          byName.set(key, stat);
+          if (typeof player.playerId === "number") {
+            byId.set(player.playerId, stat);
+          }
+        });
+        setLatestStats({ byName, byId });
+        setLatestProgress({
+          played: series?.games.length ?? 0,
+          total: series?.bestOf ?? series?.games.length ?? 0,
+        });
+        setLatestLobby(
+          series?.roundName ??
+            series?.stage ??
+            `${series?.teamA.name ?? ""} vs ${
+              series?.teamB.name ?? ""
+            }`
+        );
+      } catch {
+        if (!canceled) {
+          setLatestStats({ byName: new Map(), byId: new Map() });
+          setLatestProgress(null);
+          setLatestLobby(null);
+        }
+      }
+    };
+
+    loadLatestMatch();
+    return () => {
+      canceled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (popupEvent) {
@@ -139,42 +233,48 @@ export default function OngLeaguePage({
             : undefined;
         const basePoints =
           typeof card?.points === "number" ? card.points : undefined;
-
+        const normalizedName = card?.name?.trim().toLowerCase();
+        const latest =
+          (card?.playerId !== undefined &&
+            latestStats.byId.get(card.playerId)) ||
+          (normalizedName ? latestStats.byName.get(normalizedName) : undefined);
         return {
           id: index + 1,
           icon: roleIcons[role],
           portrait: resolvedPortrait,
           name: card?.name,
           role,
-          kdA:
-            tournamentScore !== undefined
-              ? `Score ${tournamentScore.toFixed(1)}`
-              : undefined,
-          pointsDelta: tournamentScore ?? basePoints ?? 0,
+          kdA: latest?.kdA,
+          pointsDelta: latest?.score ?? tournamentScore ?? basePoints ?? 0,
+          isMvp: latest?.isMvp,
         };
       }
     );
 
-    const best = entries.reduce(
-      (acc, champ) =>
-        champ.pointsDelta !== undefined && champ.pointsDelta > acc.value
-          ? { value: champ.pointsDelta, id: champ.id }
-          : acc,
-      { value: -Infinity, id: -1 }
-    );
-    if (best.id !== -1) {
-      entries.forEach((champ) => {
-        if (champ.id === best.id) {
-          champ.isMvp = true;
-        }
-      });
+    if (!entries.some((champ) => champ.isMvp)) {
+      const best = entries.reduce(
+        (acc, champ) =>
+          champ.pointsDelta !== undefined && champ.pointsDelta > acc.value
+            ? { value: champ.pointsDelta, id: champ.id }
+            : acc,
+        { value: -Infinity, id: -1 }
+      );
+      if (best.id !== -1) {
+        entries.forEach((champ) => {
+          if (champ.id === best.id) {
+            champ.isMvp = true;
+          }
+        });
+      }
     }
 
     return entries;
-  }, [deck]);
+  }, [deck, latestStats]);
 
-  const playedGames = summary?.totalValue ?? 0;
-  const totalGames = summary?.currencyCap ?? "?";
+  const playedGames =
+    latestProgress?.played ?? summary?.totalValue ?? 0;
+  const totalGames =
+    latestProgress?.total ?? summary?.currencyCap ?? "?";
 
   return (
     <div
@@ -257,11 +357,16 @@ export default function OngLeaguePage({
                   )}
                   {(champ.kdA || champ.pointsDelta !== undefined) && (
                     <div className="champ-overlay">
-                      {champ.kdA && <div className="kd">{champ.kdA}</div>}
+                      {champ.kdA && (
+                        <>
+                          <div className="kd-label">K/D/A</div>
+                          <div className="kd-value">{champ.kdA}</div>
+                        </>
+                      )}
                       {champ.pointsDelta !== undefined && (
                         <div className="delta">
                           {champ.pointsDelta >= 0 ? "+" : ""}
-                          {champ.pointsDelta} pts
+                          {champ.pointsDelta} POINTS
                         </div>
                       )}
                     </div>

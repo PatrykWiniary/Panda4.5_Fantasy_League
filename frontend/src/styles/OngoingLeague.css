@@ -250,7 +250,16 @@
   opacity: 1;
 }
 
-.champ-overlay .kd { font-size: 0.85rem; margin-bottom: 4px; }
+.champ-overlay .kd-label {
+  font-size: 0.8rem;
+  font-weight: 800;
+  margin-bottom: 2px;
+}
+.champ-overlay .kd-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
 .champ-overlay .delta { font-size: 0.95rem; }
 
 .champ-name {

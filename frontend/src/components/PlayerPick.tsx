@@ -78,9 +78,13 @@ const emptyDraftTeam: DraftTeam = {
 export default function PlayerPick() {
   const { user } = useSession();
   const [playersData, setPlayersData] = useState<PlayersData>(emptyPlayersData);
+  const [playerInfoMap, setPlayerInfoMap] = useState<Map<number, UIPlayer>>(
+    () => new Map()
+  );
   const [selectedRole, setSelectedRole] = useState<RoleKey | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<UIPlayer | null>(null);
   const [draftTeam, setDraftTeam] = useState<DraftTeam>({ ...emptyDraftTeam });
+  const [savedDeck, setSavedDeck] = useState<Deck | null>(null);
   const [saveStatus, setSaveStatus] = useState<
     { type: "success" | "error"; message: string } | null
   >(null);
@@ -97,7 +101,9 @@ export default function PlayerPick() {
     apiFetch<GroupedPlayersResponse>("/api/players?grouped=true")
       .then((payload) => {
         if (canceled) return;
-        setPlayersData(buildPlayersFromApi(payload));
+        const result = buildPlayersFromApi(payload);
+        setPlayersData(result.data);
+        setPlayerInfoMap(result.map);
       })
       .catch(() => {
         /* leave defaults */
@@ -109,6 +115,7 @@ export default function PlayerPick() {
 
   useEffect(() => {
     if (!user) {
+      setSavedDeck(null);
       setDraftTeam({ ...emptyDraftTeam });
       return;
     }
@@ -116,13 +123,20 @@ export default function PlayerPick() {
     apiFetch<DeckResponse>(`/api/decks/${user.id}`)
       .then((response) => {
         if (canceled) return;
-        setDraftTeam(mapDeckToDraft(response.deck));
+        setSavedDeck(response.deck);
+        setDraftTeam(mapDeckToDraft(response.deck, playerInfoMap));
       })
       .catch(() => undefined);
     return () => {
       canceled = true;
     };
   }, [user]);
+
+  useEffect(() => {
+    if (savedDeck) {
+      setDraftTeam(mapDeckToDraft(savedDeck, playerInfoMap));
+    }
+  }, [playerInfoMap, savedDeck]);
 
   const handleCircleClick = (role: RoleKey) => {
     if (isLockedIn) {
@@ -182,7 +196,8 @@ export default function PlayerPick() {
         type: "success",
         message: "Deck saved successfully.",
       });
-      setDraftTeam(mapDeckToDraft(response.deck));
+      setSavedDeck(response.deck);
+      setDraftTeam(mapDeckToDraft(response.deck, playerInfoMap));
       return true;
     } catch (error) {
       let message = "Deck save failed.";
@@ -308,22 +323,21 @@ export default function PlayerPick() {
               </div>
             </div>
           </div>
-          {selectedPlayer && (
-            <div className="player-preview">
-              <img
-                src={selectedPlayer.image}
-                alt={selectedPlayer.name}
-                className="preview-image"
-              />
-              <div className="preview-info">
-                <h2>{selectedPlayer.name}</h2>
-                <p>TEAM: {selectedPlayer.team}</p>
-                <p>REGION: {selectedPlayer.region}</p>
-                <p>POINTS: {selectedPlayer.points}</p>
-                <p>COST: {selectedPlayer.cost}</p>
-              </div>
-            </div>
-          )}
+              {selectedPlayer && (
+                <div className="player-preview">
+                  <img
+                    src={selectedPlayer.image}
+                    alt={selectedPlayer.name}
+                    className="preview-image"
+                  />
+                  <div className="preview-info">
+                    <h2>{selectedPlayer.name}</h2>
+                    <p>TEAM: {selectedPlayer.team}</p>
+                    <p>REGION: {selectedPlayer.region}</p>
+                    <p>COST: {selectedPlayer.cost}</p>
+                  </div>
+                </div>
+              )}
         </div>
       )}
       {showPopup && (
@@ -362,7 +376,12 @@ export default function PlayerPick() {
   );
 }
 
-function buildPlayersFromApi(response: GroupedPlayersResponse): PlayersData {
+type PlayersDataResult = {
+  data: PlayersData;
+  map: Map<number, UIPlayer>;
+};
+
+function buildPlayersFromApi(response: GroupedPlayersResponse): PlayersDataResult {
   const mapped: PlayersData = {
     top: [],
     jungle: [],
@@ -370,6 +389,7 @@ function buildPlayersFromApi(response: GroupedPlayersResponse): PlayersData {
     adc: [],
     support: [],
   };
+  const infoMap = new Map<number, UIPlayer>();
 
   ROLE_KEYS.forEach((key) => {
     const deckRole = ROLE_TO_DECK[key];
@@ -378,7 +398,7 @@ function buildPlayersFromApi(response: GroupedPlayersResponse): PlayersData {
       const displayName = player.nickname ?? player.name;
       const points = Math.max(20, Math.round(player.score));
       const cost = Math.max(10, Math.round(points / 3));
-      return {
+      const mappedPlayer: UIPlayer = {
         id: player.id,
         name: displayName,
         nickname: player.nickname,
@@ -390,10 +410,12 @@ function buildPlayersFromApi(response: GroupedPlayersResponse): PlayersData {
         cost,
         source: player,
       };
+      infoMap.set(player.id, mappedPlayer);
+      return mappedPlayer;
     });
   });
 
-  return mapped;
+  return { data: mapped, map: infoMap };
 }
 
 function buildDeckSlots(draft: DraftTeam): Record<DeckRole, DeckCard | null> {
@@ -431,7 +453,10 @@ function selectionToCard(selection: UIPlayer | null): DeckCard | null {
   };
 }
 
-function mapDeckToDraft(deck: Deck): DraftTeam {
+function mapDeckToDraft(
+  deck: Deck,
+  infoMap: Map<number, UIPlayer>
+): DraftTeam {
   const next: DraftTeam = { ...emptyDraftTeam };
   ROLE_KEYS.forEach((key) => {
     const role = ROLE_TO_DECK[key];
@@ -440,15 +465,16 @@ function mapDeckToDraft(deck: Deck): DraftTeam {
       next[key] = null;
       return;
     }
+    const info = card.playerId ? infoMap.get(card.playerId) : undefined;
     next[key] = {
       id: card.playerId ?? -role.charCodeAt(0),
-      name: card.name,
-      team: "Current team",
-      region: "N/A",
-      image: resolvePlayerImage(card.name),
+      name: info?.name ?? card.name,
+      team: info?.team ?? "Current team",
+      region: info?.region ?? "N/A",
+      image: info?.image ?? resolvePlayerImage(card.name),
       deckRole: role,
-      points: card.points ?? 0,
-      cost: card.value ?? 0,
+      points: info?.points ?? card.points ?? 0,
+      cost: info?.cost ?? card.value ?? 0,
       snapshot: card,
     };
   });
