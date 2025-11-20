@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import "../styles/LogReg.css";
 import homeIcon from "../assets/home.svg";
@@ -10,11 +10,15 @@ import type {
   MatchPlayerHistoryEntry,
   MatchHistorySeriesEntry,
   TournamentControlState,
+  DeckResponse,
+  DeckCard,
 } from "../api/types";
 import MatchPlayerTables from "./MatchPlayerTables";
 import PlayerProfileModal from "./PlayerProfileModal";
+import { useSession } from "../context/SessionContext";
 
 export default function MatchHistoryPage() {
+  const { user } = useSession();
   const [series, setSeries] = useState<MatchHistorySeriesEntry[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [simulating, setSimulating] = useState(false);
@@ -32,6 +36,12 @@ export default function MatchHistoryPage() {
   const [friendlyLocked, setFriendlyLocked] = useState(false);
   const [activeTournamentName, setActiveTournamentName] = useState<string | null>(null);
   const [profilePlayerId, setProfilePlayerId] = useState<number | null>(null);
+  const [deckPlayers, setDeckPlayers] = useState<{ ids: number[]; names: string[] }>({
+    ids: [],
+    names: [],
+  });
+  const [highlightedSeries, setHighlightedSeries] = useState<Record<number, boolean>>({});
+  const matchDetailsRef = useRef(matchDetails);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const canPrev = page > 1;
@@ -84,6 +94,123 @@ export default function MatchHistoryPage() {
     loadMatches(1);
     loadTournamentState();
   }, []);
+
+  useEffect(() => {
+    matchDetailsRef.current = matchDetails;
+  }, [matchDetails]);
+
+  useEffect(() => {
+    if (!user) {
+      setDeckPlayers({ ids: [], names: [] });
+      return;
+    }
+
+    let canceled = false;
+    apiFetch<DeckResponse>(`/api/decks/${user.id}`)
+      .then((response) => {
+        if (canceled) return;
+        const slots = response.deck.slots;
+        const idSet = new Set<number>();
+        const nameSet = new Set<string>();
+
+        (Object.values(slots) as (DeckCard | null)[]).forEach((card) => {
+          if (!card) return;
+          if (typeof card.playerId === "number") {
+            idSet.add(card.playerId);
+          }
+          if (card.name) {
+            nameSet.add(card.name.trim().toLowerCase());
+          }
+        });
+
+        setDeckPlayers({
+          ids: Array.from(idSet),
+          names: Array.from(nameSet),
+        });
+      })
+      .catch(() => {
+        if (!canceled) {
+          setDeckPlayers({ ids: [], names: [] });
+        }
+      });
+
+    return () => {
+      canceled = true;
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user || series.length === 0) {
+      setHighlightedSeries({});
+      return;
+    }
+
+    const deckIdSet = new Set(deckPlayers.ids);
+    const deckNameSet = new Set(deckPlayers.names);
+
+    if (deckIdSet.size === 0 && deckNameSet.size === 0) {
+      setHighlightedSeries({});
+      return;
+    }
+
+    let canceled = false;
+
+    const fetchPlayers = async (gameId: number) => {
+      const cached = matchDetailsRef.current[gameId];
+      if (cached) {
+        return cached;
+      }
+      try {
+        const payload = await apiFetch<MatchHistoryDetailResponse>(`/api/matches/${gameId}`);
+        if (!canceled) {
+          setMatchDetails((prev) =>
+            prev[gameId] ? prev : { ...prev, [gameId]: payload.players }
+          );
+        }
+        return payload.players;
+      } catch {
+        return [];
+      }
+    };
+
+    const evaluate = async () => {
+      const highlighted: Record<number, boolean> = {};
+
+      for (const entry of series) {
+        let hasDeckPlayer = false;
+        for (const game of entry.games) {
+          const players = await fetchPlayers(game.id);
+          if (canceled) {
+            return;
+          }
+
+          if (
+            players.some((player) => {
+              const normalized = player.name?.trim().toLowerCase();
+              return (
+                (typeof player.playerId === "number" && deckIdSet.has(player.playerId)) ||
+                (normalized && deckNameSet.has(normalized))
+              );
+            })
+          ) {
+            hasDeckPlayer = true;
+            break;
+          }
+        }
+        highlighted[entry.id] = hasDeckPlayer;
+      }
+
+      if (!canceled) {
+        setHighlightedSeries(highlighted);
+      }
+    };
+
+    evaluate();
+
+    return () => {
+      canceled = true;
+    };
+  }, [series, deckPlayers, user]);
 
   const handleSimulate = async () => {
     if (friendlyLocked) {
@@ -264,6 +391,7 @@ export default function MatchHistoryPage() {
                   const isSeriesSelected =
                     typeof selectedGameId === "number" &&
                     entry.games.some((game) => game.id === selectedGameId);
+                  const isDeckSeries = highlightedSeries[entry.id];
                   const activeGame =
                     isSeriesSelected && selectedGameId
                       ? entry.games.find((game) => game.id === selectedGameId)
@@ -277,10 +405,13 @@ export default function MatchHistoryPage() {
                       <tr
                         className={`match-history-row ${
                           isExpanded ? "expanded" : ""
-                        }`}
+                        } ${isDeckSeries ? "deck-related" : ""}`}
                         onClick={() => toggleSeries(entry.id)}
                       >
-                        <td>{entry.stage ?? "Friendly"}</td>
+                        <td className="match-history-stage-cell">
+                          {entry.stage ?? "Friendly"}
+                          {isDeckSeries && <span className="match-history-badge">Deck</span>}
+                        </td>
                         <td>
                           {entry.teamA.name} vs {entry.teamB.name}
                         </td>

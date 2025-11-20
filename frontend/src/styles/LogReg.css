@@ -516,8 +516,34 @@ body {
   transition: background 0.2s ease;
 }
 
+.match-history-row.deck-related {
+  background: rgba(201, 172, 109, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(201, 172, 109, 0.35);
+}
+
 .match-history-row:hover {
   background: rgba(201, 172, 109, 0.12);
+}
+
+.match-history-row.deck-related:hover {
+  background: rgba(201, 172, 109, 0.2);
+}
+
+.match-history-stage-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.match-history-badge {
+  font-size: 0.7rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  border: 1px solid rgba(201, 172, 109, 0.8);
+  background: rgba(201, 172, 109, 0.15);
+  color: var(--accent);
 }
 
 .match-history-detail-row td {
