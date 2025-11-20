@@ -20,6 +20,8 @@ import type {
   MatchHistoryResponse,
   MatchHistoryDetailResponse,
   MatchPlayerHistoryEntry,
+  LeaderboardResponse,
+  LeaderboardEntry,
 } from "../api/types";
 import { useSession } from "../context/SessionContext";
 import { resolvePlayerImage } from "../utils/playerImages";
@@ -78,11 +80,13 @@ export default function OngLeaguePage({
     total: number;
   } | null>(null);
   const [latestLobby, setLatestLobby] = useState<string | null>(null);
+  const [userStanding, setUserStanding] = useState<LeaderboardEntry | null>(null);
 
   useEffect(() => {
     if (!user) {
       setStatus("Sign in to view your current league roster.");
       setLatestStats({ byName: new Map(), byId: new Map() });
+      setUserStanding(null);
       return;
     }
 
@@ -115,6 +119,33 @@ export default function OngLeaguePage({
       canceled = true;
     };
   }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setUserStanding(null);
+      return;
+    }
+
+    let canceled = false;
+    apiFetch<LeaderboardResponse>(`/api/users/leaderboard?userId=${user.id}`)
+      .then((payload) => {
+        if (canceled) return;
+        const match =
+          payload.userEntry ??
+          payload.top.find((entry) => entry.id === user.id) ??
+          null;
+        setUserStanding(match ?? null);
+      })
+      .catch(() => {
+        if (!canceled) {
+          setUserStanding(null);
+        }
+      });
+
+    return () => {
+      canceled = true;
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     let canceled = false;
@@ -271,6 +302,8 @@ export default function OngLeaguePage({
     return entries;
   }, [deck, latestStats]);
 
+  const leaguePoints = userStanding?.score ?? user?.score ?? 0;
+  const rankingPosition = userStanding?.position ?? null;
   const spentPoints = summary?.totalValue ?? 0;
   const maxPoints = summary?.currencyCap ?? "?";
   const formatPoints = (value: number | string) =>
@@ -296,7 +329,7 @@ export default function OngLeaguePage({
           {user ? `${user.name.toUpperCase()}'S LOBBY` : "JOIN A LEAGUE"}
         </h1>
         <div className="league-played-count gradient-text">
-          {formatPoints(spentPoints)}/{formatPoints(maxPoints)} POINTS
+          {formatPoints(spentPoints)}/{formatPoints(maxPoints)}
         </div>
       </div>
 
@@ -315,12 +348,11 @@ export default function OngLeaguePage({
           <div className="league-player-meta">
             <div className="league-player-rank gradient-text">
               {user
-                ? `Ranking position: ${user.score ?? "?"}`
+                ? `Ranking position: ${rankingPosition ?? "?"}`
                 : "Ranking position: -"}
             </div>
             <div className="league-player-points gradient-text">
-              Deck value: {summary?.totalValue ?? 0}/
-              {summary?.currencyCap ?? "?"}
+              Points: {formatPoints(leaguePoints)}
             </div>
             {status && <p className="form-status">{status}</p>}
           </div>
