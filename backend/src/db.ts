@@ -177,6 +177,12 @@ function migrateMatchHistoryTable() {
   ensureColumn("game_number", "INTEGER");
   ensureColumn("series_best_of", "INTEGER");
   ensureColumn("series_score", "TEXT");
+  ensureColumn("team_a_towers", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn("team_b_towers", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn("team_a_dragons", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn("team_b_dragons", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn("team_a_barons", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn("team_b_barons", "INTEGER NOT NULL DEFAULT 0");
 }
 
 function migrateMatchHistoryPlayersTable() {
@@ -750,6 +756,14 @@ export type LeaderboardEntry = {
   position: number;
 };
 
+type MatchObjectives = {
+  towers: number;
+  dragons: number;
+  barons: number;
+};
+
+type ObjectivesBySide = Record<"A" | "B", MatchObjectives>;
+
 export type MatchHistoryEntry = {
   id: number;
   region: string;
@@ -768,6 +782,10 @@ export type MatchHistoryEntry = {
   gameNumber?: number | null;
   seriesBestOf?: number | null;
   seriesScore?: string | null;
+  objectives: {
+    teamA: MatchObjectives;
+    teamB: MatchObjectives;
+  };
 };
 
 type MatchPlayerStat = {
@@ -1061,6 +1079,12 @@ type MatchHistoryRow = {
   game_number: number | null;
   series_best_of: number | null;
   series_score: string | null;
+  team_a_towers: number | null;
+  team_b_towers: number | null;
+  team_a_dragons: number | null;
+  team_b_dragons: number | null;
+  team_a_barons: number | null;
+  team_b_barons: number | null;
   created_at: string;
 };
 
@@ -1080,6 +1104,12 @@ type MatchHistoryInsert = {
   gameNumber?: number | null;
   seriesBestOf?: number | null;
   seriesScore?: string | null;
+  teamATowers?: number;
+  teamBTowers?: number;
+  teamADragons?: number;
+  teamBDragons?: number;
+  teamABarons?: number;
+  teamBBarons?: number;
 };
 
 function mapMatchHistoryRow(row: MatchHistoryRow): MatchHistoryEntry {
@@ -1110,6 +1140,18 @@ function mapMatchHistoryRow(row: MatchHistoryRow): MatchHistoryEntry {
         : null,
     seriesScore: row.series_score ?? null,
     createdAt: row.created_at,
+    objectives: {
+      teamA: {
+        towers: row.team_a_towers ?? 0,
+        dragons: row.team_a_dragons ?? 0,
+        barons: row.team_a_barons ?? 0,
+      },
+      teamB: {
+        towers: row.team_b_towers ?? 0,
+        dragons: row.team_b_dragons ?? 0,
+        barons: row.team_b_barons ?? 0,
+      },
+    },
   };
 }
 
@@ -1141,8 +1183,8 @@ export function recordMatchHistory(
   const result = db
     .prepare(
       `INSERT INTO match_history
-        (region, team_a, team_b, winner, mvp, mvp_score, is_tournament, tournament_id, tournament_match_id, tournament_game_id, stage, round_name, game_number, series_best_of, series_score)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (region, team_a, team_b, winner, mvp, mvp_score, is_tournament, tournament_id, tournament_match_id, tournament_game_id, stage, round_name, game_number, series_best_of, series_score, team_a_towers, team_b_towers, team_a_dragons, team_b_dragons, team_a_barons, team_b_barons)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       entry.region,
@@ -1159,7 +1201,13 @@ export function recordMatchHistory(
       entry.roundName ?? null,
       typeof entry.gameNumber === "number" ? entry.gameNumber : null,
       typeof entry.seriesBestOf === "number" ? entry.seriesBestOf : null,
-      entry.seriesScore ?? null
+      entry.seriesScore ?? null,
+      entry.teamATowers ?? 0,
+      entry.teamBTowers ?? 0,
+      entry.teamADragons ?? 0,
+      entry.teamBDragons ?? 0,
+      entry.teamABarons ?? 0,
+      entry.teamBBarons ?? 0
     );
 
   const matchId = Number(result.lastInsertRowid);
@@ -1290,6 +1338,12 @@ export function getRecentMatchHistory(
         game_number,
         series_best_of,
         series_score,
+        team_a_towers,
+        team_b_towers,
+        team_a_dragons,
+        team_b_dragons,
+        team_a_barons,
+        team_b_barons,
         created_at
       FROM match_history
       WHERE ${clauses.join(" OR ")}
@@ -1478,6 +1532,12 @@ export function getMatchHistoryById(
         game_number,
         series_best_of,
         series_score,
+        team_a_towers,
+        team_b_towers,
+        team_a_dragons,
+        team_b_dragons,
+        team_a_barons,
+        team_b_barons,
         created_at
       FROM match_history
       WHERE id = ?
@@ -2287,6 +2347,44 @@ export function simulateMatch(players: Player[], regionName: string) {
     });
   }
 
+  const distributeObjective = (total: number, baseBias: number) => {
+    if (total <= 0) {
+      return { A: 0, B: 0 };
+    }
+    const dynamicBias = Math.min(
+      0.9,
+      Math.max(0.5, baseBias + (Math.random() - 0.5) * 0.2)
+    );
+    let winnerShare = Math.round(total * dynamicBias);
+    if (winnerShare <= 0 && total > 0) {
+      winnerShare = 1;
+    }
+    if (winnerShare > total) {
+      winnerShare = total;
+    }
+    const loserShare = Math.max(0, total - winnerShare);
+    return winningSide === "A"
+      ? { A: winnerShare, B: loserShare }
+      : { A: loserShare, B: winnerShare };
+  };
+
+  const towerSplit = distributeObjective(towerTakedowns, 0.7);
+  const dragonSplit = distributeObjective(dragonTakedowns, 0.65);
+  const baronSplit = distributeObjective(baronTakedowns, 0.8);
+
+  const objectivesBySide: ObjectivesBySide = {
+    A: {
+      towers: towerSplit.A,
+      dragons: dragonSplit.A,
+      barons: baronSplit.A,
+    },
+    B: {
+      towers: towerSplit.B,
+      dragons: dragonSplit.B,
+      barons: baronSplit.B,
+    },
+  };
+
   const killWeights: Record<Role, number> = {
     Top: 1.05,
     Jgl: 1.15,
@@ -2491,6 +2589,7 @@ export function simulateMatch(players: Player[], regionName: string) {
     winningTeamId,
     MVP: MVP,
     playerStats: playerStatsForHistory,
+    objectivesBySide,
   };
 
   try {
@@ -3379,6 +3478,63 @@ function simulateTournamentMatchRow(
         gameNumber: gameCounter,
         seriesBestOf: matchRow.best_of,
         seriesScore: `${wins1}-${wins2}`,
+        ...(() => {
+          const objectivesBySide = result.objectivesBySide as
+            | ObjectivesBySide
+            | undefined;
+          if (!objectivesBySide) {
+            return {
+              teamATowers: 0,
+              teamBTowers: 0,
+              teamADragons: 0,
+              teamBDragons: 0,
+              teamABarons: 0,
+              teamBBarons: 0,
+            };
+          }
+          const resolveSide = (
+            teamId?: number | null,
+            teamName?: string | null
+          ): "A" | "B" | null => {
+            if (Array.isArray(result.teamIds) && typeof teamId === "number") {
+              const index = result.teamIds.findIndex((id) => id === teamId);
+              if (index === 0) return "A";
+              if (index === 1) return "B";
+            }
+            if (Array.isArray(result.teams) && teamName) {
+              const normalized = teamName.trim().toLowerCase();
+              const index = result.teams.findIndex(
+                (name) => name?.trim().toLowerCase() === normalized
+              );
+              if (index === 0) return "A";
+              if (index === 1) return "B";
+            }
+            return null;
+          };
+          const objectivesForSide = (side: "A" | "B" | null): MatchObjectives => {
+            if (!side) {
+              return { towers: 0, dragons: 0, barons: 0 };
+            }
+            const source = objectivesBySide[side];
+            return {
+              towers: source.towers ?? 0,
+              dragons: source.dragons ?? 0,
+              barons: source.barons ?? 0,
+            };
+          };
+          const teamASide = resolveSide(matchRow.team1_id ?? null, matchRow.team1_name ?? null);
+          const teamBSide = resolveSide(matchRow.team2_id ?? null, matchRow.team2_name ?? null);
+          const objectivesA = objectivesForSide(teamASide);
+          const objectivesB = objectivesForSide(teamBSide);
+          return {
+            teamATowers: objectivesA.towers,
+            teamBTowers: objectivesB.towers,
+            teamADragons: objectivesA.dragons,
+            teamBDragons: objectivesB.dragons,
+            teamABarons: objectivesA.barons,
+            teamBBarons: objectivesB.barons,
+          };
+        })(),
       },
       result.playerStats
     );

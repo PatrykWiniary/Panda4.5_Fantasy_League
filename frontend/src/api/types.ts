@@ -65,6 +65,12 @@ export type LeaderboardResponse = {
   userInTop: boolean;
 };
 
+export type MatchObjectives = {
+  towers: number;
+  dragons: number;
+  barons: number;
+};
+
 export type MatchHistoryEntry = {
   id: number;
   region: string;
@@ -83,6 +89,10 @@ export type MatchHistoryEntry = {
   gameNumber?: number | null;
   seriesBestOf?: number | null;
   seriesScore?: string | null;
+  objectives: {
+    teamA: MatchObjectives;
+    teamB: MatchObjectives;
+  };
 };
 
 export type MatchPlayerHistoryEntry = {

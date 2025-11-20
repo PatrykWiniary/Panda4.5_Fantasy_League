@@ -529,6 +529,40 @@ body {
   background: rgba(201, 172, 109, 0.2);
 }
 
+.match-history-objectives {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 12px;
+  padding: 1rem;
+  flex: 1;
+  min-width: 280px;
+}
+
+.match-history-objectives-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.match-history-objective-team {
+  flex: 1;
+  min-width: 200px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(201, 172, 109, 0.2);
+  border-radius: 10px;
+  padding: 0.75rem;
+}
+
+.match-history-objective-team .objective-team-name {
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+}
+
+.match-history-objective-team .objective-values span {
+  display: block;
+  font-size: 0.95rem;
+  opacity: 0.9;
+}
+
 .match-history-stage-cell {
   display: flex;
   align-items: center;
@@ -807,9 +841,9 @@ body {
 }
 
 .match-history-series-panel {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
 .match-history-games,
@@ -817,6 +851,16 @@ body {
   background: rgba(0, 0, 0, 0.35);
   border-radius: 10px;
   padding: 12px;
+}
+
+.match-history-detail-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.match-history-players-panel {
+  flex: 1;
 }
 
 .match-history-games h4,

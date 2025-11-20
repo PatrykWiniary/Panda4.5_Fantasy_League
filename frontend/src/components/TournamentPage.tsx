@@ -568,11 +568,54 @@ export default function TournamentPage() {
                               : "View lineups"}
                           </button>
                           {isSelected && selectedGame && (
-                            <MatchPlayerTables
-                              match={selectedGame}
-                              players={selectedPlayers}
-                              onPlayerClick={handlePlayerClick}
-                            />
+                            <>
+                              <div className="match-history-objectives">
+                                <h4>Objectives</h4>
+                                {selectedGame.objectives ? (
+                                  <div className="match-history-objectives-grid">
+                                    <div className="match-history-objective-team">
+                                      <div className="objective-team-name">
+                                        {selectedGame.teamA}
+                                      </div>
+                                      <div className="objective-values">
+                                        <span>
+                                          Towers: {selectedGame.objectives.teamA.towers}
+                                        </span>
+                                        <span>
+                                          Dragons: {selectedGame.objectives.teamA.dragons}
+                                        </span>
+                                        <span>
+                                          Barons: {selectedGame.objectives.teamA.barons}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="match-history-objective-team">
+                                      <div className="objective-team-name">
+                                        {selectedGame.teamB}
+                                      </div>
+                                      <div className="objective-values">
+                                        <span>
+                                          Towers: {selectedGame.objectives.teamB.towers}
+                                        </span>
+                                        <span>
+                                          Dragons: {selectedGame.objectives.teamB.dragons}
+                                        </span>
+                                        <span>
+                                          Barons: {selectedGame.objectives.teamB.barons}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <p>Select a game to view objectives.</p>
+                                )}
+                              </div>
+                              <MatchPlayerTables
+                                match={selectedGame}
+                                players={selectedPlayers}
+                                onPlayerClick={handlePlayerClick}
+                              />
+                            </>
                           )}
                         </div>
                       );

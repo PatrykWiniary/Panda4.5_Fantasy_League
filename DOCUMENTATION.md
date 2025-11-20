@@ -364,6 +364,7 @@ Ten rozdział ma byc rozwijany na bieżąco – jezeli dodajesz wiekszy modul, d
   - Zabójstwa / zgony są rozdzielane wśród graczy proporcjonalnie do roli (ADC/Mid biorą więcej fragów, supporty częściej giną). Asysty i CS wynikają z tych wartości oraz profilu roli.
   - Złoto = pasywny tick + udział w wieżach/smokach/Baronie + miniony + bounty za kille/asyty – kara za zgony ± niewielki losowy szum. Dzięki temu overlay kart w OngLeague jest spójny z pozostałymi statystykami.
   - MVP to gracz z najwyższym `deltaScore` (funkcja `calculateScore`). Statystyki trafiają następnie do `simulationScoring.ts`, który aktualizuje `tournamentPoints` kart i `users.score`.
+  - `match_history` przechowuje teraz liczbę wież/smoków/Baronów dla obu stron (kolumny `team_a_*`, `team_b_*`), więc frontend może pokazywać cele zrealizowane w historii meczów.
 
 - **Nowe tabele**: `tournament_groups`, `tournament_group_teams`, `tournament_matches`, `tournament_games` realizuja losowanie 4 grup oraz drabinke BO5.
 - **API**:

@@ -40,6 +40,11 @@ export default class FootabalolGame {
     const stats = simulatePlayerStats(this.players, this.regionName);
     if (stats.teams.length >= 2 && stats.teams[0] && stats.teams[1]) {
       try {
+        const objectivesBySide = stats.objectivesBySide as
+          | { A: { towers: number; dragons: number; barons: number }; B: { towers: number; dragons: number; barons: number } }
+          | undefined;
+        const objectiveA = objectivesBySide?.A ?? { towers: 0, dragons: 0, barons: 0 };
+        const objectiveB = objectivesBySide?.B ?? { towers: 0, dragons: 0, barons: 0 };
         recordMatchHistory(
           {
             region: stats.region,
@@ -48,6 +53,12 @@ export default class FootabalolGame {
             winner: stats.winningTeam,
             mvp: stats.MVP.name || null,
             mvpScore: stats.MVP.score,
+            teamATowers: objectiveA.towers,
+            teamBTowers: objectiveB.towers,
+            teamADragons: objectiveA.dragons,
+            teamBDragons: objectiveB.dragons,
+            teamABarons: objectiveA.barons,
+            teamBBarons: objectiveB.barons,
           },
           stats.playerStats
         );

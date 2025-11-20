@@ -454,29 +454,72 @@ export default function MatchHistoryPage() {
                                       >
                                         {`Game ${label}: ${game.winner}`}
                                         {game.mvp
-                                          ? ` • MVP: ${game.mvp}`
+                                          ? ` ? MVP: ${game.mvp}`
                                           : ""}
                                       </button>
                                     );
                                   })
                                 )}
                               </div>
-                              <div className="match-history-players-panel">
-                                <h4>Player Stats</h4>
-                                {selectedGameId &&
-                                loadingDetailId === selectedGameId ? (
-                                  <p>Loading details...</p>
-                                ) : !activeGame ? (
-                                  <p>Select a game to view player stats.</p>
-                                ) : activeGamePlayers.length === 0 ? (
-                                  <p>No player stats recorded.</p>
-                                ) : (
-                                  <MatchPlayerTables
-                                    match={activeGame}
-                                    players={activeGamePlayers}
-                                    onPlayerClick={handlePlayerClick}
-                                  />
-                                )}
+                              <div className="match-history-detail-panel">
+                                <div className="match-history-objectives">
+                                  <h4>Objectives</h4>
+                                  {activeGame && activeGame.objectives ? (
+                                    <div className="match-history-objectives-grid">
+                                      <div className="match-history-objective-team">
+                                        <div className="objective-team-name">
+                                          {activeGame.teamA}
+                                        </div>
+                                        <div className="objective-values">
+                                          <span>
+                                            Towers: {activeGame.objectives.teamA.towers}
+                                          </span>
+                                          <span>
+                                            Dragons: {activeGame.objectives.teamA.dragons}
+                                          </span>
+                                          <span>
+                                            Barons: {activeGame.objectives.teamA.barons}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <div className="match-history-objective-team">
+                                        <div className="objective-team-name">
+                                          {activeGame.teamB}
+                                        </div>
+                                        <div className="objective-values">
+                                          <span>
+                                            Towers: {activeGame.objectives.teamB.towers}
+                                          </span>
+                                          <span>
+                                            Dragons: {activeGame.objectives.teamB.dragons}
+                                          </span>
+                                          <span>
+                                            Barons: {activeGame.objectives.teamB.barons}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <p>Select a game to view objectives.</p>
+                                  )}
+                                </div>
+                                <div className="match-history-players-panel">
+                                  <h4>Player Stats</h4>
+                                  {selectedGameId &&
+                                  loadingDetailId === selectedGameId ? (
+                                    <p>Loading details...</p>
+                                  ) : !activeGame ? (
+                                    <p>Select a game to view player stats.</p>
+                                  ) : activeGamePlayers.length === 0 ? (
+                                    <p>No player stats recorded.</p>
+                                  ) : (
+                                    <MatchPlayerTables
+                                      match={activeGame}
+                                      players={activeGamePlayers}
+                                      onPlayerClick={handlePlayerClick}
+                                    />
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </td>
@@ -488,9 +531,7 @@ export default function MatchHistoryPage() {
               )}
             </tbody>
           </table>
-        </div>
-
-        <div className="match-history-pagination">
+        </div>        <div className="match-history-pagination">
           <button
             type="button"
             className="match-history-nav"
@@ -522,3 +563,5 @@ export default function MatchHistoryPage() {
     </>
   );
 }
+
+
