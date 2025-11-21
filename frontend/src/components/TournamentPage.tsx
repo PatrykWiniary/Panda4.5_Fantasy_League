@@ -524,9 +524,15 @@ export default function TournamentPage() {
                   <span className="tournament-history-round">
                     {entry.roundName ?? entry.stage ?? "Series"}
                   </span>
-                  <span className="tournament-history-matchup">
-                    {entry.teamA.name} vs {entry.teamB.name}
-                  </span>
+                  <div className="tournament-history-matchup">
+                    <span className="matchup-team matchup-team-a">
+                      {entry.teamA.name}
+                    </span>
+                    <span className="matchup-vs">vs</span>
+                    <span className="matchup-team matchup-team-b">
+                      {entry.teamB.name}
+                    </span>
+                  </div>
                   <span className="tournament-history-score">
                     {entry.seriesScore ??
                       `${entry.teamA.score}-${entry.teamB.score}`}

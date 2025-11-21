@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --bg: #141313;
   --accent: #C9AC6D;
   --accent-dark: #635536;
@@ -1061,10 +1061,10 @@ body {
 
 .tournament-history-entry button {
   width: 100%;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 180px 1fr 80px;
   gap: 0.8rem;
-  justify-content: space-between;
+  align-items: center;
   padding: 0.9rem 1rem;
   background: transparent;
   border: none;
@@ -1079,10 +1079,43 @@ body {
 
 .tournament-history-round {
   font-weight: 600;
+  min-width: 0;
+}
+
+.tournament-history-matchup {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 0.35rem;
+  align-items: center;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  min-width: 0;
+}
+
+.tournament-history-matchup .matchup-team {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tournament-history-matchup .matchup-team-a {
+  text-align: right;
+}
+
+.tournament-history-matchup .matchup-team-b {
+  text-align: left;
+}
+
+.tournament-history-matchup .matchup-vs {
+  font-weight: 700;
+  opacity: 0.9;
 }
 
 .tournament-history-score {
   font-weight: 700;
+  min-width: 60px;
+  text-align: right;
 }
 
 .tournament-history-games {
