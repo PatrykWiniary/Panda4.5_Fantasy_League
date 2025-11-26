@@ -342,7 +342,7 @@ export default function OngLeaguePage({
               className="league-avatar"
             />
           </div>
-          <h2 className="league-player-name ">
+          <h2 className="league-player-name gradient-text"> 
             {user ? user.name : "Unassigned"}
           </h2>
           <div className="league-player-meta">

@@ -155,18 +155,19 @@
   transition: transform 260ms ease, filter 260ms ease;
 }
 
-.league-avatar:hover {
-  transform: scale(1.03);
-  filter: brightness(0.8);
-}
 
 .league-player-name {
   font-size: 1.8rem;
   font-weight: 700;
-  color: var(--accent);
-  text-shadow: 0 0 8px rgba(201,172,109,0.25);
   text-align: center;
+
+  background: linear-gradient(120deg, #f1d28c, #c9ac6d, #8a784b);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
+
+
 
 .league-player-meta {
   text-align: center;
@@ -211,6 +212,7 @@
   border-radius: 54px;
   overflow: hidden;
   position: relative;
+  background-color: rgba(20, 19, 19, 0.7);
 }
 
 .league-champion-portrait {
@@ -278,8 +280,11 @@
 
 .league-role-icon {
   width: 80px;
-  transition: transform 170ms ease;
+  height: 80px;       
+  object-fit: contain; 
+  display: block;
 }
+
 
 .league-role-icon:hover { transform: scale(1.18); }
 
@@ -329,6 +334,7 @@
 }
 
 .main-menu-button-dark {
+  position: relative;
   width: 255px;
   height: 64px;
   display: inline-flex;
@@ -336,22 +342,60 @@
   align-items: center;
   padding: 0.9rem 2.6rem;
   border-radius: 12px;
-  border: 2px solid rgba(201,172,109,0.9);
+  
+  cursor: pointer;
   background-color: #141313;
+  overflow: hidden;
+  z-index: 0;
+
   color: var(--accent);
   font-size: 1.6rem;
   font-weight: 700;
   letter-spacing: 0.8px;
   text-decoration: none;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.6);
-  transition: all 200ms ease;
+
+  border: none; /* usuwamy poprzednią ramkę */
+  transition: transform 0.2s ease;
   text-shadow: 0 0 6px rgba(0,0,0,0.3);
 }
 
-.main-menu-button-dark:hover {
-  transform: translateY(-6px) scale(1.03);
-  box-shadow: 0 18px 65px rgba(201,172,109,0.35);
+.main-menu-button-dark::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 2px;
+  border-radius: inherit;
+  background: linear-gradient(120deg, #C9AC6D, #141313, #C9AC6D);
+  background-size: 300% 300%;
+  -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  z-index: -1;
+  transition: background-position 0.5s ease;
 }
+
+.main-menu-button-dark:not(:hover)::before {
+  animation: none !important;
+  background-position: 0% 0% !important;
+}
+
+.main-menu-button-dark:hover {
+  transform: scale(1.05);
+}
+
+.main-menu-button-dark:hover::before {
+  animation: moveGradient 6s linear infinite;
+}
+
+/* animacja (taka sama jak w .btn) */
+@keyframes moveGradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
 
 /* Gradient tekst */
 .gradient-text {

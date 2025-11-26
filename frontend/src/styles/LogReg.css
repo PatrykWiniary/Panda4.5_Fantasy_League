@@ -823,7 +823,7 @@ body {
 
 /* --- DISABLED ICON --- */
 .disabled-icon {
-  background-color: #1E1E1E;
+  background-color: transparent;
   border-radius: 50%;
   display: flex;
   align-items: center;
