@@ -52,14 +52,19 @@ body {
   padding: 1.2rem 1.5rem;
   border-radius: 19px;
   border: 1.5px solid var(--accent-dark);
-  background-color: var(--bg);
-  color: var(--accent);
+  background-color: #141313;
+  color: #C9AC6D;
   font-size: 1.3rem;
   outline: none;
   margin-bottom: 1.5rem;
   text-align: center;
   display: flex;
   justify-content: center;
+}
+.login-container .login-input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0px 1000px #141313 inset; /* tło */
+  -webkit-text-fill-color: #C9AC6D; /* kolor tekstu */
+  transition: background-color 5000s ease-in-out; /* stabilizacja */
 }
 
 .login-container .login-input::placeholder,
