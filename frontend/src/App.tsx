@@ -9,6 +9,7 @@ import LeaderboardPage from "./components/LeaderboardPage";
 import MatchHistoryPage from "./components/MatchHistoryPage";
 import TournamentPage from "./components/TournamentPage";
 import PageTransition from "./components/PageTransition";
+import WaitingRoom from "./components/WaitingRoom";
 import "./App.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { SessionProvider } from "./context/SessionContext";
@@ -29,6 +30,7 @@ export default function App() {
             <Route path="/leaderboard" element={<LeaderboardPage />} />
             <Route path="/matches" element={<MatchHistoryPage />} />
             <Route path="/tournament" element={<TournamentPage />} />
+            <Route path="/waitingroom" element={<WaitingRoom />} />
           </Route>
         </Routes>
       </BrowserRouter>
