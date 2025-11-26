@@ -23,6 +23,8 @@ export default function WaitingRoomPage() {
         lobbyName: "test",
     });
 
+var totalPrize=532;
+
 const [tempSettings, setTempSettings] = useState(settings);
 
 const openSettings = () => {
@@ -88,14 +90,14 @@ const saveSettings = () => {
           })}
         </div>
       </div>
-
-    <div className="total-prize">TOTAL PRIZE: {totalPrize}$</div>
-    
-    <div className="button-container">
-        <button className="btn"><span>RETURN</span></button>
+    <div className="total-prize-container">
+      <div className="total-prize">TOTAL PRIZE: {totalPrize}$</div>
+    </div>
+    <div className="button-containerwr">
+        <button className="btnwr"><span>RETURN</span></button>
 
         <button
-            className={`btn ${!isHost ? "disabled" : ""}`}
+            className={`btnwr ${!isHost ? "disabled" : ""}`}
             onClick={() => isHost && openSettings()}
             disabled={!isHost}
         >
@@ -103,7 +105,7 @@ const saveSettings = () => {
         </button>
 
         <button
-            className={`btn  ${!isHost ? "disabled" : ""}`}
+            className={`btnwr  ${!isHost ? "disabled" : ""}`}
             onClick={handleStartGame}
             disabled={!isHost}
         >

@@ -147,7 +147,7 @@
     justify-content: center;
 }
 
-.button-container {
+.button-containerwr {
     position: absolute;
     bottom: 25px;
     width: 100%;
@@ -157,12 +157,12 @@
     z-index: 2;
 }
 
-.btn {
+.btnwr {
     position: relative;
     font-size: 1.1rem;
     font-weight: 600;
-    padding: 20px 60px;
-    border-radius: 10px;
+    padding: 15px 60px;
+    border-radius: 24px;
     cursor: pointer;
     background-color: #141313;
     overflow: hidden;
@@ -171,7 +171,7 @@
     transition: transform 0.2s ease;
 }
 
-.btn::before {
+.btnwr::before {
     content: "";
     position: absolute;
     inset: 0;
@@ -188,16 +188,16 @@
     transition: background-position 0.5s ease;
 }
 
-.btn:not(:hover)::before {
+.btnwr:not(:hover)::before {
     animation: none !important;
     background-position: 0% 0% !important;
 }
 
-.btn:hover {
+.btnwr:hover {
     transform: scale(1.05);
 }
 
-.btn:hover::before {
+.btnwr:hover::before {
     animation: moveGradient 6s linear infinite;
 }
 
@@ -210,7 +210,7 @@
     }
 }
 
-.btn span {
+.btnwr span {
     background: -webkit-radial-gradient(#C9AC6D, #635536);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -224,39 +224,58 @@
   .dot {  width: 7px; height: 7px; }
   .dots-wrap { width: 72px; height: 72px; }
   .avatar-img { width: 72px !important; height: 72px !important; }
+  .btnwr span{font-size: 1.5rem;}
+  .button-containerwr {gap: 25px;}
+  .total-prize {font-size: 32px !important;}
+}
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
+input[type=number] {
+  -moz-appearance: textfield;
+}
 @media (max-width: 800px) {
   :root { --strip-height: 320px; }
   .banner-slots { padding: 0 3%; gap: 8px; }
   .banner-slot { width: 18%; min-width: 100px; }
   .slot-name { font-size: 0.95rem;  }
   .control-btn { padding: 12px 18px; font-size: 0.95rem; }
+  .btnwr span{font-size: 1rem;}
+  .button-containerwr {gap: 10px;}
 }
 
-.btn.disabled {
+.btnwr.disabled {
   background-color: #333;
   color: #777;
   border-color: #555;
   cursor: not-allowed;
   opacity: 0.6;
 }
-
+.total-prize-container{
+    position: absolute;
+    bottom: 100px;
+    width: 50%;
+    left: 0;
+    right: 0;
+    margin-left: auto;
+    margin-right: auto;
+    justify-content: center;
+    display: flex;
+    background-image: radial-gradient(ellipse, rgba(0,0,0,0.8), rgba(0,0,0,0.6) 10%, rgba(0,0,0,0) 70%);
+    border-bottom-left-radius: 20%;
+    border-bottom-right-radius: 20%;
+}
 .total-prize {
-  margin-top: 20px;
-  margin-bottom: 10px;
-
-  font-size: 1.8rem;
+  font-size: 64px;
   font-weight: 800;
   letter-spacing: 2px;
-  text-align: center;
-
-  background: radial-gradient(circle at 30% 30%, #F3D58B, #C9AC6D, #8a6e3b, #635536);
+  background: -webkit-linear-gradient(#C9AC6D, #362c17);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
-  z-index: 10;
+  z-index: 10000;
 }
 .settings-overlay {
   position: fixed;

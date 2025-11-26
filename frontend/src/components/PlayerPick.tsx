@@ -266,9 +266,10 @@ export default function PlayerPick() {
           );
         })}
       </div>
-
-      <h1 className="title">PICK YOUR TEAM</h1>
-      <p className="deadline">⏱ DUE IN: 23.11.2025 23:59</p>
+      <div class="title-wrapper">
+        <h1 className="title">PICK YOUR TEAM</h1>
+        <p className="deadline">⏱ DUE IN: 23.11.2025 23:59</p>
+      </div>
 
       <div className="draft-info">
         <div className="info-item">
@@ -280,7 +281,11 @@ export default function PlayerPick() {
           <span className="value">{remainingBudget}</span>
         </div>
       </div>
-
+      <div className="status-container">
+                    {saveStatus && (
+        <div className={`form-status ${saveStatus.type}`} style={{ display: saveStatus ? 'block' : 'none' }}>{saveStatus.message}</div>
+      )}
+      </div>
       <div className="button-container">
         <button className="btn return" onClick={() => window.history.back()}>
           <span>RETURN</span>
@@ -293,9 +298,7 @@ export default function PlayerPick() {
           <span>{saving ? "SAVING..." : "LOCK IN"}</span>
         </button>
       </div>
-      {saveStatus && (
-        <p className={`form-status ${saveStatus.type}`}>{saveStatus.message}</p>
-      )}
+
 
       {selectedRole && (
         <div className="modal-overlay">
