@@ -118,7 +118,7 @@ html, body, #root {
 
 .title {
     position: absolute;
-    top: 20px;
+    top: 10px;
     width: 100%;
     text-align: center;
     font-size: 2.5rem;
@@ -129,6 +129,17 @@ html, body, #root {
     background: -webkit-radial-gradient(#C9AC6D, #635536);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+    
+}
+.title-wrapper{
+    position: absolute;
+    top: 0px;
+    background-image: radial-gradient(ellipse at top, rgba(0,0,0,0.8), rgba(0,0,0,0.6) 30%, rgba(0,0,0,0) 80%);
+    border-bottom-left-radius: 20%;
+    border-bottom-right-radius: 20%;
+    z-index: 10;
+    width:40%;
+    height: 20%;
 }
 
 .button-container {

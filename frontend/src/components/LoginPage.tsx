@@ -91,7 +91,7 @@ export default function LoginPage() {
             Create account
           </Link>
         </div>
-      </form>
+      </div>
     </div>
   );
 }
