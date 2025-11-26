@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import "./PlayerPick.css";
+import "../styles/PlayerPick.css";
 import bg from "../assets/rift.png";
 import iconTop from "../assets/roleIcons/top.png";
 import iconJungle from "../assets/roleIcons/jungle.png";
