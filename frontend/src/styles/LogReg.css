@@ -1002,21 +1002,46 @@ body {
 
 .tournament-group-card,
 .tournament-bracket-round {
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 10px;
-  padding: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 12px;
+  padding: 16px 20px;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.35);
+  width: 100%;
+  max-width: 600px;      /* zapewnia równość */
+  margin: 0 auto;
 }
 
+/* Tabela */
 .tournament-group-card table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  table-layout: fixed;   /* kolumny równo rozłożone */
+  font-size: 0.9rem;
+}
+.tournament-group-card th {
+  padding: 8px 6px;
+  text-align: center;
+  font-weight: 700;
+  border-bottom: 1px solid rgba(255,255,255,0.15);
+  color: var(--accent);
 }
 
-.tournament-group-card th,
 .tournament-group-card td {
-  padding: 4px;
+  padding: 8px 6px;
+  text-align: center;
+  color: var(--accent);
 }
+
+/* Równe wiersze – profesjonalny look */
+.tournament-group-card tr {
+  height: 38px;
+}
+
+/* Delikatne paski */
+.tournament-group-card tr:nth-child(even) {
+  background: rgba(255,255,255,0.03);
+}
+
 
 .tournament-match-grid {
   display: grid;
@@ -1093,32 +1118,33 @@ body {
 .tournament-history-matchup {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
-  gap: 0.35rem;
   align-items: center;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  min-width: 0;
+  gap: 0.5rem;
+  width: 100%;
 }
 
-.tournament-history-matchup .matchup-team {
-  min-width: 0;
+.matchup-team {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  padding: 0 0.3rem;
+  max-width: 100%;
 }
 
-.tournament-history-matchup .matchup-team-a {
+.matchup-team-a {
   text-align: right;
 }
 
-.tournament-history-matchup .matchup-team-b {
+.matchup-team-b {
   text-align: left;
 }
 
-.tournament-history-matchup .matchup-vs {
+.matchup-vs {
+  text-align: center;
   font-weight: 700;
-  opacity: 0.9;
+  width: 50px; /* stała szerokość = idealne wyśrodkowanie */
 }
+
 
 .tournament-history-score {
   font-weight: 700;
