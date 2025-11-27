@@ -7,7 +7,16 @@ export default function PageTransition() {
   const [transitionStage, setTransitionStage] = useState("fade-in");
   const [nextPath, setNextPath] = useState<string | null>(null);
 
-  // Kliknięcia linków <a>
+  // Funkcja blokująca scroll
+  const blockScroll = () => {
+    document.body.style.overflow = "hidden";
+  };
+
+  const unblockScroll = () => {
+    document.body.style.overflow = "";
+  };
+
+  // Obsługa kliknięć linków <a>
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -21,60 +30,54 @@ export default function PageTransition() {
       e.preventDefault();
       setNextPath(href);
       setTransitionStage("fade-out");
+      blockScroll(); // blokujemy scroll podczas fade-out
     };
 
     document.addEventListener("click", handleClick);
     return () => document.removeEventListener("click", handleClick);
   }, [location.pathname]);
 
-  // po fade-out przejdź na nową stronę
+  // Po fade-out przejdź na nową stronę
   useEffect(() => {
     if (transitionStage === "fade-out" && nextPath) {
       const timeout = setTimeout(() => {
         navigate(nextPath);
         setNextPath(null);
         setTransitionStage("fade-in");
+        // Po zakończeniu fade-in odblokuj scroll
+        setTimeout(() => unblockScroll(), 600);
       }, 600);
       return () => clearTimeout(timeout);
     }
   }, [transitionStage, nextPath, navigate]);
 
-  // przy zmianie lokalizacji (np. wstecz)
+  // Przy zmianie lokalizacji (np. back button)
   useEffect(() => {
     setTransitionStage("fade-in");
+    // Odblokuj scroll jeśli ktoś wraca np. przycisk wstecz
+    unblockScroll();
   }, [location.pathname]);
 
-  // STYLE bezpośrednio w komponencie
   const styles = `
     .page-transition {
-      position: fixed;
-      inset: 0;
+      position: relative;
       width: 100%;
-      height: 100%;
-      overflow: hidden;        /* BLOKUJE scroll */
-      z-index: 999999;         /* nad całą stroną */
-      pointer-events: none;    /* nie blokuje kliknięć */
-    }
-
-    .page-transition * {
-      pointer-events: auto;    /* ale wnętrze można klikać */
+      min-height: 100%;
+      transition: opacity 0.6s ease;
     }
 
     .page-transition.fade-in {
       opacity: 1;
-      transition: opacity 0.6s ease;
     }
 
     .page-transition.fade-out {
       opacity: 0;
-      transition: opacity 0.6s ease;
     }
   `;
 
   return (
     <>
       <style>{styles}</style>
-
       <div className={`page-transition ${transitionStage}`}>
         <Outlet />
       </div>
