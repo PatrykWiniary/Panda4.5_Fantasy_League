@@ -18,4 +18,4 @@ export function isPasswordStrong(password: string): boolean {
 }
 
 export const PASSWORD_REQUIREMENTS_DESCRIPTION =
-  "Hasło musi mieć co najmniej 8 znaków, zawierać dużą i małą literę oraz cyfrę.";
+  "The password must be at least 8 characters long and contain an uppercase letter, a lowercase letter, and a number.";
