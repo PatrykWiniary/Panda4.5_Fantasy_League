@@ -3697,14 +3697,18 @@ export function getTeamId(teamName: string): number {
 }
 
 function test(){
-  const lobby = new Lobby(db, 1);
+  //const lobby = new Lobby(db, 1);
+  const lobby = new Lobby(db, 2, "password");
 
-  lobby.join(70);
-  lobby.join(71);
-  lobby.join(72);
-  lobby.join(73);
-  lobby.join(74);
-  //console.log(lobby.getUsers());
+  lobby.join(70, "notpassword");
+  lobby.join(71, "password");
+  lobby.join(72, "password");
+  lobby.join(73, "password");
+  lobby.join(74, "password");
+
+  console.log(lobby.getUsers());
+  lobby.leave(72);
+  console.log(lobby.getUsers());
 
   lobby.addToBet(70, 1);
   lobby.addToBet(71, 25);
