@@ -154,13 +154,16 @@
   object-fit: cover;
   transition: transform 260ms ease, filter 260ms ease;
 }
+.league-avatar:hover {
+  transform: scale(1.05);
+  border-color: var(--accent-hover);
+}
 
 
 .league-player-name {
   font-size: 1.8rem;
   font-weight: 700;
   text-align: center;
-
   background: linear-gradient(120deg, #f1d28c, #c9ac6d, #8a784b);
   background-size: 200% 200%;
   -webkit-background-clip: text;

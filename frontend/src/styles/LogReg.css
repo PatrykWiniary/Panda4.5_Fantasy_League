@@ -197,7 +197,7 @@ body {
 .profile-hint {
   margin-top: 1.5rem;
   font-size: 1rem;
-  color: #f6e7c6;
+  color: #C9AC6D;
   line-height: 1.6;
 }
 
@@ -273,7 +273,7 @@ body {
 
 .profile-meta {
   margin-top: 0.35rem;
-  color: #f5e8c7;
+  color: #C9AC6D;
   font-size: 1rem;
   letter-spacing: 1px;
 }
@@ -375,7 +375,7 @@ body {
 .avatar-picker-page-indicator {
   font-size: 0.85rem;
   letter-spacing: 1px;
-  color: #f5e8c7;
+  color: #C9AC6D;
 }
 
 .profile-actions {
@@ -812,6 +812,7 @@ body {
   margin-bottom: 1rem;
 }
 
+
 .champion-card{
   width: 120px;
   height: 120px;
@@ -963,6 +964,7 @@ body {
   padding: 0.85rem 1.6rem;
   white-space: normal;
   text-align: center;
+  border-radius: 10px;
 }
 
 .tournament-panels {
