@@ -50,6 +50,36 @@ export type ApiUser = {
   avatar?: string | null;
 };
 
+export type LobbySummary = {
+  id: number;
+  name: string;
+  entryFee: number;
+  hostId: number | null;
+  playerCount: number;
+  passwordProtected: boolean;
+  status: "waiting" | "started";
+  startedAt: string | null;
+  readyCount: number;
+  allReady: boolean;
+};
+
+export type LobbyPlayer = {
+  id: number;
+  name: string;
+  avatar: string | null;
+  isHost: boolean;
+  ready: boolean;
+};
+
+export type LobbyResponse = {
+  lobby: LobbySummary;
+  players: LobbyPlayer[];
+};
+
+export type LobbyByUserResponse = {
+  lobby: LobbyResponse | null;
+};
+
 export type LeaderboardEntry = {
   id: number;
   name: string;
@@ -63,6 +93,23 @@ export type LeaderboardResponse = {
   totalUsers: number;
   userEntry: LeaderboardEntry | null;
   userInTop: boolean;
+};
+
+export type LobbyLeaderboardResponse = {
+  leaderboard: LeaderboardEntry[];
+};
+
+export type TournamentPlayerAggregate = {
+  playerId: number;
+  kills: number;
+  deaths: number;
+  assists: number;
+  score: number;
+};
+
+export type TournamentPlayerStatsResponse = {
+  tournamentId?: number;
+  players: TournamentPlayerAggregate[];
 };
 
 export type MatchObjectives = {

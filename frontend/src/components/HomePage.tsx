@@ -1,14 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { MouseEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "../styles/HomePage.css";
 import homeIcon from "../assets/home.svg";
 import userIcon from "../assets/user.svg";
+import { apiFetch } from "../api/client";
+import type { LobbyByUserResponse } from "../api/types";
 import { useSession } from "../context/SessionContext";
 
 export default function HomePage() {
   const { user } = useSession();
   const [fadeOut, setFadeOut] = useState(false);
+  const [activeLobby, setActiveLobby] = useState<LobbyByUserResponse["lobby"] | null>(null);
   const navigate = useNavigate();
 
   const handleLinkClick = (e: MouseEvent<HTMLAnchorElement>, to: string) => {
@@ -23,6 +26,30 @@ export default function HomePage() {
   };
 
   const hasOngoingLeague = Boolean(user);
+  const hasLobby = Boolean(activeLobby);
+  const lobbyStarted = activeLobby?.lobby.status === "started";
+
+  useEffect(() => {
+    if (!user) {
+      setActiveLobby(null);
+      return;
+    }
+    let canceled = false;
+    apiFetch<LobbyByUserResponse>(`/api/lobbies?userId=${user.id}`)
+      .then((payload) => {
+        if (!canceled) {
+          setActiveLobby(payload.lobby);
+        }
+      })
+      .catch(() => {
+        if (!canceled) {
+          setActiveLobby(null);
+        }
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [user]);
 
   return (
     <div className={`homepage ${fadeOut ? "fade-out" : "fade-in"}`}>
@@ -54,11 +81,19 @@ export default function HomePage() {
         >
           ONGOING LEAGUE
         </Link>
-        <Link to="/joinnewleague" className="homepage-button">
+        {hasLobby && (
+          <Link
+            to={lobbyStarted ? "/playerpick" : "/waitingroom"}
+            className="homepage-button"
+          >
+            {lobbyStarted ? "RETURN TO DRAFT" : "WAITING ROOM"}
+          </Link>
+        )}
+        <Link to="/createnewleague" className="homepage-button">
           CREATE NEW LOBBY
         </Link>
 
-        <Link to="/createnewleague" className="homepage-button">
+        <Link to="/joinnewleague" className="homepage-button">
           JOIN LOBBY
         </Link>
 

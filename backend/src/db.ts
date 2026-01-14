@@ -26,7 +26,6 @@ import { parseDeckPayload } from "./deckIO";
 import { scoreDeckAgainstPlayers } from "./simulationScoring";
 import { ProfileAvatarKey } from "./profileAvatars";
 import {sampleData} from "../data/SampleData.json"
-import { Lobby } from "./Lobby";
 
 const DB_PATH = path.join(__dirname, "..", "data", "app.db");
 const INIT_SQL = path.join(__dirname, "init.sql");
@@ -113,6 +112,7 @@ function migrateUsersTable() {
 
   const hasScoreColumn = columns.some((column) => column.name === "score");
   const hasAvatarColumn = columns.some((column) => column.name === "avatar");
+  const hasLobbyReadyColumn = columns.some((column) => column.name === "lobby_ready");
 
   if (!hasScoreColumn) {
     db.prepare(
@@ -122,6 +122,40 @@ function migrateUsersTable() {
 
   if (!hasAvatarColumn) {
     db.prepare("ALTER TABLE users ADD COLUMN avatar TEXT").run();
+  }
+
+  if (!hasLobbyReadyColumn) {
+    db.prepare(
+      "ALTER TABLE users ADD COLUMN lobby_ready INTEGER NOT NULL DEFAULT 0"
+    ).run();
+  }
+}
+
+function migrateLobbyTable() {
+  const columns = tableColumns("lobby");
+  if (columns.length === 0) {
+    return;
+  }
+
+  const ensureColumn = (name: string, definition: string) => {
+    const exists = columns.some((column) => column.name === name);
+    if (!exists) {
+      db.prepare(`ALTER TABLE lobby ADD COLUMN ${name} ${definition}`).run();
+    }
+  };
+
+  ensureColumn("name", "TEXT");
+  ensureColumn("entry_fee", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn("host_id", "INTEGER");
+  ensureColumn("status", "TEXT NOT NULL DEFAULT 'waiting'");
+  ensureColumn("started_at", "TEXT");
+
+  try {
+    db.prepare(
+      "UPDATE lobby SET entry_fee = betValue WHERE entry_fee = 0 AND betValue > 0"
+    ).run();
+  } catch (error) {
+    console.warn("Failed to backfill lobby entry fees", error);
   }
 }
 
@@ -230,6 +264,7 @@ function ensureSeedData() {
 // Run lightweight migrations after loading schema.
 migrateDecksTable();
 migrateUsersTable();
+migrateLobbyTable();
 migratePlayersTable();
 migrateMatchHistoryTable();
 migrateMatchHistoryPlayersTable();
@@ -512,6 +547,51 @@ type DbUserRow = {
 
 type SafeUser = Omit<DbUserRow, "password">;
 
+type DbLobbyRow = {
+  id: number;
+  name: string | null;
+  password: string | null;
+  entry_fee: number | null;
+  betValue: number | null;
+  winner_id: number | null;
+  host_id: number | null;
+  status: string | null;
+  started_at: string | null;
+};
+
+type LobbyPlayerRow = {
+  id: number;
+  name: string;
+  avatar: string | null;
+  lobby_ready: number;
+};
+
+export type LobbySummary = {
+  id: number;
+  name: string;
+  entryFee: number;
+  hostId: number | null;
+  playerCount: number;
+  passwordProtected: boolean;
+  status: "waiting" | "started";
+  startedAt: string | null;
+  readyCount: number;
+  allReady: boolean;
+};
+
+export type LobbyPlayer = {
+  id: number;
+  name: string;
+  avatar: string | null;
+  isHost: boolean;
+  ready: boolean;
+};
+
+export type LobbyResponse = {
+  lobby: LobbySummary;
+  players: LobbyPlayer[];
+};
+
 function toSafeUser(row: DbUserRow): SafeUser {
   const { password: _password, ...safeUser } = row;
   return safeUser;
@@ -754,6 +834,14 @@ export type LeaderboardEntry = {
   score: number;
   currency: number;
   position: number;
+};
+
+export type TournamentPlayerAggregate = {
+  playerId: number;
+  kills: number;
+  deaths: number;
+  assists: number;
+  score: number;
 };
 
 type MatchObjectives = {
@@ -1851,6 +1939,385 @@ export function updateUserAvatar(
 ): SafeUser | undefined {
   db.prepare("UPDATE users SET avatar = ? WHERE id = ?").run(avatar, userId);
   return getUserById(userId);
+}
+
+function fetchLobbyRowById(lobbyId: number): DbLobbyRow | undefined {
+  return db
+    .prepare(
+      "SELECT id, name, password, entry_fee, betValue, winner_id, host_id, status, started_at FROM lobby WHERE id = ?"
+    )
+    .get(lobbyId) as DbLobbyRow | undefined;
+}
+
+function getLobbyPlayers(lobbyId: number): LobbyPlayerRow[] {
+  return db
+    .prepare(
+      "SELECT id, name, avatar, lobby_ready FROM users WHERE lobby_id = ? ORDER BY id"
+    )
+    .all(lobbyId) as LobbyPlayerRow[];
+}
+
+function buildLobbyResponse(row: DbLobbyRow, players: LobbyPlayerRow[]): LobbyResponse {
+  const entryFee =
+    typeof row.entry_fee === "number"
+      ? row.entry_fee
+      : typeof row.betValue === "number"
+        ? row.betValue
+        : 0;
+  const hostId = row.host_id ?? (players.length > 0 ? players[0].id : null);
+  const name =
+    row.name && row.name.trim().length > 0
+      ? row.name
+      : `Lobby #${row.id}`;
+  const status = row.status === "started" ? "started" : "waiting";
+  const readyCount = players.filter((player) => Boolean(player.lobby_ready)).length;
+  const allReady = players.length > 0 && readyCount === players.length;
+  return {
+    lobby: {
+      id: row.id,
+      name,
+      entryFee,
+      hostId,
+      playerCount: players.length,
+      passwordProtected: Boolean(row.password && row.password.length > 0),
+      status,
+      startedAt: row.started_at ?? null,
+      readyCount,
+      allReady,
+    },
+    players: players.map((player) => ({
+      id: player.id,
+      name: player.name,
+      avatar: player.avatar,
+      isHost: hostId === player.id,
+      ready: Boolean(player.lobby_ready),
+    })),
+  };
+}
+
+export function getLobbyById(lobbyId: number): LobbyResponse | null {
+  const row = fetchLobbyRowById(lobbyId);
+  if (!row) {
+    return null;
+  }
+  const players = getLobbyPlayers(row.id);
+  if (!row.host_id && players.length > 0) {
+    db.prepare("UPDATE lobby SET host_id = ? WHERE id = ?").run(
+      players[0].id,
+      row.id
+    );
+    row.host_id = players[0].id;
+  }
+  return buildLobbyResponse(row, players);
+}
+
+export function getLobbyByUser(userId: number): LobbyResponse | null {
+  const userRow = db
+    .prepare("SELECT lobby_id FROM users WHERE id = ?")
+    .get(userId) as { lobby_id: number | null } | undefined;
+  if (!userRow) {
+    throw new Error("USER_NOT_FOUND");
+  }
+  if (!userRow.lobby_id) {
+    return null;
+  }
+  return getLobbyById(userRow.lobby_id);
+}
+
+export function createLobby(options: {
+  userId: number;
+  name?: string;
+  password?: string;
+  entryFee?: number;
+}): LobbyResponse {
+  const userRow = db
+    .prepare("SELECT lobby_id FROM users WHERE id = ?")
+    .get(options.userId) as { lobby_id: number | null } | undefined;
+  if (!userRow) {
+    throw new Error("USER_NOT_FOUND");
+  }
+  if (userRow.lobby_id) {
+    throw new Error("USER_ALREADY_IN_LOBBY");
+  }
+  const name =
+    typeof options.name === "string" ? options.name.trim() : "";
+  const password =
+    typeof options.password === "string" ? options.password : "";
+  const entryFee =
+    typeof options.entryFee === "number" && Number.isFinite(options.entryFee)
+      ? Math.max(0, Math.floor(options.entryFee))
+      : 0;
+  const insert = db.prepare(
+    "INSERT INTO lobby (name, password, entry_fee, betValue, winner_id, host_id, status, started_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+  );
+  const result = insert.run(
+    name,
+    password,
+    entryFee,
+    0,
+    null,
+    options.userId,
+    "waiting",
+    null
+  );
+  const lobbyId = Number(result.lastInsertRowid);
+  db.prepare("UPDATE users SET lobby_id = ?, lobby_ready = 0 WHERE id = ?").run(
+    lobbyId,
+    options.userId
+  );
+  const row = fetchLobbyRowById(lobbyId);
+  if (!row) {
+    throw new Error("LOBBY_NOT_FOUND");
+  }
+  const players = getLobbyPlayers(lobbyId);
+  return buildLobbyResponse(row, players);
+}
+
+export function joinLobby(options: {
+  userId: number;
+  lobbyId: number;
+  password?: string;
+}): LobbyResponse {
+  const lobby = fetchLobbyRowById(options.lobbyId);
+  if (!lobby) {
+    throw new Error("LOBBY_NOT_FOUND");
+  }
+  if (lobby.status === "started") {
+    throw new Error("LOBBY_ALREADY_STARTED");
+  }
+  if (lobby.password && lobby.password.length > 0) {
+    if (options.password !== lobby.password) {
+      throw new Error("INVALID_LOBBY_PASSWORD");
+    }
+  }
+  const userRow = db
+    .prepare("SELECT lobby_id FROM users WHERE id = ?")
+    .get(options.userId) as { lobby_id: number | null } | undefined;
+  if (!userRow) {
+    throw new Error("USER_NOT_FOUND");
+  }
+  if (userRow.lobby_id && userRow.lobby_id !== options.lobbyId) {
+    throw new Error("USER_ALREADY_IN_LOBBY");
+  }
+  if (!userRow.lobby_id) {
+    db.prepare("UPDATE users SET lobby_id = ?, lobby_ready = 0 WHERE id = ?").run(
+      options.lobbyId,
+      options.userId
+    );
+  }
+  const players = getLobbyPlayers(options.lobbyId);
+  if (!lobby.host_id && players.length > 0) {
+    db.prepare("UPDATE lobby SET host_id = ? WHERE id = ?").run(
+      players[0].id,
+      options.lobbyId
+    );
+    lobby.host_id = players[0].id;
+  }
+  return buildLobbyResponse(lobby, players);
+}
+
+export function leaveLobby(options: {
+  userId: number;
+  lobbyId?: number;
+}): { leftLobbyId: number; deleted: boolean } {
+  const userRow = db
+    .prepare("SELECT lobby_id FROM users WHERE id = ?")
+    .get(options.userId) as { lobby_id: number | null } | undefined;
+  if (!userRow) {
+    throw new Error("USER_NOT_FOUND");
+  }
+  if (!userRow.lobby_id) {
+    throw new Error("USER_NOT_IN_LOBBY");
+  }
+  if (
+    typeof options.lobbyId === "number" &&
+    options.lobbyId !== userRow.lobby_id
+  ) {
+    throw new Error("LOBBY_MISMATCH");
+  }
+  const lobbyId = userRow.lobby_id;
+  db.prepare("UPDATE users SET lobby_id = NULL, lobby_ready = 0 WHERE id = ?").run(
+    options.userId
+  );
+
+  const remaining = db
+    .prepare("SELECT id FROM users WHERE lobby_id = ? ORDER BY id")
+    .all(lobbyId) as Array<{ id: number }>;
+  const lobbyRow = fetchLobbyRowById(lobbyId);
+
+  if (!lobbyRow) {
+    return { leftLobbyId: lobbyId, deleted: false };
+  }
+
+  if (remaining.length === 0) {
+    db.prepare("DELETE FROM lobby WHERE id = ?").run(lobbyId);
+    return { leftLobbyId: lobbyId, deleted: true };
+  }
+
+  if (lobbyRow.host_id === options.userId) {
+    db.prepare("UPDATE lobby SET host_id = ? WHERE id = ?").run(
+      remaining[0].id,
+      lobbyId
+    );
+  }
+
+  return { leftLobbyId: lobbyId, deleted: false };
+}
+
+export function updateLobbySettings(options: {
+  lobbyId: number;
+  userId: number;
+  name?: string;
+  password?: string;
+  entryFee?: number;
+}): LobbyResponse {
+  const lobby = fetchLobbyRowById(options.lobbyId);
+  if (!lobby) {
+    throw new Error("LOBBY_NOT_FOUND");
+  }
+  if (lobby.host_id !== options.userId) {
+    throw new Error("NOT_LOBBY_HOST");
+  }
+  if (lobby.status === "started") {
+    throw new Error("LOBBY_ALREADY_STARTED");
+  }
+  const updates: Array<{ field: string; value: unknown }> = [];
+  if (typeof options.name === "string") {
+    updates.push({ field: "name", value: options.name.trim() });
+  }
+  if (typeof options.password === "string") {
+    updates.push({ field: "password", value: options.password });
+  }
+  if (typeof options.entryFee === "number" && Number.isFinite(options.entryFee)) {
+    updates.push({
+      field: "entry_fee",
+      value: Math.max(0, Math.floor(options.entryFee)),
+    });
+  }
+  if (updates.length > 0) {
+    const setClause = updates.map((item) => `${item.field} = ?`).join(", ");
+    db.prepare(`UPDATE lobby SET ${setClause} WHERE id = ?`).run(
+      ...updates.map((item) => item.value),
+      options.lobbyId
+    );
+  }
+  const row = fetchLobbyRowById(options.lobbyId);
+  if (!row) {
+    throw new Error("LOBBY_NOT_FOUND");
+  }
+  const players = getLobbyPlayers(options.lobbyId);
+  return buildLobbyResponse(row, players);
+}
+
+export function setLobbyReady(options: {
+  lobbyId: number;
+  userId: number;
+  ready: boolean;
+}): LobbyResponse {
+  const lobby = fetchLobbyRowById(options.lobbyId);
+  if (!lobby) {
+    throw new Error("LOBBY_NOT_FOUND");
+  }
+  if (lobby.status !== "started") {
+    throw new Error("LOBBY_NOT_STARTED");
+  }
+  const userRow = db
+    .prepare("SELECT lobby_id FROM users WHERE id = ?")
+    .get(options.userId) as { lobby_id: number | null } | undefined;
+  if (!userRow) {
+    throw new Error("USER_NOT_FOUND");
+  }
+  if (userRow.lobby_id !== options.lobbyId) {
+    throw new Error("USER_NOT_IN_LOBBY");
+  }
+  db.prepare("UPDATE users SET lobby_ready = ? WHERE id = ?").run(
+    options.ready ? 1 : 0,
+    options.userId
+  );
+  const players = getLobbyPlayers(options.lobbyId);
+  return buildLobbyResponse(lobby, players);
+}
+
+export function resetLobbyReady(lobbyId: number): void {
+  db.prepare("UPDATE users SET lobby_ready = 0 WHERE lobby_id = ?").run(lobbyId);
+}
+
+export function getLobbyLeaderboard(lobbyId: number): LeaderboardEntry[] {
+  const rows = db
+    .prepare(
+      "SELECT id, name, score, currency FROM users WHERE lobby_id = ? ORDER BY score DESC, id ASC"
+    )
+    .all(lobbyId) as Array<{
+      id: number;
+      name: string;
+      score: number;
+      currency: number;
+    }>;
+  return rows.map((row, index) => ({
+    ...row,
+    position: index + 1,
+  }));
+}
+
+export function getTournamentPlayerAggregates(
+  tournamentId: number,
+  playerIds: number[]
+): TournamentPlayerAggregate[] {
+  if (!Array.isArray(playerIds) || playerIds.length === 0) {
+    return [];
+  }
+
+  const placeholders = buildInClausePlaceholders(playerIds.length);
+  const rows = db
+    .prepare(
+      `SELECT mhp.player_id as playerId,
+        COALESCE(SUM(mhp.kills), 0) as kills,
+        COALESCE(SUM(mhp.deaths), 0) as deaths,
+        COALESCE(SUM(mhp.assists), 0) as assists,
+        COALESCE(SUM(mhp.score), 0) as score
+      FROM match_history_players mhp
+      JOIN match_history mh ON mhp.match_id = mh.id
+      WHERE mh.is_tournament = 1
+        AND mh.tournament_id = ?
+        AND mhp.player_id IN (${placeholders})
+      GROUP BY mhp.player_id`
+    )
+    .all(tournamentId, ...playerIds) as TournamentPlayerAggregate[];
+
+  return rows.map((row) => ({
+    playerId: Number(row.playerId),
+    kills: Number(row.kills) || 0,
+    deaths: Number(row.deaths) || 0,
+    assists: Number(row.assists) || 0,
+    score: Number(row.score) || 0,
+  }));
+}
+
+export function startLobby(options: {
+  lobbyId: number;
+  userId: number;
+}): LobbyResponse {
+  const lobby = fetchLobbyRowById(options.lobbyId);
+  if (!lobby) {
+    throw new Error("LOBBY_NOT_FOUND");
+  }
+  if (lobby.host_id !== options.userId) {
+    throw new Error("NOT_LOBBY_HOST");
+  }
+  if (lobby.status === "started") {
+    const players = getLobbyPlayers(options.lobbyId);
+    return buildLobbyResponse(lobby, players);
+  }
+  db.prepare("UPDATE lobby SET status = ?, started_at = CURRENT_TIMESTAMP WHERE id = ?").run(
+    "started",
+    options.lobbyId
+  );
+  const updated = fetchLobbyRowById(options.lobbyId);
+  if (!updated) {
+    throw new Error("LOBBY_NOT_FOUND");
+  }
+  const players = getLobbyPlayers(options.lobbyId);
+  return buildLobbyResponse(updated, players);
 }
 
 export function getRegions(): Region[] {
@@ -3696,28 +4163,3 @@ export function getTeamId(teamName: string): number {
   return Number(row.id);
 }
 
-function test(){
-  //const lobby = new Lobby(db, 1);
-  const lobby = new Lobby(db, 2, "password");
-
-  lobby.join(70, "notpassword");
-  lobby.join(71, "password");
-  lobby.join(72, "password");
-  lobby.join(73, "password");
-  lobby.join(74, "password");
-
-  console.log(lobby.getUsers());
-  lobby.leave(72);
-  console.log(lobby.getUsers());
-
-  lobby.addToBet(70, 1);
-  lobby.addToBet(71, 25);
-  lobby.addToBet(72, 60);
-  lobby.addToBet(73, 100);
-  lobby.addToBet(74, 100000);
-  lobby.addToBet(74, 10);
-
-  const winnerId = lobby.decideWinner();
-  console.log("Winner:", winnerId);
-}
-test();

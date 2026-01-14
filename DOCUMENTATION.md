@@ -16,6 +16,7 @@
    - [Najczesciej wykorzystywane widoki](#najczesciej-wykorzystywane-widoki)
    - [Gdzie trafiaja dane](#gdzie-trafiaja-dane)
    - [Rejestracja i logowanie](#rejestracja-i-logowanie)
+   - [Lobby i waiting room](#lobby-i-waiting-room)
    - [Obecne zabezpieczenia](#obecne-zabezpieczenia)
 5. [System punktacji](#system-punktacji)
 6. [Przykladowe karty](#przykladowe-karty)
@@ -109,6 +110,17 @@ Najwazniejsze sciezki serwera (wszystkie zaczynaja sie od `/api`):
 | `POST` | `/tournaments/simulate` | Uruchamia symulacje turnieju dla wskazanego uzytkownika, nalicza punkty na podstawie wybranych kart i aktualizuje `users.score`.
 | `GET` | `/users/leaderboard?userId=123` | Zwraca TOP 10 menedzerow, laczna liczbe uzytkownikow oraz (opcjonalnie) pozycje konkretnej osoby.
 | `POST` | `/users/:userId/avatar` | Aktualizuje avatar uzytkownika po stronie backendu (nowa wartosc laduje w kolumnie `users.avatar`).
+| `GET` | `/lobbies?userId=123` | Zwraca aktywne lobby uzytkownika lub `null`, gdy nie jest w zadnym lobby.
+| `GET` | `/lobbies/:lobbyId` | Zwraca dane lobby oraz liste graczy.
+| `POST` | `/lobbies` | Tworzy lobby (body: `userId`, `name?`, `password?`, `entryFee?`) i ustawia hosta.
+| `POST` | `/lobbies/:lobbyId/join` | Dolacza do lobby (body: `userId`, `password?`).
+| `POST` | `/lobbies/:lobbyId/leave` | Opuszcza lobby (body: `userId`), usuwa lobby gdy puste.
+| `PUT` | `/lobbies/:lobbyId` | Aktualizuje ustawienia lobby (body: `userId`, `name?`, `password?`, `entryFee?`), tylko host.
+| `POST` | `/lobbies/:lobbyId/start` | Startuje lobby (body: `userId`), tylko host.
+| `POST` | `/lobbies/:lobbyId/ready` | Ustawia gotowosc gracza (body: `userId`, `ready?`), wymaga statusu `started`.
+| `POST` | `/lobbies/:lobbyId/simulate` | Symuluje wspolny mecz dla lobby (body: `userId`), tylko host i tylko gdy wszyscy gotowi.
+| `GET` | `/lobbies/:lobbyId/leaderboard` | Ranking graczy tylko z danego lobby.
+| `GET` | `/regions/:regionId/tournament/player-stats?ids=1,2,3` | Zwraca zsumowane K/D/A oraz score z aktywnego turnieju dla wskazanych graczy.
 | `GET` | `/matches/history?limit=15&page=2` | Stronnicowana historia ostatnich symulacji (region, zespoly, zwyciezca, MVP, data).
 | `GET` | `/matches/:matchId` | Zwraca pojedynczy wpis z historii wraz z tabela statystyk wszystkich graczy uczestniczacych w meczu.
 | `POST` | `/matches/simulate` | Generuje nowy mecz w regionie gry i dopisuje go do historii.
@@ -177,6 +189,21 @@ Projekt ma charakter warsztatowy: pozwala tworzyc talie zawodnikow League of Leg
 - **Logowanie.** Podczas logowania rekord uzytkownika jest wyszukiwany po adresie e-mail, a nastepnie haslo porownywane z zapisanym hashem funkcja `verifyPassword`, ktora ponownie liczy PBKDF2 i uzywa `crypto.timingSafeEqual`, aby uniknac atakow czasowych.
 - **Obsluga bledow.** Gdy konto o wskazanym e-mailu juz istnieje, rejestracja zwraca `USER_ALREADY_EXISTS`. Bledne dane logowania odpowiadaja komunikatem `INVALID_CREDENTIALS`.
 - **Przechowywanie sesji.** Po udanym logowaniu frontend zapisuje niesekretne dane uzytkownika (ID, imie, budzet, punktacje) w `localStorage`. Informacje te sluza jedynie do wypelniania formularzy; haslo ani tokeny sesyjne nie sa przechowywane w przegladarce.
+
+### Lobby i waiting room
+- **Tworzenie lobby.** Widok `CreateNewLeague` wysyla `POST /api/lobbies` z `userId`, opcjonalna nazwa, haslem i wpisowym (`entryFee`). Backend zapisuje lobby, ustawia `host_id` i przypisuje uzytkownika do `users.lobby_id`.
+- **Dolaczenie do lobby.** Widok `JoinNewLeague` wysyla `POST /api/lobbies/:lobbyId/join` z `userId` i opcjonalnym haslem. Backend weryfikuje haslo i dopisuje gracza do lobby.
+- **Waiting room.** Widok `WaitingRoom` odpyta `GET /api/lobbies?userId=...` (polling co 5s) i renderuje liste graczy. Host moze edytowac ustawienia przez `PUT /api/lobbies/:lobbyId`. Przycisk RETURN wysyla `POST /api/lobbies/:lobbyId/leave` i wraca do menu.
+- **Start gry.** Host klika START, co wywoluje `POST /api/lobbies/:lobbyId/start`. Backend ustawia status lobby na `started` i timestamp `started_at`. Waiting room wykrywa zmiane statusu i przenosi wszystkich do `/playerpick`.
+- **Lock-in i gotowosc.** Po zapisaniu skladu w `PlayerPick` frontend oznacza gracza jako gotowego przez `POST /api/lobbies/:lobbyId/ready` (domyslnie `ready=true`).
+- **Symulacja meczu.** Gdy wszyscy gracze z lobby sa gotowi, host moze uruchomic `POST /api/lobbies/:lobbyId/simulate`. Backend wykonuje jedna symulacje i nalicza punkty wszystkim uzytkownikom (wspolne mecze dla wszystkich lobby).
+- **Reset gotowosci.** Po symulacji backend zeruje `lobby_ready`, wiec przed kolejnym meczem trzeba ponownie zrobic lock-in.
+- **Wspolny turniej.** Lobby korzysta z jednej puli meczow turniejowych, a widok OngLeague sumuje K/D/A i score z calego aktywnego turnieju.
+- **Leaderboard lobby.** Ranking lobby bierze aktualne punkty `users.score` i filtruje tylko graczy z danego lobby (`GET /api/lobbies/:lobbyId/leaderboard`).
+- **Blokady po starcie.** Po `status=started` nie da sie dolaczyc (`LOBBY_ALREADY_STARTED`) ani zmieniac ustawien lobby.
+- **Widok gracza nie-host.** Przycisk START jest zablokowany, ale gracz dalej dostaje polling i automatyczne przekierowanie po starcie.
+- **Wyliczenia.** Nagroda w waiting room = `entryFee * liczba_graczy`. Host jest przypisany po `host_id` z bazy.
+- **Sesja.** Gdy backend nie zna uzytkownika (np. po restartach kontenerow), endpointy lobby zwracaja `USER_NOT_FOUND`, a frontend wymusza ponowne logowanie.
 
 ### Obecne zabezpieczenia
 - **Naglowki ochronne (helmet).** Serwer dopisuje zestaw dodatkowych naglowkow HTTP, dzieki czemu przegladarka blokuje czesc niebezpiecznych zachowan. W praktyce utrudnia to osadzenie naszej strony w cudzej ramce (clickjacking) albo odczytywanie danych przez blednie ustawione typy MIME.

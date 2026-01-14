@@ -5,6 +5,7 @@ import ProfilePage from "./components/ProfilePage";
 import OngLeaguePage from "./components/OngLeague";
 import CreateNewLeaguePage from "./components/CreateNewLeague";
 import JoinNewLeaguePage from "./components/JoinNewLeague";
+import PlayerPick from "./components/PlayerPick";
 import LeaderboardPage from "./components/LeaderboardPage";
 import MatchHistoryPage from "./components/MatchHistoryPage";
 import TournamentPage from "./components/TournamentPage";
@@ -31,6 +32,7 @@ export default function App() {
             <Route path="/matches" element={<MatchHistoryPage />} />
             <Route path="/tournament" element={<TournamentPage />} />
             <Route path="/waitingroom" element={<WaitingRoom />} />
+            <Route path="/playerpick" element={<PlayerPick />} />
           </Route>
         </Routes>
       </BrowserRouter>

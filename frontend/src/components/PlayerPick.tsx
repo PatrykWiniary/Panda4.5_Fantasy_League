@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import "../styles/PlayerPick.css";
 import bg from "../assets/rift.png";
 import iconTop from "../assets/roleIcons/top.png";
@@ -13,6 +14,7 @@ import type {
   DeckResponse,
   DeckRole,
   GroupedPlayersResponse,
+  LobbyByUserResponse,
   PlayerOverview,
 } from "../api/types";
 import { useSession } from "../context/SessionContext";
@@ -76,6 +78,7 @@ const emptyDraftTeam: DraftTeam = {
 };
 
 export default function PlayerPick() {
+  const navigate = useNavigate();
   const { user } = useSession();
   const [playersData, setPlayersData] = useState<PlayersData>(emptyPlayersData);
   const [playerInfoMap, setPlayerInfoMap] = useState<Map<number, UIPlayer>>(
@@ -92,6 +95,7 @@ export default function PlayerPick() {
   const [showPopup, setShowPopup] = useState(false);
   const [isLockedIn, setIsLockedIn] = useState(false);
   const [showLockedOverlay, setShowLockedOverlay] = useState(false);
+  const [activeLobby, setActiveLobby] = useState<LobbyByUserResponse["lobby"] | null>(null);
   const totalCost = calculateDraftCost(draftTeam);
   const maxBudget = user?.currency ?? 250;
   const remainingBudget = maxBudget - totalCost;
@@ -137,6 +141,33 @@ export default function PlayerPick() {
       setDraftTeam(mapDeckToDraft(savedDeck, playerInfoMap));
     }
   }, [playerInfoMap, savedDeck]);
+
+  useEffect(() => {
+    if (!user) {
+      setActiveLobby(null);
+      setIsLockedIn(false);
+      return;
+    }
+    let canceled = false;
+    apiFetch<LobbyByUserResponse>(`/api/lobbies?userId=${user.id}`)
+      .then((payload) => {
+        if (canceled) return;
+        setActiveLobby(payload.lobby);
+        const ready =
+          payload.lobby?.players.find((player) => player.id === user.id)?.ready ??
+          false;
+        setIsLockedIn(ready);
+      })
+      .catch(() => {
+        if (!canceled) {
+          setActiveLobby(null);
+          setIsLockedIn(false);
+        }
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [user?.id]);
 
   const handleCircleClick = (role: RoleKey) => {
     if (isLockedIn) {
@@ -229,6 +260,23 @@ export default function PlayerPick() {
     }
     const success = await handleSubmitTeam();
     if (success) {
+      if (user) {
+        try {
+          const lobbyResponse = await apiFetch<LobbyByUserResponse>(
+            `/api/lobbies?userId=${user.id}`
+          );
+          if (lobbyResponse.lobby?.lobby.status === "started") {
+            await apiFetch(`/api/lobbies/${lobbyResponse.lobby.lobby.id}/ready`, {
+              method: "POST",
+              body: JSON.stringify({ userId: user.id, ready: true }),
+            });
+            setActiveLobby(lobbyResponse.lobby);
+            setIsLockedIn(true);
+          }
+        } catch {
+          /* ignore lobby ready failures */
+        }
+      }
       setIsLockedIn(true);
       setShowLockedOverlay(true);
       setTimeout(() => setShowLockedOverlay(false), 3000);
@@ -287,9 +335,31 @@ export default function PlayerPick() {
       )}
       </div>
       <div className="button-container">
-        <button className="btn return" onClick={() => window.history.back()}>
+        <button
+          className="btn return"
+          onClick={() => {
+            navigate("/");
+          }}
+        >
           <span>RETURN</span>
         </button>
+        {activeLobby && user && (
+          <button
+            className="btn return"
+            onClick={async () => {
+              try {
+                await apiFetch(`/api/lobbies/${activeLobby.lobby.id}/leave`, {
+                  method: "POST",
+                  body: JSON.stringify({ userId: user.id }),
+                });
+              } finally {
+                navigate("/");
+              }
+            }}
+          >
+            <span>LEAVE LOBBY</span>
+          </button>
+        )}
         <button
           className={`btn confirm ${isLockedIn ? "disabled" : ""}`}
           onClick={() => !isLockedIn && setShowPopup(true)}

@@ -36,6 +36,17 @@ import {
   isTournamentActiveForRegion,
   getPlayerProfileDetails,
   getPlayerMatchAppearances,
+  createLobby,
+  joinLobby,
+  leaveLobby,
+  getLobbyById,
+  getLobbyByUser,
+  updateLobbySettings,
+  startLobby,
+  setLobbyReady,
+  resetLobbyReady,
+  getLobbyLeaderboard,
+  getTournamentPlayerAggregates,
 } from "./db";
 import {
   addCardToDeck,
@@ -110,12 +121,31 @@ function parsePositiveIntQuery(value: unknown): number | undefined {
   return parsed;
 }
 
+function parsePositiveIntBody(value: unknown): number | null {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return null;
+  }
+  return parsed;
+}
+
 function parseBooleanQuery(value: unknown): boolean {
   const raw = coerceQueryString(value);
   if (!raw) {
     return false;
   }
   return raw === "1" || raw.toLowerCase() === "true";
+}
+
+function parseIdListQuery(value: unknown): number[] {
+  const raw = coerceQueryString(value);
+  if (!raw) {
+    return [];
+  }
+  return raw
+    .split(",")
+    .map((entry) => Number(entry.trim()))
+    .filter((parsed) => Number.isInteger(parsed) && parsed > 0);
 }
 
 function parseRegionIdParam(raw: string | undefined): number | null {
@@ -528,6 +558,324 @@ app.post("/api/login", authLimiter, (req, res) => {
     }
     console.error(error);
     res.status(500).json({ error: "LOGIN_FAILED" });
+  }
+});
+
+app.get("/api/lobbies/:lobbyId", (req, res) => {
+  const lobbyId = parsePositiveIntBody(req.params.lobbyId);
+  if (!lobbyId) {
+    return res.status(400).json({ error: "INVALID_LOBBY_ID" });
+  }
+  try {
+    const lobby = getLobbyById(lobbyId);
+    if (!lobby) {
+      return res.status(404).json({ error: "LOBBY_NOT_FOUND" });
+    }
+    res.json(lobby);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "LOBBY_FETCH_FAILED" });
+  }
+});
+
+app.get("/api/lobbies", (req, res) => {
+  const userId = parsePositiveIntQuery(req.query.userId);
+  if (req.query.userId !== undefined && !userId) {
+    return res.status(400).json({ error: "INVALID_USER_ID" });
+  }
+  if (!userId) {
+    return res.status(400).json({ error: "USER_ID_REQUIRED" });
+  }
+  try {
+    const lobby = getLobbyByUser(userId);
+    res.json({ lobby });
+  } catch (error) {
+    if (error instanceof Error && error.message === "USER_NOT_FOUND") {
+      return res.status(404).json({ error: "USER_NOT_FOUND" });
+    }
+    console.error(error);
+    res.status(500).json({ error: "LOBBY_FETCH_FAILED" });
+  }
+});
+
+app.post("/api/lobbies", (req, res) => {
+  const userId = parsePositiveIntBody(req.body?.userId);
+  if (!userId) {
+    return res.status(400).json({ error: "INVALID_USER_ID" });
+  }
+  const name = typeof req.body?.name === "string" ? req.body.name : undefined;
+  const password =
+    typeof req.body?.password === "string" ? req.body.password : undefined;
+  const entryFeeRaw = req.body?.entryFee;
+  const entryFeeParsed =
+    typeof entryFeeRaw === "number" ? entryFeeRaw : Number(entryFeeRaw);
+  const entryFee = Number.isFinite(entryFeeParsed) ? entryFeeParsed : undefined;
+  try {
+    const lobby = createLobby({
+      userId,
+      name,
+      password,
+      entryFee,
+    });
+    res.status(201).json(lobby);
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === "USER_NOT_FOUND") {
+        return res.status(404).json({ error: "USER_NOT_FOUND" });
+      }
+      if (error.message === "USER_ALREADY_IN_LOBBY") {
+        return res.status(409).json({ error: "USER_ALREADY_IN_LOBBY" });
+      }
+    }
+    console.error(error);
+    res.status(500).json({ error: "LOBBY_CREATE_FAILED" });
+  }
+});
+
+app.post("/api/lobbies/:lobbyId/join", (req, res) => {
+  const lobbyId = parsePositiveIntBody(req.params.lobbyId);
+  if (!lobbyId) {
+    return res.status(400).json({ error: "INVALID_LOBBY_ID" });
+  }
+  const userId = parsePositiveIntBody(req.body?.userId);
+  if (!userId) {
+    return res.status(400).json({ error: "INVALID_USER_ID" });
+  }
+  const password =
+    typeof req.body?.password === "string" ? req.body.password : undefined;
+  try {
+    const lobby = joinLobby({ lobbyId, userId, password });
+    res.json(lobby);
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === "LOBBY_NOT_FOUND") {
+        return res.status(404).json({ error: "LOBBY_NOT_FOUND" });
+      }
+      if (error.message === "INVALID_LOBBY_PASSWORD") {
+        return res.status(401).json({ error: "INVALID_LOBBY_PASSWORD" });
+      }
+      if (error.message === "USER_NOT_FOUND") {
+        return res.status(404).json({ error: "USER_NOT_FOUND" });
+      }
+      if (error.message === "USER_ALREADY_IN_LOBBY") {
+        return res.status(409).json({ error: "USER_ALREADY_IN_LOBBY" });
+      }
+      if (error.message === "LOBBY_ALREADY_STARTED") {
+        return res.status(409).json({ error: "LOBBY_ALREADY_STARTED" });
+      }
+    }
+    console.error(error);
+    res.status(500).json({ error: "LOBBY_JOIN_FAILED" });
+  }
+});
+
+app.post("/api/lobbies/:lobbyId/leave", (req, res) => {
+  const lobbyId = parsePositiveIntBody(req.params.lobbyId);
+  if (!lobbyId) {
+    return res.status(400).json({ error: "INVALID_LOBBY_ID" });
+  }
+  const userId = parsePositiveIntBody(req.body?.userId);
+  if (!userId) {
+    return res.status(400).json({ error: "INVALID_USER_ID" });
+  }
+  try {
+    const result = leaveLobby({ lobbyId, userId });
+    res.json(result);
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === "USER_NOT_FOUND") {
+        return res.status(404).json({ error: "USER_NOT_FOUND" });
+      }
+      if (error.message === "USER_NOT_IN_LOBBY") {
+        return res.status(409).json({ error: "USER_NOT_IN_LOBBY" });
+      }
+      if (error.message === "LOBBY_MISMATCH") {
+        return res.status(409).json({ error: "LOBBY_MISMATCH" });
+      }
+    }
+    console.error(error);
+    res.status(500).json({ error: "LOBBY_LEAVE_FAILED" });
+  }
+});
+
+app.get("/api/regions/:regionId/tournament/player-stats", (req, res) => {
+  const regionId = parseRegionIdParam(req.params.regionId);
+  if (!regionId) {
+    return res.status(400).json({ error: "INVALID_REGION_ID" });
+  }
+  const ids = parseIdListQuery(req.query.ids);
+  if (req.query.ids !== undefined && ids.length === 0) {
+    return res.status(400).json({ error: "INVALID_PLAYER_IDS" });
+  }
+  try {
+    const state = getTournamentState(regionId);
+    if (!state.tournament) {
+      return res.json({ players: [] });
+    }
+    const players = getTournamentPlayerAggregates(state.tournament.id, ids);
+    res.json({ tournamentId: state.tournament.id, players });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "TOURNAMENT_STATS_FAILED" });
+  }
+});
+
+app.post("/api/lobbies/:lobbyId/ready", (req, res) => {
+  const lobbyId = parsePositiveIntBody(req.params.lobbyId);
+  if (!lobbyId) {
+    return res.status(400).json({ error: "INVALID_LOBBY_ID" });
+  }
+  const userId = parsePositiveIntBody(req.body?.userId);
+  if (!userId) {
+    return res.status(400).json({ error: "INVALID_USER_ID" });
+  }
+  const readyFlag = req.body?.ready;
+  const ready = readyFlag !== false;
+  try {
+    const lobby = setLobbyReady({ lobbyId, userId, ready });
+    res.json(lobby);
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === "LOBBY_NOT_FOUND") {
+        return res.status(404).json({ error: "LOBBY_NOT_FOUND" });
+      }
+      if (error.message === "LOBBY_NOT_STARTED") {
+        return res.status(409).json({ error: "LOBBY_NOT_STARTED" });
+      }
+      if (error.message === "USER_NOT_FOUND") {
+        return res.status(404).json({ error: "USER_NOT_FOUND" });
+      }
+      if (error.message === "USER_NOT_IN_LOBBY") {
+        return res.status(409).json({ error: "USER_NOT_IN_LOBBY" });
+      }
+    }
+    console.error(error);
+    res.status(500).json({ error: "LOBBY_READY_FAILED" });
+  }
+});
+
+app.put("/api/lobbies/:lobbyId", (req, res) => {
+  const lobbyId = parsePositiveIntBody(req.params.lobbyId);
+  if (!lobbyId) {
+    return res.status(400).json({ error: "INVALID_LOBBY_ID" });
+  }
+  const userId = parsePositiveIntBody(req.body?.userId);
+  if (!userId) {
+    return res.status(400).json({ error: "INVALID_USER_ID" });
+  }
+  const name = typeof req.body?.name === "string" ? req.body.name : undefined;
+  const password =
+    typeof req.body?.password === "string" ? req.body.password : undefined;
+  const entryFeeRaw = req.body?.entryFee;
+  const entryFeeParsed =
+    typeof entryFeeRaw === "number" ? entryFeeRaw : Number(entryFeeRaw);
+  const entryFee = Number.isFinite(entryFeeParsed) ? entryFeeParsed : undefined;
+  try {
+    const lobby = updateLobbySettings({
+      lobbyId,
+      userId,
+      name,
+      password,
+      entryFee,
+    });
+    res.json(lobby);
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === "LOBBY_NOT_FOUND") {
+        return res.status(404).json({ error: "LOBBY_NOT_FOUND" });
+      }
+      if (error.message === "NOT_LOBBY_HOST") {
+        return res.status(403).json({ error: "NOT_LOBBY_HOST" });
+      }
+      if (error.message === "LOBBY_ALREADY_STARTED") {
+        return res.status(409).json({ error: "LOBBY_ALREADY_STARTED" });
+      }
+    }
+    console.error(error);
+    res.status(500).json({ error: "LOBBY_UPDATE_FAILED" });
+  }
+});
+
+app.post("/api/lobbies/:lobbyId/start", (req, res) => {
+  const lobbyId = parsePositiveIntBody(req.params.lobbyId);
+  if (!lobbyId) {
+    return res.status(400).json({ error: "INVALID_LOBBY_ID" });
+  }
+  const userId = parsePositiveIntBody(req.body?.userId);
+  if (!userId) {
+    return res.status(400).json({ error: "INVALID_USER_ID" });
+  }
+  try {
+    const lobby = startLobby({ lobbyId, userId });
+    res.json(lobby);
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === "LOBBY_NOT_FOUND") {
+        return res.status(404).json({ error: "LOBBY_NOT_FOUND" });
+      }
+      if (error.message === "NOT_LOBBY_HOST") {
+        return res.status(403).json({ error: "NOT_LOBBY_HOST" });
+      }
+    }
+    console.error(error);
+    res.status(500).json({ error: "LOBBY_START_FAILED" });
+  }
+});
+
+app.post("/api/lobbies/:lobbyId/simulate", (req, res) => {
+  const lobbyId = parsePositiveIntBody(req.params.lobbyId);
+  if (!lobbyId) {
+    return res.status(400).json({ error: "INVALID_LOBBY_ID" });
+  }
+  const userId = parsePositiveIntBody(req.body?.userId);
+  if (!userId) {
+    return res.status(400).json({ error: "INVALID_USER_ID" });
+  }
+  const lobby = getLobbyById(lobbyId);
+  if (!lobby) {
+    return res.status(404).json({ error: "LOBBY_NOT_FOUND" });
+  }
+  if (lobby.lobby.hostId !== userId) {
+    return res.status(403).json({ error: "NOT_LOBBY_HOST" });
+  }
+  if (lobby.lobby.status !== "started") {
+    return res.status(409).json({ error: "LOBBY_NOT_STARTED" });
+  }
+  if (!lobby.lobby.allReady) {
+    return res.status(409).json({ error: "NOT_ALL_READY" });
+  }
+  try {
+    const regionId = parsePositiveIntBody(req.body?.regionId) ?? Number(process.env.DEFAULT_REGION_ID ?? 1);
+    const game = new FootabalolGame();
+    game.setRegion(regionId);
+    const match = game.simulateMatch();
+    resetLobbyReady(lobbyId);
+    const updatedLobby = getLobbyById(lobbyId);
+    res.json({
+      match,
+      lobby: updatedLobby,
+      leaderboard: getLobbyLeaderboard(lobbyId),
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "LOBBY_SIMULATION_FAILED" });
+  }
+});
+
+app.get("/api/lobbies/:lobbyId/leaderboard", (req, res) => {
+  const lobbyId = parsePositiveIntBody(req.params.lobbyId);
+  if (!lobbyId) {
+    return res.status(400).json({ error: "INVALID_LOBBY_ID" });
+  }
+  try {
+    const lobby = getLobbyById(lobbyId);
+    if (!lobby) {
+      return res.status(404).json({ error: "LOBBY_NOT_FOUND" });
+    }
+    res.json({ leaderboard: getLobbyLeaderboard(lobbyId) });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "LOBBY_LEADERBOARD_FAILED" });
   }
 });
 

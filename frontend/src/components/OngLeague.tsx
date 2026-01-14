@@ -17,11 +17,9 @@ import type {
   DeckRole,
   DeckCard,
   DeckSummary,
-  MatchHistoryResponse,
-  MatchHistoryDetailResponse,
-  MatchPlayerHistoryEntry,
   LeaderboardResponse,
   LeaderboardEntry,
+  TournamentPlayerStatsResponse,
 } from "../api/types";
 import { useSession } from "../context/SessionContext";
 import { resolvePlayerImage } from "../utils/playerImages";
@@ -149,81 +147,48 @@ export default function OngLeaguePage({
 
   useEffect(() => {
     let canceled = false;
+    const playerIds = Object.values(deck)
+      .map((card) => card?.playerId)
+      .filter((id): id is number => typeof id === "number" && id > 0);
+    if (playerIds.length === 0) {
+      setLatestStats({ byName: new Map(), byId: new Map() });
+      setLatestProgress(null);
+      setLatestLobby(null);
+      return;
+    }
 
-    const loadLatestMatch = async () => {
-      try {
-        const history = await apiFetch<MatchHistoryResponse>(
-          "/api/matches/history?limit=1&page=1"
-        );
-        const series = history.series?.[0];
-        const latestGame =
-          series?.games?.[series.games.length - 1];
-        if (!latestGame) {
-          if (!canceled)
-            setLatestStats({ byName: new Map(), byId: new Map() });
-          setLatestProgress(null);
-          setLatestLobby(null);
-          return;
-        }
-        const detail = await apiFetch<MatchHistoryDetailResponse>(
-          `/api/matches/${latestGame.id}`
-        );
+    apiFetch<TournamentPlayerStatsResponse>(
+      `/api/regions/1/tournament/player-stats?ids=${playerIds.join(",")}`
+    )
+      .then((payload) => {
         if (canceled) return;
-        const byName = new Map<
-          string,
-          { kdA?: string; score?: number; isMvp?: boolean }
-        >();
         const byId = new Map<
           number,
           { kdA?: string; score?: number; isMvp?: boolean }
         >();
-        let top: MatchPlayerHistoryEntry | null = null;
-        for (const player of detail.players) {
-          if (
-            !top ||
-            (player.score ?? 0) > (top.score ?? 0)
-          ) {
-            top = player;
-          }
-        }
-        detail.players.forEach((player) => {
-          const key = player.name.trim().toLowerCase();
-          const stat = {
+        payload.players.forEach((player) => {
+          byId.set(player.playerId, {
             kdA: `${player.kills}/${player.deaths}/${player.assists}`,
-            score: player.score ?? 0,
-            isMvp: top ? player.id === top.id : false,
-          };
-          byName.set(key, stat);
-          if (typeof player.playerId === "number") {
-            byId.set(player.playerId, stat);
-          }
+            score: Math.round(player.score),
+            isMvp: false,
+          });
         });
-        setLatestStats({ byName, byId });
-        setLatestProgress({
-          played: series?.games.length ?? 0,
-          total: series?.bestOf ?? series?.games.length ?? 0,
-        });
-        setLatestLobby(
-          series?.roundName ??
-            series?.stage ??
-            `${series?.teamA.name ?? ""} vs ${
-              series?.teamB.name ?? ""
-            }`
-        );
-      } catch {
+        setLatestStats({ byName: new Map(), byId });
+        setLatestProgress(null);
+        setLatestLobby(null);
+      })
+      .catch(() => {
         if (!canceled) {
           setLatestStats({ byName: new Map(), byId: new Map() });
           setLatestProgress(null);
           setLatestLobby(null);
         }
-      }
-    };
+      });
 
-    loadLatestMatch();
     return () => {
       canceled = true;
     };
-  }, []);
+  }, [deck]);
 
   useEffect(() => {
     if (popupEvent) {

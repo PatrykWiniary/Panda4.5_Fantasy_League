@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import "../styles/LogReg.css";
 import homeIcon from "../assets/home.svg";
 import userIcon from "../assets/user.svg";
@@ -7,25 +7,50 @@ import { apiFetch, ApiError } from "../api/client";
 import type {
   LeaderboardResponse,
   LeaderboardEntry,
+  LobbyLeaderboardResponse,
   TournamentControlState,
 } from "../api/types";
 import { useSession } from "../context/SessionContext";
 
 export default function LeaderboardPage() {
+  const location = useLocation();
   const { user } = useSession();
   const [data, setData] = useState<LeaderboardResponse | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [tournamentState, setTournamentState] =
     useState<TournamentControlState | null>(null);
+  const lobbyId = (() => {
+    const params = new URLSearchParams(location.search);
+    const raw = params.get("lobbyId");
+    if (!raw) return null;
+    const parsed = Number(raw);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  })();
 
   useEffect(() => {
     let canceled = false;
-    setStatus("Loading leaderboard...");
+    setStatus(lobbyId ? "Loading lobby leaderboard..." : "Loading leaderboard...");
     const query = user ? `?userId=${user.id}` : "";
-    apiFetch<LeaderboardResponse>(`/api/users/leaderboard${query}`)
+    const request = lobbyId
+      ? apiFetch<LobbyLeaderboardResponse>(`/api/lobbies/${lobbyId}/leaderboard`)
+      : apiFetch<LeaderboardResponse>(`/api/users/leaderboard${query}`);
+    request
       .then((payload) => {
         if (canceled) return;
-        setData(payload);
+        if (lobbyId) {
+          const leaderboard = (payload as LobbyLeaderboardResponse).leaderboard;
+          const userEntry = user
+            ? leaderboard.find((entry) => entry.id === user.id) ?? null
+            : null;
+          setData({
+            top: leaderboard,
+            totalUsers: leaderboard.length,
+            userEntry,
+            userInTop: userEntry ? leaderboard.some((entry) => entry.id === userEntry.id) : false,
+          });
+        } else {
+          setData(payload as LeaderboardResponse);
+        }
         setStatus(null);
       })
       .catch((error) => {
@@ -40,7 +65,7 @@ export default function LeaderboardPage() {
     return () => {
       canceled = true;
     };
-  }, [user?.id]);
+  }, [user?.id, lobbyId]);
 
   useEffect(() => {
     apiFetch<TournamentControlState>(`/api/regions/1/tournament`)
@@ -83,7 +108,9 @@ export default function LeaderboardPage() {
       <div className="leaderboard-card">
         <h1 className="login-title login-title--main">Leaderboard</h1>
         <p className="leaderboard-subtitle">
-          Top managers by score ({data?.totalUsers ?? 0} players tracked)
+          {lobbyId
+            ? `Lobby ranking (${data?.totalUsers ?? 0} players)`
+            : `Top managers by score (${data?.totalUsers ?? 0} players tracked)`}
         </p>
 
         {status && <p className="form-status">{status}</p>}

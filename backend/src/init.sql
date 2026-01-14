@@ -15,6 +15,7 @@ CREATE TABLE
     score NUMBER NOT NULL DEFAULT 0,
     avatar TEXT,
     lobby_id NUMBER,
+    lobby_ready INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (lobby_id) REFERENCES lobby (id) ON DELETE CASCADE
   );
 
@@ -212,9 +213,15 @@ CREATE TABLE IF NOT EXISTS match_history_players (
 );
 
 CREATE TABLE IF NOT EXISTS lobby (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  password TEXT,
-  betValue INTEGER,
-  winner_id INTEGER,
-  FOREIGN KEY (winner_id) REFERENCES players (id) ON DELETE CASCADE
-)
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    password TEXT,
+    entry_fee INTEGER NOT NULL DEFAULT 0,
+    betValue INTEGER,
+    winner_id INTEGER,
+    host_id INTEGER,
+    status TEXT NOT NULL DEFAULT 'waiting',
+    started_at TEXT,
+    FOREIGN KEY (winner_id) REFERENCES players (id) ON DELETE CASCADE,
+    FOREIGN KEY (host_id) REFERENCES users (id) ON DELETE SET NULL
+  )
