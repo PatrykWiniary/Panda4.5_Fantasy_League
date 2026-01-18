@@ -63,8 +63,9 @@
 .banner-slot[data-slot="5"] { left: 91%; top: 40%; }
 
 .banner-slot[data-slot="3"] .slot-content .host .avatar-img{
-    width: 168px ;
-    height: 168px ;
+    width: 100px ;
+    height: 100px ;
+    border: 3px solid rgba(255, 198, 76, 0.558);
 }
 .avatar-wrap {
     display: flex;
@@ -73,8 +74,8 @@
 }
 
 .avatar-img {
-  width: 128px;
-  height: 128px;
+  width: 100px;
+  height: 100px;
   border-radius: 50%;
 }
 
@@ -135,12 +136,17 @@
 .slot-name{
     text-align: center;
     font-size: 1.2vw;
+    letter-spacing: 2px;
+    background: -webkit-linear-gradient(#C9AC6D, #362c17);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  z-index: 10000;
 }
 .dots-wrap{
-    width: 128px;
-    height: 128px;
+    width: 100px;
+    height: 100px;
     border-radius: 50%;
-    border: 3px solid rgba(0,0,0,0.45);
+    border: 3px solid rgba(255, 220, 105, 0.122);
     background: rgba(0,0,0,0.35);
     display: flex;
     align-items: center;
@@ -269,7 +275,7 @@ input[type=number] {
     border-bottom-right-radius: 20%;
 }
 .total-prize {
-  font-size: 64px;
+  font-size: 32px;
   font-weight: 800;
   letter-spacing: 2px;
   background: -webkit-linear-gradient(#C9AC6D, #362c17);

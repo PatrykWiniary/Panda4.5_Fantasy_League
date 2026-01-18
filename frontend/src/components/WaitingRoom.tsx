@@ -191,21 +191,34 @@ export default function WaitingRoomPage() {
   const entryFee = lobby?.lobby.entryFee ?? 0;
   const totalPrize = entryFee * players.length;
 
+  const playersRaw = lobby?.players ?? [];
+  const hostId = lobby?.lobby.hostId;
+
+  const playersOrdered = (() => {
+    if (!hostId) return playersRaw;
+    const host = playersRaw.find(p => p.id === hostId) ?? playersRaw.find(p => p.isHost);
+    const rest = playersRaw.filter(p => p !== host);
+    return host ? [host, ...rest] : playersRaw;
+  })();
+
+  const slotOrder = [3, 1, 2, 4, 5]; // idx 0 -> slot 3, idx 1 -> slot 1, itd.
+
+
   return (
     <div className="waiting-room-root">
       <img src={bg} alt="background" className="wr-background" />
 
       <div className="banner-strip" style={{ backgroundImage: `url(${banners})` }}>
         <div className="banner-slots">
-          {[...Array(maxPlayers)].map((_, idx) => {
-            const player = players[idx];
+          {slotOrder.map((slotNumber, idx) => {
+            const player = playersOrdered[idx];
             const avatarSrc = player ? resolveProfileAvatar(player.avatar) : "";
 
             return (
-              <div className="banner-slot" key={idx} data-slot={idx + 1}>
+              <div className="banner-slot" key={slotNumber} data-slot={slotNumber}>
                 {player ? (
                   <div className="slot-content">
-                    <div className={`avatar-wrap ${player.isHost ? "host" : ""}`}>
+                    <div className={`avatar-wrap ${player.id === hostId ? "host" : ""}`}>
                       <img src={avatarSrc} alt={player.name} className="avatar-img" />
                     </div>
                     <div className="slot-name">{player.name}</div>
@@ -224,9 +237,11 @@ export default function WaitingRoomPage() {
           })}
         </div>
       </div>
-      <div className="total-prize-container">
-        <div className="total-prize">TOTAL PRIZE: {totalPrize}$</div>
-      </div>
+      {!showSettings && (
+        <div className="total-prize-container">
+          <div className="total-prize">TOTAL PRIZE: {totalPrize}$</div>
+        </div>
+      )}
       <div className="button-containerwr">
         <button className="btnwr" onClick={handleLeaveLobby}>
           <span>RETURN</span>
