@@ -81,12 +81,12 @@ export default function JoinNewLeaguePage() {
         />
         <input
           type="password"
+          autoComplete="new-password"
           placeholder="PASSWORD (OPTIONAL)"
           className="login-input"
           value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          onChange={(e) => setPassword(e.target.value)}
         />
-
         <div className="login-actions">
           <button className="login-button" disabled={submitting}>
             {submitting ? "Joining..." : "JOIN LOBBY"}
