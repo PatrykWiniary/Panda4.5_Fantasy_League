@@ -301,11 +301,13 @@ export default function OngLeaguePage({
       <div className="league-layout">
         <div className="league-left">
           <div className="league-avatar-wrapper">
+            <Link to="/profile">
             <img
               src={playerAvatar}
               alt={user ? `${user.name} avatar` : "Avatar"}
               className="league-avatar"
             />
+            </Link>
           </div>
           <h2 className="league-player-name gradient-text"> 
             {user ? user.name : "Unassigned"}
