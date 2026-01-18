@@ -13,7 +13,7 @@ export default function CreateNewLeaguePage() {
   const { user, setUser } = useSession();
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
-  const [entryFee, setEntryFee] = useState("0");
+  const [entryFee, setEntryFee] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -85,10 +85,11 @@ export default function CreateNewLeaguePage() {
         />
         <input
           type="password"
+          autoComplete="new-password"
           placeholder="PASSWORD (OPTIONAL)"
           className="login-input"
           value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          onChange={(e) => setPassword(e.target.value)}
         />
         <input
           type="number"
