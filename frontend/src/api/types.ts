@@ -48,6 +48,7 @@ export type ApiUser = {
   currency: number;
   score?: number;
   avatar?: string | null;
+  tutorialSeen?: boolean;
 };
 
 export type LobbySummary = {
@@ -63,6 +64,15 @@ export type LobbySummary = {
   allReady: boolean;
 };
 
+export type LobbyListEntry = {
+  id: number;
+  name: string;
+  entryFee: number;
+  playerCount: number;
+  passwordProtected: boolean;
+  status: "waiting" | "started";
+};
+
 export type LobbyPlayer = {
   id: number;
   name: string;
@@ -76,6 +86,10 @@ export type LobbyResponse = {
   players: LobbyPlayer[];
 };
 
+export type LobbyListResponse = {
+  lobbies: LobbyListEntry[];
+};
+
 export type LobbyByUserResponse = {
   lobby: LobbyResponse | null;
 };
@@ -85,6 +99,7 @@ export type LeaderboardEntry = {
   name: string;
   score: number;
   currency: number;
+  passiveGold: number;
   position: number;
 };
 
@@ -274,6 +289,7 @@ export type MarketSellResponse = {
 export type TransferStateResponse = {
   tournamentId?: number | null;
   stage?: string | null;
+  currency: number;
   windowOpen: boolean;
   windowLabel: string;
   transferLimit?: number | null;

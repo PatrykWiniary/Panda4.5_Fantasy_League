@@ -18,6 +18,7 @@ export default function WaitingRoomPage() {
   const [tempSettings, setTempSettings] = useState({
     id: "",
     password: "",
+    clearPassword: false,
     entryFee: 0,
     lobbyName: "",
   });
@@ -75,6 +76,7 @@ export default function WaitingRoomPage() {
     setTempSettings({
       id: String(lobby.lobby.id),
       password: "",
+      clearPassword: false,
       entryFee: lobby.lobby.entryFee ?? 0,
       lobbyName: lobby.lobby.name ?? "",
     });
@@ -88,16 +90,26 @@ export default function WaitingRoomPage() {
   const saveSettings = async () => {
     if (!lobby || !user) return;
     try {
+      const payload: {
+        userId: number;
+        name: string;
+        entryFee: number;
+        password?: string;
+      } = {
+        userId: user.id,
+        name: tempSettings.lobbyName,
+        entryFee: tempSettings.entryFee,
+      };
+      if (tempSettings.clearPassword) {
+        payload.password = "";
+      } else if (tempSettings.password.trim().length > 0) {
+        payload.password = tempSettings.password;
+      }
       const updated = await apiFetch<LobbyResponse>(
         `/api/lobbies/${lobby.lobby.id}`,
         {
           method: "PUT",
-          body: JSON.stringify({
-            userId: user.id,
-            name: tempSettings.lobbyName,
-            password: tempSettings.password,
-            entryFee: tempSettings.entryFee,
-          }),
+          body: JSON.stringify(payload),
         }
       );
       setLobby(updated);
@@ -193,6 +205,11 @@ export default function WaitingRoomPage() {
 
   const playersRaw = lobby?.players ?? [];
   const hostId = lobby?.lobby.hostId;
+  const passwordProtectedPreview = tempSettings.clearPassword
+    ? false
+    : tempSettings.password.trim().length > 0
+      ? true
+      : lobby?.lobby.passwordProtected ?? false;
 
   const playersOrdered = (() => {
     if (!hostId) return playersRaw;
@@ -281,6 +298,7 @@ export default function WaitingRoomPage() {
               <label>ID</label>
               <div className="settings-row">
                 <input
+                  type="text"
                   value={tempSettings.id}
                   readOnly
                   onChange={(e) =>
@@ -296,10 +314,34 @@ export default function WaitingRoomPage() {
                 <input
                   value={tempSettings.password}
                   type="password"
+                  placeholder={
+                    passwordProtectedPreview
+                      ? "Password set (enter to change)"
+                      : "Set new password"
+                  }
                   onChange={(e) =>
-                    setTempSettings({ ...tempSettings, password: e.target.value })
+                    setTempSettings({
+                      ...tempSettings,
+                      password: e.target.value,
+                      clearPassword: false,
+                    })
                   }
                 />
+              </div>
+              <div className="settings-row">
+                <button
+                  type="button"
+                  className="settings-btn clear-password-btn"
+                  onClick={() =>
+                    setTempSettings({
+                      ...tempSettings,
+                      clearPassword: true,
+                      password: "",
+                    })
+                  }
+                >
+                  CLEAR PASSWORD
+                </button>
               </div>
             </div>
 
@@ -324,6 +366,7 @@ export default function WaitingRoomPage() {
               <label>LOBBY'S NAME</label>
               <div className="settings-row">
                 <input
+                  type="text"
                   value={tempSettings.lobbyName}
                   onChange={(e) =>
                     setTempSettings({ ...tempSettings, lobbyName: e.target.value })

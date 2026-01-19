@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "../styles/LogReg.css";
 import homeIcon from "../assets/home.svg";
 import userIcon from "../assets/user.svg";
 import { apiFetch, ApiError } from "../api/client";
-import type { LobbyResponse } from "../api/types";
+import type { LobbyListEntry, LobbyListResponse, LobbyResponse } from "../api/types";
 import { useSession } from "../context/SessionContext";
 
 export default function JoinNewLeaguePage() {
@@ -15,6 +15,9 @@ export default function JoinNewLeaguePage() {
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [search, setSearch] = useState("");
+  const [lobbies, setLobbies] = useState<LobbyListEntry[]>([]);
+  const [loadingList, setLoadingList] = useState(false);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -56,6 +59,35 @@ export default function JoinNewLeaguePage() {
     }
   };
 
+  useEffect(() => {
+    let canceled = false;
+    setLoadingList(true);
+    const timer = window.setTimeout(() => {
+      apiFetch<LobbyListResponse>(
+        `/api/lobbies/list?openOnly=1${search.trim().length > 0 ? `&q=${encodeURIComponent(search.trim())}` : ""}`
+      )
+        .then((payload) => {
+          if (!canceled) {
+            setLobbies(payload.lobbies);
+          }
+        })
+        .catch(() => {
+          if (!canceled) {
+            setLobbies([]);
+          }
+        })
+        .finally(() => {
+          if (!canceled) {
+            setLoadingList(false);
+          }
+        });
+    }, 250);
+    return () => {
+      canceled = true;
+      window.clearTimeout(timer);
+    };
+  }, [search]);
+
   return (
     <div className="login-container">
       <div className="page-icons">
@@ -95,6 +127,51 @@ export default function JoinNewLeaguePage() {
 
         {status && <p className="form-status">{status}</p>}
       </form>
+
+      <div className="lobby-list">
+        <h2 className="login-title login-title--sub">LOBBY LIST</h2>
+        <input
+          type="text"
+          placeholder="SEARCH BY NAME"
+          className="login-input lobby-search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+        {loadingList ? (
+          <p className="form-status">Loading lobbies...</p>
+        ) : lobbies.length === 0 ? (
+          <p className="form-status">No lobbies found.</p>
+        ) : (
+          <div className="lobby-list-items">
+            {lobbies.map((entry) => (
+              <button
+                type="button"
+                key={entry.id}
+                className="lobby-list-item"
+                onClick={() => {
+                  setLobbyId(String(entry.id));
+                  setPassword("");
+                }}
+              >
+                <div className="lobby-list-main">
+                  <span className="lobby-list-name">{entry.name}</span>
+                  <span className="lobby-list-id">#{entry.id}</span>
+                </div>
+                <div className="lobby-list-meta">
+                  <span>{entry.playerCount}/5 players</span>
+                  <span>Entry: {entry.entryFee}</span>
+                  <span className={entry.passwordProtected ? "locked" : "open"}>
+                    {entry.passwordProtected ? "LOCKED" : "OPEN"}
+                  </span>
+                  <span className={entry.status === "started" ? "started" : "waiting"}>
+                    {entry.status === "started" ? "STARTED" : "WAITING"}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

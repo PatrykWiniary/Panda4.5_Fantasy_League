@@ -16,6 +16,7 @@ import {
   getUserCurrency,
   simulateData,
   addUserScore,
+  addUserTournamentScore,
   getLeaderboardTop,
   getUserRankingEntry,
   getUsersCount,
@@ -35,6 +36,7 @@ import {
   consumeBoostByIdIfApplied,
   getUserCollection,
   updateUserAvatar,
+  updateUserTutorialSeen,
   getRecentMatchHistory,
   getMatchHistoryCount,
   getMatchHistoryById,
@@ -51,6 +53,7 @@ import {
   leaveLobby,
   getLobbyById,
   getLobbyByUser,
+  listLobbies,
   updateLobbySettings,
   startLobby,
   setLobbyReady,
@@ -203,6 +206,7 @@ app.get("/api/users", (req, res) => {
 });
 
 app.get("/api/users/leaderboard", (req, res) => {
+  const mode = req.query.mode === "tournament" ? "tournament" : "global";
   const rawUserId = Array.isArray(req.query.userId)
     ? req.query.userId[0]
     : req.query.userId;
@@ -216,14 +220,14 @@ app.get("/api/users/leaderboard", (req, res) => {
     userId = parsed;
   }
 
-  const top = getLeaderboardTop(10);
+  const top = getLeaderboardTop(10, mode);
   const totalUsers = getUsersCount();
 
   let userEntry = null;
   let userInTop = false;
 
   if (userId !== undefined) {
-    const entry = getUserRankingEntry(userId);
+    const entry = getUserRankingEntry(userId, mode);
     if (!entry) {
       return res.status(404).json({ error: "USER_NOT_FOUND" });
     }
@@ -612,6 +616,18 @@ app.post("/api/login", authLimiter, (req, res) => {
   }
 });
 
+app.get("/api/lobbies/list", (req, res) => {
+  const query = typeof req.query.q === "string" ? req.query.q : undefined;
+  const openOnly = req.query.openOnly === "1" || req.query.openOnly === "true";
+  try {
+    const lobbies = listLobbies(query, { openOnly });
+    res.json({ lobbies });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "LOBBY_LIST_FAILED" });
+  }
+});
+
 app.get("/api/lobbies/:lobbyId", (req, res) => {
   const lobbyId = parsePositiveIntBody(req.params.lobbyId);
   if (!lobbyId) {
@@ -955,6 +971,24 @@ app.post("/api/users/:userId/avatar", (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "AVATAR_UPDATE_FAILED" });
+  }
+});
+
+app.patch("/api/users/:userId/tutorial", (req, res) => {
+  const userId = Number(req.params.userId);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(400).json({ error: "INVALID_USER_ID" });
+  }
+  const seen = Boolean(req.body?.seen);
+  try {
+    const updated = updateUserTutorialSeen(userId, seen);
+    if (!updated) {
+      return res.status(404).json({ error: "USER_NOT_FOUND" });
+    }
+    res.json(updated);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "USER_TUTORIAL_UPDATE_FAILED" });
   }
 });
 
@@ -1555,6 +1589,13 @@ app.post("/api/tournaments/simulate", (req, res) => {
 
     const awardedPoints = Math.max(userDeckScoreEntry.score, 0);
     const updatedScore = addUserScore(userId, awardedPoints);
+    allDeckScores.forEach((entry) => {
+      try {
+        addUserTournamentScore(entry.userId, Math.max(entry.score, 0));
+      } catch (error) {
+        console.warn("Failed to update tournament score", entry.userId, error);
+      }
+    });
 
     let persistedDeck = userDeckScoreEntry.deck;
     try {

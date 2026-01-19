@@ -57,6 +57,7 @@ export interface User {
   currency: number;
   score?: number;
   avatar?: string | null;
+  tutorialSeen?: boolean;
 }
 
 export interface Region {

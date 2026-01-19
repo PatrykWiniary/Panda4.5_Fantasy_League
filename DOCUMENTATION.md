@@ -102,6 +102,11 @@ Ponizej zebrane sa najwazniejsze przeliczniki i miejsca, w ktorych sa uzywane:
   - `totalScore = round(baseScore * multiplier * boostMultiplier)` dla kazdego slota, suma po rolach trafia do `users.score`.
 - **Punkty turniejowe w OngLeague** - z `/api/regions/:regionId/tournament/player-stats`:
   - `score` = suma `match_history_players.score` z aktywnego turnieju.
+- **Leaderboard turniejowy (users.tournament_score)**:
+  - `tournament_score` zeruje sie po starcie nowego turnieju.
+  - Zakladka **Lobby** bazuje na `tournament_score` filtrowanym po lobby.
+- **Leaderboard world (users.score)**:
+  - Pokazuje laczny wynik konta (suma punktow z turniejow w czasie zycia konta).
 - **Wartosc karty (marketValue)**:
   - `recentScores` = ostatnie N wynikow meczu danego gracza (N = `MARKET_TREND_WINDOW`, max 10).
   - `avgScore = srednia(recentScores)` -> `calculateMarketValueFromScore(avgScore)`.
@@ -151,7 +156,7 @@ Najwazniejsze sciezki serwera (wszystkie zaczynaja sie od `/api`):
 | `GET` | `/boosts?userId=123` | Lista dostepnych boostow (match/tournament) i przypisanych zawodnikow.
 | `POST` | `/boosts/assign` | Przypisuje boost do zawodnika (body: `userId`, `boostType`, `playerId`).
 | `POST` | `/tournaments/simulate` | Uruchamia symulacje turnieju dla wskazanego uzytkownika, nalicza punkty na podstawie wybranych kart i aktualizuje `users.score`.
-| `GET` | `/users/leaderboard?userId=123` | Zwraca TOP 10 menedzerow, laczna liczbe uzytkownikow oraz (opcjonalnie) pozycje konkretnej osoby (globalny ranking).
+| `GET` | `/users/leaderboard?userId=123&mode=tournament` | Zwraca TOP 10 menedzerow dla trybu `global` lub `tournament` (domyslnie global) oraz (opcjonalnie) pozycje konkretnej osoby.
 | `POST` | `/users/:userId/avatar` | Aktualizuje avatar uzytkownika po stronie backendu (nowa wartosc laduje w kolumnie `users.avatar`).
 | `GET` | `/lobbies?userId=123` | Zwraca aktywne lobby uzytkownika lub `null`, gdy nie jest w zadnym lobby.
 | `GET` | `/lobbies/:lobbyId` | Zwraca dane lobby oraz liste graczy.
@@ -299,7 +304,7 @@ Wynik calkowity to `round(score * multiplier)` (zaokraglenie do najblizszej licz
 - Wybor jest zapisywany w backendzie (`POST /api/users/:id/avatar`), a avatar uzytkownika wyswietla sie m.in. na stronie profilu, w panelu OngLeague oraz w tabeli leaderboardu(TODO maybe).
 
 ### Leaderboard i historia meczow
-- Strona `/leaderboard` (`LeaderboardPage.tsx`) pobiera `GET /api/lobbies/:lobbyId/leaderboard` i wyswietla ranking tylko dla aktualnego lobby. Gdy uzytkownik nie ma lobby, widoczny jest komunikat zamiast tabeli.
+- Strona `/leaderboard` ma zakladki **Lobby** i **World**. Lobby pobiera `GET /api/lobbies/:lobbyId/leaderboard`, World pobiera `GET /api/users/leaderboard?mode=tournament`. Obie zakladki bazuja na `users.tournament_score`.
 - Strona `/matches` (`MatchHistoryPage.tsx`) prezentuje logi meczowe. Tabela wyswietla po 15 rekordow na strone, a nawigacja Prev/Next dziala analogicznie do avatarow. Przycisk "Simulate New Match" wywoluje `POST /api/matches/simulate`, a "Refresh" ponownie pobiera liste (`GET /api/matches/history?...`).
 - Klikniecie wiersza meczu pobiera `GET /api/matches/:id` i rozwija szczegoly (rola, K/D/A, CS, zloto, wynik) zapisane w tabeli `match_history_players`.
 - Dodatkowy przycisk "Clear History" korzysta z `DELETE /api/matches/history` i zeruje zawartosc tabeli.

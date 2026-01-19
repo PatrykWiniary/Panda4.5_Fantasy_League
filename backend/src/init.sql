@@ -14,6 +14,7 @@ CREATE TABLE
     currency NUMBER NOT NULL,
     score NUMBER NOT NULL DEFAULT 0,
     avatar TEXT,
+    tutorial_seen INTEGER NOT NULL DEFAULT 0,
     lobby_id NUMBER,
     lobby_ready INTEGER NOT NULL DEFAULT 0,
     transfer_count INTEGER NOT NULL DEFAULT 0,

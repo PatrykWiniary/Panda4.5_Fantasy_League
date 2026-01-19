@@ -5,11 +5,11 @@ import "../styles/HomePage.css";
 import homeIcon from "../assets/home.svg";
 import userIcon from "../assets/user.svg";
 import { apiFetch } from "../api/client";
-import type { LobbyByUserResponse } from "../api/types";
+import type { ApiUser, LobbyByUserResponse } from "../api/types";
 import { useSession } from "../context/SessionContext";
 
 export default function HomePage() {
-  const { user } = useSession();
+  const { user, setUser } = useSession();
   const [fadeOut, setFadeOut] = useState(false);
   const [activeLobby, setActiveLobby] = useState<LobbyByUserResponse["lobby"] | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -72,15 +72,28 @@ export default function HomePage() {
   }, [user]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (user && !user.tutorialSeen) {
+      setShowOnboarding(true);
+      setOnboardingStep(0);
       return;
     }
-    const key = "fantasy-league.onboarding.v1";
-    const seen = window.localStorage.getItem(key);
-    if (!seen) {
-      setShowOnboarding(true);
+    setShowOnboarding(false);
+  }, [user?.id, user?.tutorialSeen]);
+
+  const markTutorialSeen = async () => {
+    if (!user) {
+      return;
     }
-  }, []);
+    try {
+      const updated = await apiFetch<ApiUser>(`/api/users/${user.id}/tutorial`, {
+        method: "PATCH",
+        body: JSON.stringify({ seen: true }),
+      });
+      setUser({ ...user, ...updated });
+    } catch {
+      setUser({ ...user, tutorialSeen: true });
+    }
+  };
 
   return (
     <div className={`homepage ${fadeOut ? "fade-out" : "fade-in"}`}>
@@ -185,7 +198,7 @@ export default function HomePage() {
                 className="homepage-button outline"
                 onClick={() => {
                   setShowOnboarding(false);
-                  window.localStorage.setItem("fantasy-league.onboarding.v1", "1");
+                  void markTutorialSeen();
                 }}
               >
                 Skip
@@ -205,10 +218,7 @@ export default function HomePage() {
                   onClick={() => {
                     if (onboardingStep === onboardingSteps.length - 1) {
                       setShowOnboarding(false);
-                      window.localStorage.setItem(
-                        "fantasy-league.onboarding.v1",
-                        "1"
-                      );
+                      void markTutorialSeen();
                     } else {
                       setOnboardingStep((prev) => prev + 1);
                     }

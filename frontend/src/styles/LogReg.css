@@ -194,6 +194,89 @@ body {
   color: #ff8f8f;
 }
 
+.lobby-list {
+  width: 100%;
+  max-width: 700px;
+  margin-top: 2rem;
+  padding: 0 2rem 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.lobby-search {
+  max-width: 100%;
+}
+
+.lobby-list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.lobby-list-item {
+  width: 100%;
+  border-radius: 18px;
+  border: 1px solid var(--accent-dark);
+  background: rgba(15, 15, 15, 0.7);
+  color: var(--accent);
+  padding: 0.9rem 1.2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.2s ease;
+}
+
+.lobby-list-item:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6);
+}
+
+.lobby-list-main {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.lobby-list-name {
+  font-size: 1.2rem;
+}
+
+.lobby-list-id {
+  font-size: 1rem;
+  color: #e0c878;
+}
+
+.lobby-list-meta {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  color: #d8c9a0;
+}
+
+.lobby-list-meta .locked {
+  color: #ffb3b3;
+}
+
+.lobby-list-meta .open {
+  color: #9af0a0;
+}
+
+.lobby-list-meta .started {
+  color: #f3c694;
+}
+
+.lobby-list-meta .waiting {
+  color: #c9ac6d;
+}
+
 .profile-hint {
   margin-top: 1.5rem;
   font-size: 1rem;
@@ -485,6 +568,27 @@ body {
 
 .leaderboard-cta:hover {
   background: rgba(201, 172, 109, 0.2);
+}
+
+.leaderboard-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.leaderboard-tabs button {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(201, 172, 109, 0.4);
+  color: #f6e3b1;
+  padding: 8px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.leaderboard-tabs button.active {
+  background: rgba(201, 172, 109, 0.2);
+  border-color: rgba(201, 172, 109, 0.8);
 }
 
 .market-impact {

@@ -11,6 +11,7 @@ import type {
   MarketPlayersResponse,
   DeckRole,
   DeckResponse,
+  LeaderboardResponse,
   TransferHistoryResponse,
   TransferStateResponse,
 } from "../api/types";
@@ -62,6 +63,9 @@ export default function MarketPage() {
     setTransferState(transferPayload);
     setHistory(historyPayload);
     setCollection(collectionPayload);
+    if (user && transferPayload.currency !== user.currency) {
+      setUser({ ...user, currency: transferPayload.currency });
+    }
   };
 
   useEffect(() => {
@@ -75,6 +79,9 @@ export default function MarketPage() {
       user
         ? apiFetch<DeckResponse>(`/api/decks/${user.id}`).catch(() => null)
         : Promise.resolve(null),
+      user
+        ? apiFetch<LeaderboardResponse>(`/api/users/leaderboard?userId=${user.id}&mode=global`).catch(() => null)
+        : Promise.resolve(null),
     ])
       .then(
         ([
@@ -83,6 +90,7 @@ export default function MarketPage() {
           historyPayload,
           collectionPayload,
           deckPayload,
+          leaderboardPayload,
         ]) => {
         if (canceled) return;
         setMarket(marketPayload);
@@ -90,6 +98,13 @@ export default function MarketPage() {
         setHistory(historyPayload);
         setCollection(collectionPayload);
         setDeck(deckPayload?.deck ?? null);
+        if (user && transferPayload && transferPayload.currency !== user.currency) {
+          setUser({ ...user, currency: transferPayload.currency });
+        }
+        const userEntry = leaderboardPayload?.userEntry ?? null;
+        if (user && userEntry && user.currency !== userEntry.currency) {
+          setUser({ ...user, currency: userEntry.currency });
+        }
       })
       .catch(() => {
         if (!canceled) {
@@ -153,7 +168,7 @@ export default function MarketPage() {
     [collection]
   );
 
-  const wallet = user?.currency ?? 0;
+  const wallet = transferState?.currency ?? user?.currency ?? 0;
   const transferFee = transferState?.transferFeePerCard ?? 0;
   const missingRoles = useMemo(() => {
     if (!collection) {
@@ -295,7 +310,7 @@ export default function MarketPage() {
         <h1>Market & Transfers</h1>
         <p>Track prices, trends, and manage your transfers between stages.</p>
         {user ? (
-          <p className="market-wallet">Wallet: {user.currency}</p>
+          <p className="market-wallet">Wallet: {wallet}</p>
         ) : (
           <p className="market-wallet">Sign in to see your wallet.</p>
         )}

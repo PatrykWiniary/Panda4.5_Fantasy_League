@@ -164,6 +164,12 @@ function migrateUsersTable() {
   }
 
   const hasScoreColumn = columns.some((column) => column.name === "score");
+  const hasTournamentScoreColumn = columns.some(
+    (column) => column.name === "tournament_score"
+  );
+  const hasLobbyScoreColumn = columns.some(
+    (column) => column.name === "lobby_score"
+  );
   const hasAvatarColumn = columns.some((column) => column.name === "avatar");
   const hasLobbyReadyColumn = columns.some((column) => column.name === "lobby_ready");
   const hasTransferCountColumn = columns.some(
@@ -172,10 +178,25 @@ function migrateUsersTable() {
   const hasTransferTournamentColumn = columns.some(
     (column) => column.name === "transfer_tournament_id"
   );
+  const hasTutorialSeenColumn = columns.some(
+    (column) => column.name === "tutorial_seen"
+  );
 
   if (!hasScoreColumn) {
     db.prepare(
       "ALTER TABLE users ADD COLUMN score NUMBER NOT NULL DEFAULT 0"
+    ).run();
+  }
+
+  if (!hasTournamentScoreColumn) {
+    db.prepare(
+      "ALTER TABLE users ADD COLUMN tournament_score NUMBER NOT NULL DEFAULT 0"
+    ).run();
+  }
+
+  if (!hasLobbyScoreColumn) {
+    db.prepare(
+      "ALTER TABLE users ADD COLUMN lobby_score NUMBER NOT NULL DEFAULT 0"
     ).run();
   }
 
@@ -197,6 +218,12 @@ function migrateUsersTable() {
 
   if (!hasTransferTournamentColumn) {
     db.prepare("ALTER TABLE users ADD COLUMN transfer_tournament_id INTEGER").run();
+  }
+
+  if (!hasTutorialSeenColumn) {
+    db.prepare(
+      "ALTER TABLE users ADD COLUMN tutorial_seen INTEGER NOT NULL DEFAULT 0"
+    ).run();
   }
 }
 
@@ -728,9 +755,18 @@ type DbUserRow = {
   currency: number;
   score: number;
   avatar: string | null;
+  tutorial_seen: number;
 };
 
-type SafeUser = Omit<DbUserRow, "password">;
+type SafeUser = {
+  id: number;
+  name: string;
+  mail: string;
+  currency: number;
+  score: number;
+  avatar: string | null;
+  tutorialSeen: boolean;
+};
 
 type DbLobbyRow = {
   id: number;
@@ -749,6 +785,16 @@ type LobbyPlayerRow = {
   name: string;
   avatar: string | null;
   lobby_ready: number;
+};
+
+type LobbyListRow = {
+  id: number;
+  name: string | null;
+  entry_fee: number | null;
+  betValue: number | null;
+  password: string | null;
+  status: string | null;
+  playerCount: number;
 };
 
 export type LobbySummary = {
@@ -777,9 +823,25 @@ export type LobbyResponse = {
   players: LobbyPlayer[];
 };
 
+export type LobbyListEntry = {
+  id: number;
+  name: string;
+  entryFee: number;
+  playerCount: number;
+  passwordProtected: boolean;
+  status: "waiting" | "started";
+};
+
 function toSafeUser(row: DbUserRow): SafeUser {
-  const { password: _password, ...safeUser } = row;
-  return safeUser;
+  return {
+    id: row.id,
+    name: row.name,
+    mail: row.mail,
+    currency: row.currency,
+    score: row.score,
+    avatar: row.avatar,
+    tutorialSeen: Boolean(row.tutorial_seen),
+  };
 }
 
 function hashPassword(password: string) {
@@ -896,6 +958,40 @@ export function addUserScore(userId: number, delta: number): number {
 
   const result = db
     .prepare("UPDATE users SET score = score + ? WHERE id = ?")
+    .run(increment, userId);
+
+  if (result.changes === 0) {
+    throw new Error("USER_NOT_FOUND");
+  }
+
+  return getUserScore(userId);
+}
+
+export function addUserTournamentScore(userId: number, delta: number): number {
+  const increment = Number(delta);
+  if (!Number.isFinite(increment)) {
+    throw new Error("SCORE_DELTA_INVALID");
+  }
+
+  const result = db
+    .prepare("UPDATE users SET tournament_score = tournament_score + ? WHERE id = ?")
+    .run(increment, userId);
+
+  if (result.changes === 0) {
+    throw new Error("USER_NOT_FOUND");
+  }
+
+  return getUserScore(userId);
+}
+
+export function addUserLobbyScore(userId: number, delta: number): number {
+  const increment = Number(delta);
+  if (!Number.isFinite(increment)) {
+    throw new Error("SCORE_DELTA_INVALID");
+  }
+
+  const result = db
+    .prepare("UPDATE users SET lobby_score = lobby_score + ? WHERE id = ?")
     .run(increment, userId);
 
   if (result.changes === 0) {
@@ -1189,14 +1285,16 @@ export function addUser({
   currency,
   score,
   avatar,
+  tutorialSeen,
 }: User) {
   const hashedPassword = hashPassword(password);
   const normalizedScore =
     typeof score === "number" && Number.isFinite(score) ? score : 0;
   const normalizedAvatar =
     typeof avatar === "string" && avatar.length > 0 ? avatar : null;
+  const normalizedTutorialSeen = tutorialSeen ? 1 : 0;
   const stmt = db.prepare(
-    "INSERT INTO users (name, mail, password, currency, score, avatar) VALUES (?, ?, ?, ?, ?, ?)"
+    "INSERT INTO users (name, mail, password, currency, score, avatar, tutorial_seen) VALUES (?, ?, ?, ?, ?, ?, ?)"
   );
   const info = stmt.run(
     name,
@@ -1204,7 +1302,8 @@ export function addUser({
     hashedPassword,
     currency,
     normalizedScore,
-    normalizedAvatar
+    normalizedAvatar,
+    normalizedTutorialSeen
   );
   return {
     id: Number(info.lastInsertRowid),
@@ -1214,6 +1313,7 @@ export function addUser({
     currency,
     score: normalizedScore,
     avatar: normalizedAvatar,
+    tutorial_seen: normalizedTutorialSeen,
   };
 }
 
@@ -1227,6 +1327,7 @@ export type LeaderboardEntry = {
   name: string;
   score: number;
   currency: number;
+  passiveGold: number;
   position: number;
 };
 
@@ -1488,10 +1589,41 @@ export function getUsersCount(): number {
   return row?.total ?? 0;
 }
 
-export function getLeaderboardTop(limit = 10): LeaderboardEntry[] {
+function buildPassiveGoldMap(userIds: number[]): Map<number, number> {
+  const map = new Map<number, number>();
+  if (!Array.isArray(userIds) || userIds.length === 0) {
+    return map;
+  }
+  const placeholders = buildInClausePlaceholders(userIds.length);
   const rows = db
     .prepare(
-      "SELECT id, name, score, currency FROM users ORDER BY score DESC, id ASC LIMIT ?"
+      `
+      SELECT uc.user_id as userId, p.id as playerId, p.score as score
+      FROM user_cards uc
+      JOIN players p ON p.id = uc.player_id
+      WHERE uc.user_id IN (${placeholders})
+    `
+    )
+    .all(...userIds) as Array<{ userId: number; playerId: number; score: number }>;
+
+  rows.forEach((row) => {
+    const recentScores = fetchRecentPlayerScores(row.playerId);
+    const marketValue = calculateMarketValueFromRecent(recentScores, row.score);
+    const current = map.get(row.userId) ?? 0;
+    map.set(row.userId, current + marketValue);
+  });
+
+  return map;
+}
+
+export function getLeaderboardTop(
+  limit = 10,
+  mode: "global" | "tournament" = "global"
+): LeaderboardEntry[] {
+  const scoreColumn = mode === "tournament" ? "tournament_score" : "score";
+  const rows = db
+    .prepare(
+      `SELECT id, name, ${scoreColumn} as score, currency FROM users ORDER BY ${scoreColumn} DESC, id ASC LIMIT ?`
     )
     .all(limit) as Array<{
     id: number;
@@ -1499,22 +1631,26 @@ export function getLeaderboardTop(limit = 10): LeaderboardEntry[] {
     score: number;
     currency: number;
   }>;
+  const passiveGoldMap = buildPassiveGoldMap(rows.map((row) => row.id));
 
   return rows.map((row, index) => ({
     id: row.id,
     name: row.name,
     score: Number(row.score) || 0,
     currency: Number(row.currency) || 0,
+    passiveGold: passiveGoldMap.get(row.id) ?? 0,
     position: index + 1,
   }));
 }
 
 migrateMatchHistoryPlayersTable
 export function getUserRankingEntry(
-  userId: number
+  userId: number,
+  mode: "global" | "tournament" = "global"
 ): LeaderboardEntry | undefined {
+  const scoreColumn = mode === "tournament" ? "tournament_score" : "score";
   const userRow = db
-    .prepare("SELECT id, name, score, currency FROM users WHERE id = ?")
+    .prepare(`SELECT id, name, ${scoreColumn} as score, currency FROM users WHERE id = ?`)
     .get(userId) as
     | {
         id: number;
@@ -1530,17 +1666,19 @@ export function getUserRankingEntry(
 
   const higherCountRow = db
     .prepare(
-      "SELECT COUNT(*) AS higher FROM users WHERE score > ? OR (score = ? AND id < ?)"
+      `SELECT COUNT(*) AS higher FROM users WHERE ${scoreColumn} > ? OR (${scoreColumn} = ? AND id < ?)`
     )
     .get(userRow.score, userRow.score, userRow.id) as { higher: number };
 
   const position = Number(higherCountRow?.higher ?? 0) + 1;
+  const passiveGoldMap = buildPassiveGoldMap([userRow.id]);
 
   return {
     id: userRow.id,
     name: userRow.name,
     score: Number(userRow.score) || 0,
     currency: Number(userRow.currency) || 0,
+    passiveGold: passiveGoldMap.get(userRow.id) ?? 0,
     position,
   };
 }
@@ -2246,15 +2384,26 @@ export function getPlayerMatchAppearances(
   }));
 }
 
-function applyMatchResultsToDecks(players: Player[]): void {
+function applyMatchResultsToDecks(
+  players: Player[],
+  options?: { userIds?: number[]; scoreMode?: "global" | "lobby" | "tournament" }
+): void {
   if (!Array.isArray(players) || players.length === 0) {
     return;
   }
+
+  const allowedUsers = options?.userIds
+    ? new Set(options.userIds)
+    : null;
+  const scoreMode = options?.scoreMode ?? "global";
 
   const decks = getAllDecks();
   for (const storedDeck of decks) {
     const userId = storedDeck.userId;
     if (!userId) {
+      continue;
+    }
+    if (allowedUsers && !allowedUsers.has(userId)) {
       continue;
     }
 
@@ -2267,7 +2416,14 @@ function applyMatchResultsToDecks(players: Player[]): void {
 
     const awardedPoints = Math.max(result.totalScore, 0);
     try {
-      addUserScore(userId, awardedPoints);
+      if (scoreMode === "tournament") {
+        addUserTournamentScore(userId, awardedPoints);
+        addUserScore(userId, awardedPoints);
+      } else if (scoreMode === "lobby") {
+        addUserScore(userId, awardedPoints);
+      } else {
+        addUserScore(userId, awardedPoints);
+      }
     } catch (error) {
       console.warn("Failed to add score for user after match", userId, error);
     }
@@ -2308,7 +2464,7 @@ export function registerUser(user: User) {
 export function loginUser(mail: string, password: string) {
   const storedUser = db
     .prepare(
-      "SELECT id, name, mail, password, currency, score, avatar FROM users WHERE mail = ?"
+      "SELECT id, name, mail, password, currency, score, avatar, tutorial_seen FROM users WHERE mail = ?"
     )
     .get(mail) as DbUserRow | undefined;
 
@@ -2326,7 +2482,7 @@ export function loginUser(mail: string, password: string) {
 function fetchUserRowById(userId: number): DbUserRow | undefined {
   return db
     .prepare(
-      "SELECT id, name, mail, password, currency, score, avatar FROM users WHERE id = ?"
+      "SELECT id, name, mail, password, currency, score, avatar, tutorial_seen FROM users WHERE id = ?"
     )
     .get(userId) as DbUserRow | undefined;
 }
@@ -2341,6 +2497,17 @@ export function updateUserAvatar(
   avatar: string | null
 ): SafeUser | undefined {
   db.prepare("UPDATE users SET avatar = ? WHERE id = ?").run(avatar, userId);
+  return getUserById(userId);
+}
+
+export function updateUserTutorialSeen(
+  userId: number,
+  tutorialSeen: boolean
+): SafeUser | undefined {
+  db.prepare("UPDATE users SET tutorial_seen = ? WHERE id = ?").run(
+    tutorialSeen ? 1 : 0,
+    userId
+  );
   return getUserById(userId);
 }
 
@@ -2427,6 +2594,64 @@ export function getLobbyByUser(userId: number): LobbyResponse | null {
   return getLobbyById(userRow.lobby_id);
 }
 
+export function listLobbies(
+  query?: string,
+  options?: { openOnly?: boolean }
+): LobbyListEntry[] {
+  const where: string[] = [];
+  const params: unknown[] = [];
+  if (typeof query === "string" && query.trim().length > 0) {
+    where.push("lower(COALESCE(l.name, '')) LIKE ?");
+    params.push(`%${query.trim().toLowerCase()}%`);
+  }
+  if (options?.openOnly) {
+    where.push("l.status <> 'started'");
+  }
+  const whereClause = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
+  const havingClause = options?.openOnly
+    ? "HAVING COUNT(u.id) < 5"
+    : "";
+  const rows = db
+    .prepare(
+      `
+      SELECT
+        l.id,
+        l.name,
+        l.entry_fee,
+        l.betValue,
+        l.password,
+        l.status,
+        COUNT(u.id) as playerCount
+      FROM lobby l
+      LEFT JOIN users u ON u.lobby_id = l.id
+      ${whereClause}
+      GROUP BY l.id
+      ${havingClause}
+      ORDER BY CASE l.status WHEN 'waiting' THEN 0 ELSE 1 END, l.id DESC
+    `
+    )
+    .all(...params) as LobbyListRow[];
+
+  return rows.map((row) => {
+    const entryFee =
+      typeof row.entry_fee === "number"
+        ? row.entry_fee
+        : typeof row.betValue === "number"
+          ? row.betValue
+          : 0;
+    const name =
+      row.name && row.name.trim().length > 0 ? row.name : `Lobby #${row.id}`;
+    return {
+      id: row.id,
+      name,
+      entryFee,
+      playerCount: Number(row.playerCount) || 0,
+      passwordProtected: Boolean(row.password && row.password.length > 0),
+      status: row.status === "started" ? "started" : "waiting",
+    };
+  });
+}
+
 export function createLobby(options: {
   userId: number;
   name?: string;
@@ -2464,10 +2689,9 @@ export function createLobby(options: {
     null
   );
   const lobbyId = Number(result.lastInsertRowid);
-  db.prepare("UPDATE users SET lobby_id = ?, lobby_ready = 0 WHERE id = ?").run(
-    lobbyId,
-    options.userId
-  );
+  db.prepare(
+    "UPDATE users SET lobby_id = ?, lobby_ready = 0, lobby_score = 0 WHERE id = ?"
+  ).run(lobbyId, options.userId);
   const row = fetchLobbyRowById(lobbyId);
   if (!row) {
     throw new Error("LOBBY_NOT_FOUND");
@@ -2503,10 +2727,9 @@ export function joinLobby(options: {
     throw new Error("USER_ALREADY_IN_LOBBY");
   }
   if (!userRow.lobby_id) {
-    db.prepare("UPDATE users SET lobby_id = ?, lobby_ready = 0 WHERE id = ?").run(
-      options.lobbyId,
-      options.userId
-    );
+    db.prepare(
+      "UPDATE users SET lobby_id = ?, lobby_ready = 0, lobby_score = 0 WHERE id = ?"
+    ).run(options.lobbyId, options.userId);
   }
   const players = getLobbyPlayers(options.lobbyId);
   if (!lobby.host_id && players.length > 0) {
@@ -2648,7 +2871,7 @@ export function resetLobbyReady(lobbyId: number): void {
 export function getLobbyLeaderboard(lobbyId: number): LeaderboardEntry[] {
   const rows = db
     .prepare(
-      "SELECT id, name, score, currency FROM users WHERE lobby_id = ? ORDER BY score DESC, id ASC"
+      "SELECT id, name, tournament_score as score, currency FROM users WHERE lobby_id = ? ORDER BY tournament_score DESC, id ASC"
     )
     .all(lobbyId) as Array<{
       id: number;
@@ -2656,9 +2879,14 @@ export function getLobbyLeaderboard(lobbyId: number): LeaderboardEntry[] {
       score: number;
       currency: number;
     }>;
+  const passiveGoldMap = buildPassiveGoldMap(rows.map((row) => row.id));
   return rows.map((row, index) => ({
-    ...row,
+    id: row.id,
+    name: row.name,
+    score: Number(row.score) || 0,
+    currency: Number(row.currency) || 0,
     position: index + 1,
+    passiveGold: passiveGoldMap.get(row.id) ?? 0,
   }));
 }
 
@@ -3209,6 +3437,7 @@ export type TransferHistoryEntry = {
 export type TransferState = {
   tournamentId?: number | null;
   stage?: string | null;
+  currency: number;
   windowOpen: boolean;
   windowLabel: string;
   transferLimit?: number | null;
@@ -3287,11 +3516,13 @@ export function getTransferHistory(
 }
 
 export function getTransferState(userId: number): TransferState {
+  const currency = getUserCurrency(userId);
   const tournament = getActiveTournamentForTransfers();
   if (!tournament) {
     return {
       tournamentId: null,
       stage: null,
+      currency,
       windowOpen: true,
       windowLabel: "between-tournaments",
       transferLimit: null,
@@ -3312,6 +3543,7 @@ export function getTransferState(userId: number): TransferState {
   return {
     tournamentId: tournament.id,
     stage: tournament.stage,
+    currency,
     windowOpen,
     windowLabel: windowOpen ? "between-stages" : "locked",
     transferLimit: TRANSFER_LIMIT_PER_TOURNAMENT,
@@ -3944,7 +4176,11 @@ function calculateScore(kills:number, deaths:number, assists:number, cs:number, 
   return Number(score.toFixed(2));
 }
 
-export function simulateMatch(players: Player[], regionName: string) {
+export function simulateMatch(
+  players: Player[],
+  regionName: string,
+  options?: { userIds?: number[]; scoreMode?: "global" | "lobby" }
+) {
   const playersByTeam = new Map<number, Player[]>();
   for (const player of players) {
     if (!player.team_id) continue;
@@ -4371,7 +4607,7 @@ export function simulateMatch(players: Player[], regionName: string) {
   };
 
   try {
-    applyMatchResultsToDecks(matchPlayers);
+    applyMatchResultsToDecks(matchPlayers, options);
   } catch (error) {
     console.warn("Failed to update deck scores after match", error);
   }
@@ -4896,6 +5132,8 @@ export function startTournamentForRegion(
       )
       .run(name, regionId);
 
+    db.prepare("UPDATE users SET tournament_score = 0").run();
+
     const newTournament: TournamentRow = {
       id: Number(insertInfo.lastInsertRowid),
       name,
@@ -5253,7 +5491,7 @@ function simulateTournamentMatchRow(
 
   while (wins1 < winsNeeded && wins2 < winsNeeded) {
     gameCounter += 1;
-    const result = simulateMatch(players, regionName);
+    const result = simulateMatch(players, regionName, { scoreMode: "tournament" });
     const gameWinnerTeamId: number | null =
       result.winningTeamId === matchRow.team1_id
         ? matchRow.team1_id ?? null

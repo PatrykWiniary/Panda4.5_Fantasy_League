@@ -21,6 +21,7 @@ export default function LeaderboardPage() {
     useState<TournamentControlState | null>(null);
   const [lobbyId, setLobbyId] = useState<number | null>(null);
   const [lobbyName, setLobbyName] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"lobby" | "world">("lobby");
 
   useEffect(() => {
     if (!user) {
@@ -49,28 +50,38 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     let canceled = false;
-    if (!lobbyId) {
-      setData(null);
-      setStatus("Join a lobby to view its leaderboard.");
-      return;
-    }
-    setStatus("Loading lobby leaderboard...");
-    apiFetch<LobbyLeaderboardResponse>(`/api/lobbies/${lobbyId}/leaderboard`)
-      .then((payload) => {
-        if (canceled) return;
-        const leaderboard = payload.leaderboard;
-        const userEntry = user
-          ? leaderboard.find((entry) => entry.id === user.id) ?? null
-          : null;
-        setData({
-          top: leaderboard,
-          totalUsers: leaderboard.length,
-          userEntry,
-          userInTop: userEntry ? leaderboard.some((entry) => entry.id === userEntry.id) : false,
-        });
+    const load = async () => {
+      try {
+        if (viewMode === "lobby") {
+          if (!lobbyId) {
+            setData(null);
+            setStatus("Join a lobby to view its leaderboard.");
+            return;
+          }
+          setStatus("Loading lobby leaderboard...");
+          const payload = await apiFetch<LobbyLeaderboardResponse>(
+            `/api/lobbies/${lobbyId}/leaderboard`
+          );
+          const leaderboard = payload.leaderboard;
+          const userEntry = user
+            ? leaderboard.find((entry) => entry.id === user.id) ?? null
+            : null;
+          setData({
+            top: leaderboard,
+            totalUsers: leaderboard.length,
+            userEntry,
+            userInTop: userEntry ? leaderboard.some((entry) => entry.id === userEntry.id) : false,
+          });
+          setStatus(null);
+          return;
+        }
+
+        setStatus("Loading world leaderboard...");
+        const query = user ? `?userId=${user.id}&mode=global` : "?mode=global";
+        const payload = await apiFetch<LeaderboardResponse>(`/api/users/leaderboard${query}`);
+        setData(payload);
         setStatus(null);
-      })
-      .catch((error) => {
+      } catch (error) {
         if (canceled) return;
         if (error instanceof ApiError) {
           const body = error.body as { message?: string; error?: string };
@@ -78,11 +89,25 @@ export default function LeaderboardPage() {
         } else {
           setStatus("Failed to load leaderboard.");
         }
-      });
+      }
+    };
+    load();
+    const timer = window.setInterval(load, 5000);
+    const handleFocus = () => load();
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        load();
+      }
+    };
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibility);
     return () => {
       canceled = true;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [user?.id, lobbyId]);
+  }, [user?.id, lobbyId, viewMode]);
 
   useEffect(() => {
     apiFetch<TournamentControlState>(`/api/regions/1/tournament`)
@@ -107,6 +132,8 @@ export default function LeaderboardPage() {
         <td>{entry.name}</td>
         <td>{entry.score}</td>
         <td>{entry.currency}</td>
+        <td>{entry.passiveGold}</td>
+        <td>{entry.currency + entry.passiveGold}</td>
       </tr>
     );
   };
@@ -125,17 +152,35 @@ export default function LeaderboardPage() {
       <div className="leaderboard-card">
         <h1 className="login-title login-title--main">Leaderboard</h1>
         <p className="leaderboard-subtitle">
-          {lobbyId
-            ? `Lobby: ${lobbyName ?? "Your lobby"} (${data?.totalUsers ?? 0} players)`
-            : "Lobby ranking (join a lobby to see standings)"}
+          {viewMode === "lobby"
+            ? lobbyId
+              ? `Lobby: ${lobbyName ?? "Your lobby"} (${data?.totalUsers ?? 0} players)`
+              : "Lobby ranking (join a lobby to see standings)"
+            : `World (current tournament) (${data?.totalUsers ?? 0} players)`}
         </p>
 
         {status && <p className="form-status">{status}</p>}
-        {!lobbyId && (
+        {viewMode === "lobby" && !lobbyId && (
           <Link to="/joinnewleague" className="leaderboard-cta">
             Join Lobby
           </Link>
         )}
+        <div className="leaderboard-tabs">
+          <button
+            type="button"
+            className={viewMode === "lobby" ? "active" : ""}
+            onClick={() => setViewMode("lobby")}
+          >
+            Lobby
+          </button>
+          <button
+            type="button"
+            className={viewMode === "world" ? "active" : ""}
+            onClick={() => setViewMode("world")}
+          >
+            World
+          </button>
+        </div>
 
         {data && (
           <>
@@ -147,6 +192,8 @@ export default function LeaderboardPage() {
                     <th>Name</th>
                     <th>Score</th>
                     <th>Gold</th>
+                    <th>Passive</th>
+                    <th>Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -154,7 +201,7 @@ export default function LeaderboardPage() {
                     data.top.map(renderRow)
                   ) : (
                     <tr>
-                      <td colSpan={4}>No players yet.</td>
+                      <td colSpan={6}>No players yet.</td>
                     </tr>
                   )}
                 </tbody>
@@ -168,6 +215,9 @@ export default function LeaderboardPage() {
                   <span>#{data.userEntry.position}</span>
                   <span>{data.userEntry.name}</span>
                   <span>{data.userEntry.score} pts</span>
+                  <span>{data.userEntry.currency} gold</span>
+                  <span>{data.userEntry.passiveGold} passive</span>
+                  <span>{data.userEntry.currency + data.userEntry.passiveGold} total</span>
                 </div>
               </div>
             )}

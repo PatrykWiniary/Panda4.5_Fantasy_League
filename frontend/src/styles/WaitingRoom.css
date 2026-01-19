@@ -345,6 +345,15 @@ input[type=number] {
   transform: scale(1.05);
 }
 
+.settings-btn.clear-password-btn {
+  height: 42px;
+  width: auto;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  letter-spacing: 1px;
+}
+
 .settings-group {
   margin-bottom: 25px;
 }
@@ -368,7 +377,9 @@ input[type=number] {
     justify-content: center;
 }
 
-.settings-group input {
+.settings-group input[type="text"],
+.settings-group input[type="password"],
+.settings-group input[type="number"] {
     flex: 0.7;
     padding: 10px 16px;
     border-radius: 12px;

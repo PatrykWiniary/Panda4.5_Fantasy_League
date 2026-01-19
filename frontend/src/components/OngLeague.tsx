@@ -153,19 +153,24 @@ export default function OngLeaguePage({
       return;
     }
     let canceled = false;
-    apiFetch<TournamentControlState>("/api/regions/1/tournament")
-      .then((payload) => {
-        if (!canceled) {
-          setActiveTournamentId(payload.tournament?.id ?? null);
-        }
-      })
-      .catch(() => {
-        if (!canceled) {
-          setActiveTournamentId(null);
-        }
-      });
+    const loadTournament = () => {
+      apiFetch<TournamentControlState>("/api/regions/1/tournament")
+        .then((payload) => {
+          if (!canceled) {
+            setActiveTournamentId(payload.tournament?.id ?? null);
+          }
+        })
+        .catch(() => {
+          if (!canceled) {
+            setActiveTournamentId(null);
+          }
+        });
+    };
+    loadTournament();
+    const timer = window.setInterval(loadTournament, 10000);
     return () => {
       canceled = true;
+      window.clearInterval(timer);
     };
   }, [user?.id]);
 
@@ -187,6 +192,15 @@ export default function OngLeaguePage({
     )
       .then((payload) => {
         if (canceled) return;
+        if (payload.tournamentId !== activeTournamentId) {
+          return;
+        }
+        if (!payload.players || payload.players.length === 0) {
+          setLatestStats({ byName: new Map(), byId: new Map() });
+          setLatestProgress(null);
+          setLatestLobby(null);
+          return;
+        }
         const byId = new Map<
           number,
           { kdA?: string; score?: number; isMvp?: boolean }

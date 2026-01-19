@@ -36,8 +36,8 @@ export default class FootabalolGame {
     this.teams = getTeamsOverview(this.regionId);
   }
 
-  simulateMatch() {
-    const stats = simulatePlayerStats(this.players, this.regionName);
+  simulateMatch(options?: { userIds?: number[]; scoreMode?: "global" | "lobby" }) {
+    const stats = simulatePlayerStats(this.players, this.regionName, options);
     if (stats.teams.length >= 2 && stats.teams[0] && stats.teams[1]) {
       try {
         const objectivesBySide = stats.objectivesBySide as
