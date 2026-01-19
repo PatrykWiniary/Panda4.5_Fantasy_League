@@ -86,13 +86,43 @@ Modul `backend/src/API/FootbalolGame.ts` udostepnia klase `FootabalolGame`, ktor
 
 Modul `backend/src/simulationScoring.ts` spina symulacje z taliami. Funkcja `scoreDeckAgainstPlayers` oblicza wynik talii na podstawie statystyk graczy (z uwzglednieniem mnoznikow kapitanow) i zapisuje wynik w polu `tournamentPoints` kazdej karty. Suma punktow jest nastepnie dodawana do `users.score`.
 
+### Wzory i metryki (punktacja / wartosci / trend)
+Ponizej zebrane sa najwazniejsze przeliczniki i miejsca, w ktorych sa uzywane:
+
+- **Match score gracza (historyczny wynik w meczu)** - zapisywany w `match_history_players.score`:
+  - `kills * 3 + assists * 1.5 - deaths * 2 + cs / 10 + gold / 1000`
+  - Implementacja: `calculateScore` w `backend/src/db.ts` (wywolywane w `simulateMatch`).
+- **Rating gracza (players.score)** - aktualizowany po kazdym meczu:
+  - `applyScoreDecay(current, deltaScore) = clamp(current * PLAYER_SCORE_DECAY + deltaScore, PLAYER_SCORE_MIN..PLAYER_SCORE_MAX)`
+  - `PLAYER_SCORE_DECAY`, `PLAYER_SCORE_MIN`, `PLAYER_SCORE_MAX` sa konfigurowalne przez env.
+- **Punkty talii po meczu (users.score)** - liczone w `scoreDeckAgainstPlayers`:
+  - `baseScore = kills*3 + assists*2 - deaths + floor(cs/10) + floor(gold/500)`
+  - `multiplier = 2x (Captain) / 1.5x (Vice-captain) / 1x (brak)`
+  - `boostMultiplier = 2x (DOUBLE_POINTS) lub 1.25x (HOT_STREAK, scope=turniej)`
+  - `totalScore = round(baseScore * multiplier * boostMultiplier)` dla kazdego slota, suma po rolach trafia do `users.score`.
+- **Punkty turniejowe w OngLeague** - z `/api/regions/:regionId/tournament/player-stats`:
+  - `score` = suma `match_history_players.score` z aktywnego turnieju.
+- **Wartosc karty (marketValue)**:
+  - `recentScores` = ostatnie N wynikow meczu danego gracza (N = `MARKET_TREND_WINDOW`, max 10).
+  - `avgScore = srednia(recentScores)` -> `calculateMarketValueFromScore(avgScore)`.
+  - `calculateMarketValueFromScore(score) = max(10, round(clamp(score, MIN..MAX) / 3))`.
+  - Dodatkowo dziala limiter skoku ceny: `MARKET_PRICE_DELTA_CAP` ogranicza zmiane wzgledem poprzedniej ceny.
+- **Trend cenowy**:
+  - `recentPrices = recentScores.map(score -> marketValue)`
+  - `trendDelta = newestPrice - oldestPrice` (zaokr. do 2 miejsc).
+- **Budzet i transfery**:
+  - Start sezonu: `BASE_SEASON_CURRENCY`, reset po zakonczeniu turnieju.
+  - Oplata transferowa: `TRANSFER_FEE_PER_CARD` (pobierana za kazdy transfer w trakcie okna).
+  - Limit transferow na turniej: `TRANSFER_LIMIT_PER_TOURNAMENT`.
+  - Kupno w Market: `cost = marketValue + transferFee`.
+
 ### Historia meczow i ranking
 - W `init.sql` znajduje sie tabela `match_history`, a `simulateMatch` automatycznie zapisuje kazdy wygenerowany mecz (region, dwa zespoly, zwyciezca, MVP i znacznik czasu). W `db.ts` dodano helpery `recordMatchHistory`, `getRecentMatchHistory(limit, offset)` oraz `getMatchHistoryCount`.
 - Endpoint `POST /api/matches/simulate` instancjonuje `FootabalolGame`, wykonuje pojedyncza symulacje i zwraca wynik – rownoczesnie wpis trafia do historii.
 - Endpoint `GET /api/matches/history?limit=15&page=2` udostepnia stronnicowana liste ostatnich symulacji i jest wykorzystywany przez frontendowy widok historii.
 - Detale graczy sa przechowywane w tabeli match_history_players. GET /api/matches/:matchId zwraca pojedynczy mecz wraz z pełna tabela (rola, K/D/A, CS, zloto, wynik), a frontend pokazuje te dane po kliknieciu w wiersz.
 - Symulacja meczu losuje dwie faktyczne druzyny (na podstawie 	eam_id graczy w wybranym regionie) i tylko ich zawodnicy biora udzial w wydarzeniu – pozostali zawodnicy nie dostaja dodatkowych statystyk.
-- Ranking uzytkownikow (`getLeaderboardTop`, `getUserRankingEntry`) jest udostepniany przez `GET /api/users/leaderboard`, ktory zwraca TOP 10, laczna liczbe menedzerow oraz (opcjonalnie) pozycje wskazanego uzytkownika.
+- Ranking uzytkownikow globalny (`getLeaderboardTop`, `getUserRankingEntry`) jest udostepniany przez `GET /api/users/leaderboard`. W UI aktualnie uzywany jest ranking lobby (`GET /api/lobbies/:lobbyId/leaderboard`).
 - Uzytkownicy moga zapisywac wybrany avatar (`POST /api/users/:id/avatar`). Backend normalizuje klucz (tylko alfanumeryczne + mylniki) i przechowuje wartosc w kolumnie `users.avatar`.
 - Po zakonczeniu turnieju system resetuje budzet do bazowej wartosci sezonu i przyznaje bonusy waluty dla TOP 3; transfery i boosty sa czyszczone przed nowym turniejem.
 
@@ -121,7 +151,7 @@ Najwazniejsze sciezki serwera (wszystkie zaczynaja sie od `/api`):
 | `GET` | `/boosts?userId=123` | Lista dostepnych boostow (match/tournament) i przypisanych zawodnikow.
 | `POST` | `/boosts/assign` | Przypisuje boost do zawodnika (body: `userId`, `boostType`, `playerId`).
 | `POST` | `/tournaments/simulate` | Uruchamia symulacje turnieju dla wskazanego uzytkownika, nalicza punkty na podstawie wybranych kart i aktualizuje `users.score`.
-| `GET` | `/users/leaderboard?userId=123` | Zwraca TOP 10 menedzerow, laczna liczbe uzytkownikow oraz (opcjonalnie) pozycje konkretnej osoby.
+| `GET` | `/users/leaderboard?userId=123` | Zwraca TOP 10 menedzerow, laczna liczbe uzytkownikow oraz (opcjonalnie) pozycje konkretnej osoby (globalny ranking).
 | `POST` | `/users/:userId/avatar` | Aktualizuje avatar uzytkownika po stronie backendu (nowa wartosc laduje w kolumnie `users.avatar`).
 | `GET` | `/lobbies?userId=123` | Zwraca aktywne lobby uzytkownika lub `null`, gdy nie jest w zadnym lobby.
 | `GET` | `/lobbies/:lobbyId` | Zwraca dane lobby oraz liste graczy.
@@ -181,7 +211,7 @@ Projekt ma charakter warsztatowy: pozwala tworzyc talie zawodnikow League of Leg
 ### Tryb demo i funkcje debugowe
 - Backend przy starcie utrzymuje dwoch przykładowych uzytkownikow: **Mia Analyst** (`mia.analyst@example.com`) oraz **Erik Strategist** (`erik.strategist@example.com`). Oba konta maja haslo `Debug123!`, kompletne talie oraz budzet odpowiadajacy wartosci kart.
 - Symulacja nalicza punkty dla kazdej talii zapisanej w bazie (nie tylko dla zalogowanego konta). Wyniki widac w tabelach debugowych sekcji "Tournament Simulation" oraz w podgladzie "Saved Decks".
-- Endpoint `/api/users/leaderboard` oraz sekcja "Leaderboard" na froncie prezentuja **Top 10** graczy, a jesli aktywny uzytkownik wypada poza czolowke, dodatkowo pokazuje jego pozycje ponizej listy (styl znany z serwisow sportowych) <jeszcze nie testowane teehee>.
+- Sekcja "Leaderboard" na froncie pokazuje **ranking lobby** dla lobby zalogowanego uzytkownika (`GET /api/lobbies/:lobbyId/leaderboard`). Gdy uzytkownik nie nalezy do lobby, widok pokazuje komunikat o koniecznosci dolaczenia.
 - W tabelach rankingowych zalogowany uzytkownik jest podkreslany ciemniejszym tlem, dzieki czemu latwo go odszukac.
 
 ### Najczesciej wykorzystywane widoki
@@ -269,7 +299,7 @@ Wynik calkowity to `round(score * multiplier)` (zaokraglenie do najblizszej licz
 - Wybor jest zapisywany w backendzie (`POST /api/users/:id/avatar`), a avatar uzytkownika wyswietla sie m.in. na stronie profilu, w panelu OngLeague oraz w tabeli leaderboardu(TODO maybe).
 
 ### Leaderboard i historia meczow
-- Strona `/leaderboard` (`LeaderboardPage.tsx`) pobiera `GET /api/users/leaderboard`, wyswietla TOP 10 menedzerow oraz wyróżnia zalogowanego uzytkownika (nawet jezeli nie miesci sie w czolowce). Karta informuje rowniez o liczbie zarejestrowanych graczy.
+- Strona `/leaderboard` (`LeaderboardPage.tsx`) pobiera `GET /api/lobbies/:lobbyId/leaderboard` i wyswietla ranking tylko dla aktualnego lobby. Gdy uzytkownik nie ma lobby, widoczny jest komunikat zamiast tabeli.
 - Strona `/matches` (`MatchHistoryPage.tsx`) prezentuje logi meczowe. Tabela wyswietla po 15 rekordow na strone, a nawigacja Prev/Next dziala analogicznie do avatarow. Przycisk "Simulate New Match" wywoluje `POST /api/matches/simulate`, a "Refresh" ponownie pobiera liste (`GET /api/matches/history?...`).
 - Klikniecie wiersza meczu pobiera `GET /api/matches/:id` i rozwija szczegoly (rola, K/D/A, CS, zloto, wynik) zapisane w tabeli `match_history_players`.
 - Dodatkowy przycisk "Clear History" korzysta z `DELETE /api/matches/history` i zeruje zawartosc tabeli.

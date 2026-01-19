@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import "../styles/LogReg.css";
 import homeIcon from "../assets/home.svg";
 import userIcon from "../assets/user.svg";
@@ -9,48 +9,65 @@ import type {
   LeaderboardEntry,
   LobbyLeaderboardResponse,
   TournamentControlState,
+  LobbyByUserResponse,
 } from "../api/types";
 import { useSession } from "../context/SessionContext";
 
 export default function LeaderboardPage() {
-  const location = useLocation();
   const { user } = useSession();
   const [data, setData] = useState<LeaderboardResponse | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [tournamentState, setTournamentState] =
     useState<TournamentControlState | null>(null);
-  const lobbyId = (() => {
-    const params = new URLSearchParams(location.search);
-    const raw = params.get("lobbyId");
-    if (!raw) return null;
-    const parsed = Number(raw);
-    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-  })();
+  const [lobbyId, setLobbyId] = useState<number | null>(null);
+  const [lobbyName, setLobbyName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) {
+      setLobbyId(null);
+      setLobbyName(null);
+      return;
+    }
+    let canceled = false;
+    apiFetch<LobbyByUserResponse>(`/api/lobbies?userId=${user.id}`)
+      .then((payload) => {
+        if (!canceled) {
+          setLobbyId(payload.lobby?.lobby.id ?? null);
+          setLobbyName(payload.lobby?.lobby.name ?? null);
+        }
+      })
+      .catch(() => {
+        if (!canceled) {
+          setLobbyId(null);
+          setLobbyName(null);
+        }
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     let canceled = false;
-    setStatus(lobbyId ? "Loading lobby leaderboard..." : "Loading leaderboard...");
-    const query = user ? `?userId=${user.id}` : "";
-    const request = lobbyId
-      ? apiFetch<LobbyLeaderboardResponse>(`/api/lobbies/${lobbyId}/leaderboard`)
-      : apiFetch<LeaderboardResponse>(`/api/users/leaderboard${query}`);
-    request
+    if (!lobbyId) {
+      setData(null);
+      setStatus("Join a lobby to view its leaderboard.");
+      return;
+    }
+    setStatus("Loading lobby leaderboard...");
+    apiFetch<LobbyLeaderboardResponse>(`/api/lobbies/${lobbyId}/leaderboard`)
       .then((payload) => {
         if (canceled) return;
-        if (lobbyId) {
-          const leaderboard = (payload as LobbyLeaderboardResponse).leaderboard;
-          const userEntry = user
-            ? leaderboard.find((entry) => entry.id === user.id) ?? null
-            : null;
-          setData({
-            top: leaderboard,
-            totalUsers: leaderboard.length,
-            userEntry,
-            userInTop: userEntry ? leaderboard.some((entry) => entry.id === userEntry.id) : false,
-          });
-        } else {
-          setData(payload as LeaderboardResponse);
-        }
+        const leaderboard = payload.leaderboard;
+        const userEntry = user
+          ? leaderboard.find((entry) => entry.id === user.id) ?? null
+          : null;
+        setData({
+          top: leaderboard,
+          totalUsers: leaderboard.length,
+          userEntry,
+          userInTop: userEntry ? leaderboard.some((entry) => entry.id === userEntry.id) : false,
+        });
         setStatus(null);
       })
       .catch((error) => {
@@ -109,11 +126,16 @@ export default function LeaderboardPage() {
         <h1 className="login-title login-title--main">Leaderboard</h1>
         <p className="leaderboard-subtitle">
           {lobbyId
-            ? `Lobby ranking (${data?.totalUsers ?? 0} players)`
-            : `Top managers by score (${data?.totalUsers ?? 0} players tracked)`}
+            ? `Lobby: ${lobbyName ?? "Your lobby"} (${data?.totalUsers ?? 0} players)`
+            : "Lobby ranking (join a lobby to see standings)"}
         </p>
 
         {status && <p className="form-status">{status}</p>}
+        {!lobbyId && (
+          <Link to="/joinnewleague" className="leaderboard-cta">
+            Join Lobby
+          </Link>
+        )}
 
         {data && (
           <>
