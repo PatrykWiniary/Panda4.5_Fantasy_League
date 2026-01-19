@@ -62,6 +62,18 @@
   transform: translateY(-2px);
 }
 
+.homepage-button.outline {
+  background: rgba(0, 0, 0, 0.5);
+  color: var(--accent);
+  border: 1.5px solid rgba(201, 172, 109, 0.6);
+}
+
+.homepage-button.outline:hover {
+  background: rgba(201, 172, 109, 0.2);
+  color: var(--accent);
+  box-shadow: none;
+}
+
 /* Homepage button disabled */
 .homepage-button.disabled {
   background: #1E1E1E;
@@ -71,4 +83,74 @@
   box-shadow: none;
   transform: none;
   cursor: default;
+}
+
+.onboarding-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.onboarding-card {
+  width: min(520px, 92vw);
+  background: rgba(10, 10, 10, 0.9);
+  border: 1px solid rgba(201, 172, 109, 0.4);
+  border-radius: 18px;
+  padding: 26px;
+  text-align: center;
+  color: var(--accent);
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.55);
+}
+
+.onboarding-card h2 {
+  margin-bottom: 10px;
+  font-size: 1.6rem;
+}
+
+.onboarding-card p {
+  color: #e7d9b5;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.onboarding-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 16px 0 20px;
+}
+
+.onboarding-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(201, 172, 109, 0.3);
+}
+
+.onboarding-dots span.active {
+  background: var(--accent);
+}
+
+.onboarding-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+}
+
+.onboarding-nav {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.onboarding-actions .homepage-button {
+  width: 260px;
+  height: 60px;
+  font-size: 1.05rem;
 }

@@ -16,6 +16,8 @@ CREATE TABLE
     avatar TEXT,
     lobby_id NUMBER,
     lobby_ready INTEGER NOT NULL DEFAULT 0,
+    transfer_count INTEGER NOT NULL DEFAULT 0,
+    transfer_tournament_id INTEGER,
     FOREIGN KEY (lobby_id) REFERENCES lobby (id) ON DELETE CASCADE
   );
 
@@ -47,7 +49,44 @@ CREATE TABLE IF NOT EXISTS tournaments (
   current_round INTEGER NOT NULL DEFAULT 1,
   started_at TEXT,
   completed_at TEXT,
+  rewards_applied INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY (region_id) REFERENCES regions (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS transfer_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  action TEXT NOT NULL,
+  role TEXT NOT NULL,
+  player_id INTEGER,
+  player_name TEXT NOT NULL,
+  price INTEGER NOT NULL,
+  fee INTEGER NOT NULL DEFAULT 0,
+  tournament_id INTEGER,
+  stage TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS user_boosts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  tournament_id INTEGER,
+  boost_type TEXT NOT NULL,
+  scope TEXT NOT NULL DEFAULT 'match',
+  assigned_player_id INTEGER,
+  uses_remaining INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS user_cards (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  player_id INTEGER NOT NULL,
+  acquired_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, player_id),
+  FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
 -- Teams table (each team belongs to 1 tournament & region)

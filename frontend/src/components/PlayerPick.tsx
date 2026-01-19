@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../styles/PlayerPick.css";
 import bg from "../assets/rift.png";
@@ -13,10 +13,12 @@ import type {
   DeckCard,
   DeckResponse,
   DeckRole,
-  GroupedPlayersResponse,
   LobbyByUserResponse,
-  PlayerOverview,
-} from "../api/types";
+  BoostAssignResponse,
+  BoostsResponse,
+  CollectionResponse,
+  OwnedPlayer,
+  } from "../api/types";
 import { useSession } from "../context/SessionContext";
 import { resolvePlayerImage } from "../utils/playerImages";
 
@@ -54,7 +56,8 @@ type UIPlayer = {
   deckRole: DeckRole;
   points: number;
   cost: number;
-  source?: PlayerOverview;
+  marketValue: number;
+  source?: OwnedPlayer;
   snapshot?: DeckCard;
 };
 
@@ -88,6 +91,7 @@ export default function PlayerPick() {
   const [selectedPlayer, setSelectedPlayer] = useState<UIPlayer | null>(null);
   const [draftTeam, setDraftTeam] = useState<DraftTeam>({ ...emptyDraftTeam });
   const [savedDeck, setSavedDeck] = useState<Deck | null>(null);
+  const [boosts, setBoosts] = useState<BoostsResponse | null>(null);
   const [saveStatus, setSaveStatus] = useState<
     { type: "success" | "error"; message: string } | null
   >(null);
@@ -97,12 +101,48 @@ export default function PlayerPick() {
   const [showLockedOverlay, setShowLockedOverlay] = useState(false);
   const [activeLobby, setActiveLobby] = useState<LobbyByUserResponse["lobby"] | null>(null);
   const totalCost = calculateDraftCost(draftTeam);
-  const maxBudget = user?.currency ?? 250;
-  const remainingBudget = maxBudget - totalCost;
+  const wallet = user?.currency ?? 0;
+  const missingRoles = ROLE_KEYS.filter((key) => !draftTeam[key]);
+  const missingOwnedRoles = ROLE_KEYS.filter((key) => playersData[key].length === 0);
+  const assignedBoosts =
+    selectedPlayer && boosts
+      ? boosts.boosts.filter((boost) => boost.assignedPlayerId === selectedPlayer.id)
+      : [];
+  const recommendations = useMemo(() => {
+    return ROLE_KEYS.map((role) => {
+      if (!missingRoles.includes(role)) {
+        return null;
+      }
+      const sorted = [...playersData[role]].sort((a, b) => {
+        if (a.cost !== b.cost) {
+          return a.cost - b.cost;
+        }
+        return b.points - a.points;
+      });
+      const player = sorted[0];
+      return player ? { role, player } : null;
+    }).filter(Boolean) as Array<{ role: RoleKey; player: UIPlayer }>;
+  }, [missingRoles, playersData]);
+  const boostByPlayerId = useMemo(() => {
+    const map = new Map<number, BoostsResponse["boosts"][number]>();
+    if (boosts) {
+      boosts.boosts.forEach((boost) => {
+        if (boost.assignedPlayerId) {
+          map.set(boost.assignedPlayerId, boost);
+        }
+      });
+    }
+    return map;
+  }, [boosts]);
 
   useEffect(() => {
+    if (!user) {
+      setPlayersData(emptyPlayersData);
+      setPlayerInfoMap(new Map());
+      return;
+    }
     let canceled = false;
-    apiFetch<GroupedPlayersResponse>("/api/players?grouped=true")
+    apiFetch<CollectionResponse>(`/api/collection?userId=${user.id}`)
       .then((payload) => {
         if (canceled) return;
         const result = buildPlayersFromApi(payload);
@@ -110,17 +150,21 @@ export default function PlayerPick() {
         setPlayerInfoMap(result.map);
       })
       .catch(() => {
-        /* leave defaults */
+        if (!canceled) {
+          setPlayersData(emptyPlayersData);
+          setPlayerInfoMap(new Map());
+        }
       });
     return () => {
       canceled = true;
     };
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user) {
       setSavedDeck(null);
       setDraftTeam({ ...emptyDraftTeam });
+      setBoosts(null);
       return;
     }
     let canceled = false;
@@ -135,6 +179,28 @@ export default function PlayerPick() {
       canceled = true;
     };
   }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setBoosts(null);
+      return;
+    }
+    let canceled = false;
+    apiFetch<BoostsResponse>(`/api/boosts?userId=${user.id}`)
+      .then((payload) => {
+        if (!canceled) {
+          setBoosts(payload);
+        }
+      })
+      .catch(() => {
+        if (!canceled) {
+          setBoosts(null);
+        }
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     if (savedDeck) {
@@ -173,6 +239,9 @@ export default function PlayerPick() {
     if (isLockedIn) {
       return;
     }
+    if (playersData[role].length === 0) {
+      return;
+    }
     setSelectedRole(role);
     setSelectedPlayer(draftTeam[role] ?? playersData[role][0] ?? null);
   };
@@ -202,11 +271,13 @@ export default function PlayerPick() {
       return false;
     }
 
-    const missing = ROLE_KEYS.filter((key) => !draftTeam[key]);
-    if (missing.length > 0) {
+    if (missingRoles.length > 0) {
       setSaveStatus({
         type: "error",
-        message: "Fill every role before saving.",
+        message:
+          missingOwnedRoles.length > 0
+            ? `You don't own a player for: ${missingOwnedRoles.join(", ")}.`
+            : "Fill every role before saving.",
       });
       return false;
     }
@@ -246,18 +317,48 @@ export default function PlayerPick() {
     }
   };
 
+  const handleAssignBoost = async (boostType: string) => {
+    if (!user || !selectedPlayer) {
+      return;
+    }
+    setSaveStatus(null);
+    try {
+      const response = await apiFetch<BoostAssignResponse>("/api/boosts/assign", {
+        method: "POST",
+        body: JSON.stringify({
+          userId: user.id,
+          boostType,
+          playerId: selectedPlayer.id,
+        }),
+      });
+      setBoosts((prev) =>
+        prev
+          ? {
+              boosts: prev.boosts.map((boost) =>
+                boost.id === response.boost.id ? response.boost : boost
+              ),
+            }
+          : prev
+      );
+      setSaveStatus({
+        type: "success",
+        message: `Boost assigned: ${response.boost.boostType}.`,
+      });
+    } catch (error) {
+      let message = "Boost assignment failed.";
+      if (error instanceof ApiError) {
+        const body = error.body as { message?: string; error?: string };
+        message = body?.message ?? body?.error ?? `Request failed (${error.status})`;
+      }
+      setSaveStatus({ type: "error", message });
+    }
+  };
+
   const handleConfirmLockIn = async () => {
     if (isLockedIn) {
       return;
     }
     setShowPopup(false);
-    if (remainingBudget < 0) {
-      setSaveStatus({
-        type: "error",
-        message: "You can’t lock in with insufficient eurogąbki!",
-      });
-      return;
-    }
     const success = await handleSubmitTeam();
     if (success) {
       if (user) {
@@ -290,6 +391,9 @@ export default function PlayerPick() {
 
         {circlePositions.map((pos) => {
           const filled = draftTeam[pos.key];
+          const hasOptions = playersData[pos.key].length > 0;
+          const assignedBoost =
+            filled && filled.id > 0 ? boostByPlayerId.get(filled.id) : undefined;
           return (
             <div
               key={pos.key}
@@ -297,10 +401,17 @@ export default function PlayerPick() {
               style={{ top: pos.top, left: pos.left }}
             >
               <div
-                className={`player-circle ${filled ? "selected" : ""}`}
+                className={`player-circle ${filled ? "selected" : "empty"} ${
+                  hasOptions ? "" : "disabled"
+                }`}
                 onClick={() => handleCircleClick(pos.key)}
-                title={pos.key.toUpperCase()}
+                title={
+                  hasOptions
+                    ? pos.key.toUpperCase()
+                    : `${pos.key.toUpperCase()} (no owned players)`
+                }
               >
+                {!filled && <span className="empty-fill" />}
                 {filled && (
                   <img
                     src={filled.image}
@@ -308,31 +419,79 @@ export default function PlayerPick() {
                     className="circle-image"
                   />
                 )}
+                {assignedBoost && (
+                  <span
+                    className={`boost-badge ${
+                      assignedBoost.usesRemaining > 0 ? "" : "used"
+                    }`}
+                  >
+                    {assignedBoost.boostType === "DOUBLE_POINTS" ? "x2" : "HS"}
+                  </span>
+                )}
               </div>
               <img src={pos.icon} alt={`${pos.key} icon`} className="role-icon" />
             </div>
           );
         })}
       </div>
-      <div class="title-wrapper">
+      <div className="title-wrapper">
         <h1 className="title">PICK YOUR TEAM</h1>
         <p className="deadline">⏱ DUE IN: 23.11.2025 23:59</p>
       </div>
 
       <div className="draft-info">
         <div className="info-item">
-          <span className="label">DRAFT COST</span>
+          <span className="label">TEAM VALUE</span>
           <span className="value">{totalCost}</span>
         </div>
         <div className="info-item">
-          <span className="label">REMAINING EUROGĄBKI</span>
-          <span className="value">{remainingBudget}</span>
+          <span className="label">WALLET</span>
+          <span className="value">{wallet}</span>
         </div>
       </div>
       <div className="status-container">
-                    {saveStatus && (
-        <div className={`form-status ${saveStatus.type}`} style={{ display: saveStatus ? 'block' : 'none' }}>{saveStatus.message}</div>
-      )}
+        {saveStatus && (
+          <div
+            className={`form-status ${saveStatus.type}`}
+            style={{ display: saveStatus ? "block" : "none" }}
+          >
+            {saveStatus.message}
+          </div>
+        )}
+        {user && !saveStatus && missingRoles.length > 0 && (
+          <div className="form-status error" style={{ display: "block" }}>
+            {missingOwnedRoles.length > 0
+              ? `Missing owned roles: ${missingOwnedRoles.join(", ")}.`
+              : `Select players for: ${missingRoles.join(", ")}.`}
+          </div>
+        )}
+        {recommendations.length > 0 && (
+          <div className="recommendations">
+            <span>Recommended:</span>
+            {recommendations.map((entry) => (
+              <span key={entry.role}>
+                {entry.role.toUpperCase()} → {entry.player.name} ({entry.player.cost})
+              </span>
+            ))}
+            <button
+              className="recommend-apply"
+              type="button"
+              onClick={() => {
+                setDraftTeam((prev) => {
+                  const next = { ...prev };
+                  recommendations.forEach((entry) => {
+                    next[entry.role] = entry.player;
+                  });
+                  return next;
+                });
+                setSelectedRole(null);
+                setSelectedPlayer(null);
+              }}
+            >
+              Apply recommended
+            </button>
+          </div>
+        )}
       </div>
       <div className="button-container">
         <button
@@ -342,6 +501,14 @@ export default function PlayerPick() {
           }}
         >
           <span>RETURN</span>
+        </button>
+        <button
+          className="btn return"
+          onClick={() => {
+            navigate("/market");
+          }}
+        >
+          <span>GO TO MARKET</span>
         </button>
         {activeLobby && user && (
           <button
@@ -361,9 +528,11 @@ export default function PlayerPick() {
           </button>
         )}
         <button
-          className={`btn confirm ${isLockedIn ? "disabled" : ""}`}
+          className={`btn confirm ${
+            isLockedIn || missingRoles.length > 0 ? "disabled" : ""
+          }`}
           onClick={() => !isLockedIn && setShowPopup(true)}
-          disabled={isLockedIn || saving}
+          disabled={isLockedIn || saving || missingRoles.length > 0}
         >
           <span>{saving ? "SAVING..." : "LOCK IN"}</span>
         </button>
@@ -380,6 +549,11 @@ export default function PlayerPick() {
             <div className="modal-header">{selectedRole.toUpperCase()}</div>
 
             <div className="modal-body">
+              {playersData[selectedRole].length === 0 && (
+                <p className="modal-empty">
+                  No owned players for this role. Visit the market to buy one.
+                </p>
+              )}
               <div className="player-grid">
                 {playersData[selectedRole].map((player) => (
                   <div
@@ -408,7 +582,55 @@ export default function PlayerPick() {
                     <p>TEAM: {selectedPlayer.team}</p>
                     <p>REGION: {selectedPlayer.region}</p>
                     <p>COST: {selectedPlayer.cost}</p>
+                    {assignedBoosts.length > 0 ? (
+                      <p className="boost-info">
+                        BOOST:{" "}
+                        {assignedBoosts
+                          .map((boost) => {
+                            const status =
+                              boost.usesRemaining > 0 ? "ready" : "used";
+                            return `${boost.boostType} (${boost.scope}) - ${status}`;
+                          })
+                          .join(", ")}
+                      </p>
+                    ) : (
+                      <p className="boost-info">BOOST: none</p>
+                    )}
                   </div>
+                  {boosts && boosts.boosts.length > 0 && (
+                    <div className="boost-button-container">
+                      {boosts.boosts.map((boost) => (
+                        <button
+                          key={boost.id}
+                          className={`btn confirm ${
+                            boost.usesRemaining <= 0 ||
+                            (boost.assignedPlayerId !== null &&
+                              boost.assignedPlayerId !== selectedPlayer.id)
+                              ? "boost-disabled"
+                              : ""
+                          }`}
+                          onClick={() => handleAssignBoost(boost.boostType)}
+                          disabled={
+                            !user ||
+                            isLockedIn ||
+                            boost.usesRemaining <= 0 ||
+                            (boost.assignedPlayerId !== null &&
+                              boost.assignedPlayerId !== selectedPlayer.id)
+                          }
+                        >
+                          <span>
+                            {boost.boostType}
+                            {boost.assignedPlayerId !== null &&
+                            boost.assignedPlayerId !== selectedPlayer.id
+                              ? " (assigned)"
+                              : boost.usesRemaining <= 0
+                                ? " (used)"
+                                : ""}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
         </div>
@@ -454,7 +676,7 @@ type PlayersDataResult = {
   map: Map<number, UIPlayer>;
 };
 
-function buildPlayersFromApi(response: GroupedPlayersResponse): PlayersDataResult {
+function buildPlayersFromApi(response: CollectionResponse): PlayersDataResult {
   const mapped: PlayersData = {
     top: [],
     jungle: [],
@@ -464,28 +686,31 @@ function buildPlayersFromApi(response: GroupedPlayersResponse): PlayersDataResul
   };
   const infoMap = new Map<number, UIPlayer>();
 
-  ROLE_KEYS.forEach((key) => {
-    const deckRole = ROLE_TO_DECK[key];
-    const players = response.groupedByRole[deckRole] ?? [];
-    mapped[key] = players.map((player) => {
-      const displayName = player.nickname ?? player.name;
-      const points = Math.max(20, Math.round(player.score));
-      const cost = Math.max(10, Math.round(points / 3));
-      const mappedPlayer: UIPlayer = {
-        id: player.id,
-        name: displayName,
-        nickname: player.nickname,
-        team: player.team.name,
-        region: player.region.name,
-        image: resolvePlayerImage(player.nickname ?? player.name),
-        deckRole,
-        points,
-        cost,
-        source: player,
-      };
-      infoMap.set(player.id, mappedPlayer);
-      return mappedPlayer;
-    });
+  const players = response.players ?? [];
+  players.forEach((player) => {
+    const displayName = player.nickname ?? player.name;
+    const points = Math.max(20, Math.round(player.score));
+    const cost = Math.max(10, Math.round(player.marketValue));
+    const mappedPlayer: UIPlayer = {
+      id: player.id,
+      name: displayName,
+      nickname: player.nickname,
+      team: player.team.name,
+      region: player.region.name,
+      image: resolvePlayerImage(player.nickname ?? player.name),
+      deckRole: player.role,
+      points,
+      cost,
+      marketValue: player.marketValue,
+      source: player,
+    };
+    infoMap.set(player.id, mappedPlayer);
+    const key = Object.keys(ROLE_TO_DECK).find(
+      (roleKey) => ROLE_TO_DECK[roleKey as RoleKey] === player.role
+    ) as RoleKey | undefined;
+    if (key) {
+      mapped[key].push(mappedPlayer);
+    }
   });
 
   return { data: mapped, map: infoMap };
@@ -513,7 +738,7 @@ function selectionToCard(selection: UIPlayer | null): DeckCard | null {
       name: selection.name,
       role: selection.deckRole,
       points: baseScore,
-      value: Math.max(10, Math.round(baseScore / 3)),
+      value: Math.max(10, Math.round(selection.marketValue)),
       playerId: selection.source.id,
     };
   }
@@ -539,6 +764,10 @@ function mapDeckToDraft(
       return;
     }
     const info = card.playerId ? infoMap.get(card.playerId) : undefined;
+    if (card.playerId && !info) {
+      next[key] = null;
+      return;
+    }
     next[key] = {
       id: card.playerId ?? -role.charCodeAt(0),
       name: info?.name ?? card.name,
@@ -547,8 +776,9 @@ function mapDeckToDraft(
       image: info?.image ?? resolvePlayerImage(card.name),
       deckRole: role,
       points: info?.points ?? card.points ?? 0,
-      cost: info?.cost ?? card.value ?? 0,
-      snapshot: card,
+      cost: info?.marketValue ?? card.value ?? 0,
+      marketValue: info?.marketValue ?? card.value ?? 0,
+      snapshot: info?.marketValue ? { ...card, value: info.marketValue } : card,
     };
   });
   return next;
@@ -557,3 +787,4 @@ function mapDeckToDraft(
 function calculateDraftCost(draft: DraftTeam): number {
   return ROLE_KEYS.reduce((total, key) => total + (draft[key]?.cost ?? 0), 0);
 }
+

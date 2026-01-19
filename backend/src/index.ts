@@ -24,6 +24,16 @@ import {
   getPlayersOverview,
   getPlayersGroupedByRole,
   PlayerFilters,
+  getMarketPlayers,
+  buyCardForDeck,
+  sellCardFromDeck,
+  getTransferHistory,
+  getTransferState,
+  listBoosts,
+  assignBoostToPlayer,
+  getBoostMapForUser,
+  consumeBoostByIdIfApplied,
+  getUserCollection,
   updateUserAvatar,
   getRecentMatchHistory,
   getMatchHistoryCount,
@@ -54,7 +64,6 @@ import {
   replaceCardInDeck,
   createDeck,
   DeckError,
-  calculateDeckValue,
   summarizeDeck,
 } from "./deckManager";
 import { Deck, DeckSummary, Player, Role, RoleInput } from "./Types";
@@ -490,6 +499,48 @@ app.get("/api/players", (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "PLAYER_FETCH_FAILED" });
+  }
+});
+
+app.get("/api/market/players", (req, res) => {
+  try {
+    const role = parseRoleQuery(req.query.role);
+    if (req.query.role !== undefined && !role) {
+      return res.status(400).json({ error: "INVALID_ROLE" });
+    }
+
+    const regionId = parsePositiveIntQuery(req.query.regionId);
+    if (req.query.regionId !== undefined && regionId === undefined) {
+      return res.status(400).json({ error: "INVALID_REGION_ID" });
+    }
+
+    const teamId = parsePositiveIntQuery(req.query.teamId);
+    if (req.query.teamId !== undefined && teamId === undefined) {
+      return res.status(400).json({ error: "INVALID_TEAM_ID" });
+    }
+
+    const filters: PlayerFilters = {};
+    if (role) {
+      filters.role = role;
+    }
+    if (regionId !== undefined) {
+      filters.regionId = regionId;
+    }
+    if (teamId !== undefined) {
+      filters.teamId = teamId;
+    }
+
+    const trendLimit = parsePositiveIntQuery(req.query.trendLimit);
+    const clampedTrend = Math.min(Math.max(trendLimit ?? 5, 3), 10);
+    const players = getMarketPlayers(filters, clampedTrend);
+    res.json({
+      players,
+      filters,
+      trendLimit: clampedTrend,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "MARKET_PLAYER_FETCH_FAILED" });
   }
 });
 
@@ -1046,23 +1097,8 @@ app.post("/api/decks/add-card", (req, res) => {
       deck = createDeck({ userId, slots: deck.slots });
     }
 
-    const currency = getUserCurrency(userId);
     const updatedDeck = addCardToDeck(deck, card);
-    const totalValue = calculateDeckValue(updatedDeck);
-
-    if (totalValue > currency) {
-      throw new DeckError(
-        "CURRENCY_LIMIT_EXCEEDED",
-        "Adding this card exceeds available currency.",
-        {
-          totalValue,
-          currency,
-          overBudgetBy: totalValue - currency,
-        }
-      );
-    }
-
-    sendDeck(res, updatedDeck, { currency });
+    sendDeck(res, updatedDeck);
   } catch (error) {
     if (error instanceof Error && error.message === "USER_NOT_FOUND") {
       return res
@@ -1139,23 +1175,8 @@ app.post("/api/decks/replace-card", (req, res) => {
       deck = createDeck({ userId, slots: deck.slots });
     }
 
-    const currency = getUserCurrency(userId);
     const updatedDeck = replaceCardInDeck(deck, role as RoleInput, card);
-    const totalValue = calculateDeckValue(updatedDeck);
-
-    if (totalValue > currency) {
-      throw new DeckError(
-        "CURRENCY_LIMIT_EXCEEDED",
-        "Replacing this card exceeds available currency.",
-        {
-          totalValue,
-          currency,
-          overBudgetBy: totalValue - currency,
-        }
-      );
-    }
-
-    sendDeck(res, updatedDeck, { currency });
+    sendDeck(res, updatedDeck);
   } catch (error) {
     if (error instanceof Error && error.message === "USER_NOT_FOUND") {
       return res
@@ -1164,6 +1185,175 @@ app.post("/api/decks/replace-card", (req, res) => {
           error: "USER_NOT_FOUND",
           message: "User must exist before modifying a deck.",
         });
+    }
+    handleDeckError(res, error);
+  }
+});
+
+app.post("/api/market/sell", (req, res) => {
+  const { userId: rawUserId, playerId } = req.body ?? {};
+  if (!playerId) {
+    return res.status(400).json({ error: "INVALID_PAYLOAD" });
+  }
+
+  try {
+    const userId = parseUserId(rawUserId);
+    const parsedPlayerId = Number(playerId);
+    if (!Number.isInteger(parsedPlayerId) || parsedPlayerId <= 0) {
+      return res.status(400).json({ error: "INVALID_PLAYER_ID" });
+    }
+
+    const result = sellCardFromDeck(userId, parsedPlayerId);
+    const response = toDeckResponse(result.deck);
+    response.summary.currencyCap = result.currency;
+
+    res.json({
+      deck: response.deck,
+      summary: response.summary,
+      sold: result.sold,
+      currency: result.currency,
+    });
+  } catch (error) {
+    if (error instanceof DeckPayloadError && error.code === "INVALID_USER_ID") {
+      return res.status(400).json({ error: "INVALID_USER_ID" });
+    }
+    if (error instanceof Error && error.message === "USER_NOT_FOUND") {
+      return res.status(404).json({ error: "USER_NOT_FOUND" });
+    }
+    handleDeckError(res, error);
+  }
+});
+
+app.post("/api/market/buy", (req, res) => {
+  const { userId: rawUserId, playerId } = req.body ?? {};
+  if (!playerId) {
+    return res.status(400).json({ error: "INVALID_PAYLOAD" });
+  }
+
+  try {
+    const userId = parseUserId(rawUserId);
+    const parsedPlayerId = Number(playerId);
+    if (!Number.isInteger(parsedPlayerId) || parsedPlayerId <= 0) {
+      return res.status(400).json({ error: "INVALID_PLAYER_ID" });
+    }
+
+    const result = buyCardForDeck(userId, parsedPlayerId);
+    res.json({
+      purchased: result.purchased,
+      currency: result.currency,
+    });
+  } catch (error) {
+    if (error instanceof DeckPayloadError && error.code === "INVALID_USER_ID") {
+      return res.status(400).json({ error: "INVALID_USER_ID" });
+    }
+    if (error instanceof Error && error.message === "USER_NOT_FOUND") {
+      return res.status(404).json({ error: "USER_NOT_FOUND" });
+    }
+    handleDeckError(res, error);
+  }
+});
+
+app.get("/api/collection", (req, res) => {
+  try {
+    const userId = parseUserId(req.query.userId);
+    const rawTrend = parsePositiveIntQuery(req.query.trendLimit) ?? 5;
+    const trendLimit = Math.min(Math.max(rawTrend, 3), 10);
+    const players = getUserCollection(userId, trendLimit);
+    res.json({ players, trendLimit });
+  } catch (error) {
+    if (error instanceof DeckPayloadError && error.code === "INVALID_USER_ID") {
+      return res.status(400).json({ error: "INVALID_USER_ID" });
+    }
+    if (error instanceof Error && error.message === "USER_NOT_FOUND") {
+      return res.status(404).json({ error: "USER_NOT_FOUND" });
+    }
+    console.error(error);
+    res.status(500).json({ error: "COLLECTION_FETCH_FAILED" });
+  }
+});
+
+app.get("/api/market/transfer-state", (req, res) => {
+  try {
+    const userId = parseUserId(req.query.userId);
+    const state = getTransferState(userId);
+    res.json(state);
+  } catch (error) {
+    if (error instanceof DeckPayloadError && error.code === "INVALID_USER_ID") {
+      return res.status(400).json({ error: "INVALID_USER_ID" });
+    }
+    if (error instanceof Error && error.message === "USER_NOT_FOUND") {
+      return res.status(404).json({ error: "USER_NOT_FOUND" });
+    }
+    console.error(error);
+    res.status(500).json({ error: "TRANSFER_STATE_FETCH_FAILED" });
+  }
+});
+
+app.get("/api/market/history", (req, res) => {
+  try {
+    const userId = parseUserId(req.query.userId);
+    const rawLimit = parsePositiveIntQuery(req.query.limit) ?? 20;
+    const limit = Math.min(Math.max(rawLimit, 1), 50);
+    const history = getTransferHistory(userId, limit);
+    res.json({ history, limit });
+  } catch (error) {
+    if (error instanceof DeckPayloadError && error.code === "INVALID_USER_ID") {
+      return res.status(400).json({ error: "INVALID_USER_ID" });
+    }
+    if (error instanceof Error && error.message === "USER_NOT_FOUND") {
+      return res.status(404).json({ error: "USER_NOT_FOUND" });
+    }
+    console.error(error);
+    res.status(500).json({ error: "TRANSFER_HISTORY_FETCH_FAILED" });
+  }
+});
+
+app.get("/api/boosts", (req, res) => {
+  try {
+    const userId = parseUserId(req.query.userId);
+    const boosts = listBoosts(userId);
+    res.json({ boosts });
+  } catch (error) {
+    if (error instanceof DeckPayloadError && error.code === "INVALID_USER_ID") {
+      return res.status(400).json({ error: "INVALID_USER_ID" });
+    }
+    if (error instanceof Error && error.message === "USER_NOT_FOUND") {
+      return res.status(404).json({ error: "USER_NOT_FOUND" });
+    }
+    console.error(error);
+    res.status(500).json({ error: "BOOST_FETCH_FAILED" });
+  }
+});
+
+app.post("/api/boosts/assign", (req, res) => {
+  const { userId: rawUserId, boostType, playerId } = req.body ?? {};
+  if (!boostType || !playerId) {
+    return res.status(400).json({ error: "INVALID_PAYLOAD" });
+  }
+  try {
+    const userId = parseUserId(rawUserId);
+    const parsedPlayerId = Number(playerId);
+    if (!Number.isInteger(parsedPlayerId) || parsedPlayerId <= 0) {
+      return res.status(400).json({ error: "INVALID_PLAYER_ID" });
+    }
+    const tournament = getTransferState(userId);
+    const normalizedBoostType =
+      boostType === "HOT_STREAK" || boostType === "DOUBLE_TOTAL"
+        ? "HOT_STREAK"
+        : "DOUBLE_POINTS";
+    const boost = assignBoostToPlayer(
+      userId,
+      normalizedBoostType,
+      parsedPlayerId,
+      tournament.tournamentId ?? null
+    );
+    res.json({ boost });
+  } catch (error) {
+    if (error instanceof DeckPayloadError && error.code === "INVALID_USER_ID") {
+      return res.status(400).json({ error: "INVALID_USER_ID" });
+    }
+    if (error instanceof Error && error.message === "USER_NOT_FOUND") {
+      return res.status(404).json({ error: "USER_NOT_FOUND" });
     }
     handleDeckError(res, error);
   }
@@ -1300,11 +1490,22 @@ app.post("/api/tournaments/simulate", (req, res) => {
 
     const storedDecks = getAllDecks();
     const allDeckScores: DeckScoreSnapshot[] = storedDecks.map((storedDeck) => {
-      const scoreResult = scoreDeckAgainstPlayers(storedDeck.deck, finalPlayers);
+      const transferState = getTransferState(storedDeck.userId);
+      const boostInfo = getBoostMapForUser(
+        storedDeck.userId,
+        "tournament",
+        transferState.tournamentId ?? null
+      );
+      const scoreResult = scoreDeckAgainstPlayers(
+        storedDeck.deck,
+        finalPlayers,
+        boostInfo.map
+      );
       if (scoreResult.deck.userId === undefined) {
         scoreResult.deck.userId = storedDeck.deck.userId ?? storedDeck.userId;
       }
       const summaryForDeck = summarizeDeck(scoreResult.deck);
+      consumeBoostByIdIfApplied(boostInfo.boost, scoreResult);
       return {
         userId: storedDeck.userId,
         deck: scoreResult.deck,
@@ -1320,7 +1521,18 @@ app.post("/api/tournaments/simulate", (req, res) => {
       allDeckScores.find((entry) => entry.userId === userId);
 
     if (!userDeckScoreEntry) {
-      const fallbackScore = scoreDeckAgainstPlayers(deck, finalPlayers);
+      const transferState = getTransferState(userId);
+      const boostInfo = getBoostMapForUser(
+        userId,
+        "tournament",
+        transferState.tournamentId ?? null
+      );
+      const fallbackScore = scoreDeckAgainstPlayers(
+        deck,
+        finalPlayers,
+        boostInfo.map
+      );
+      consumeBoostByIdIfApplied(boostInfo.boost, fallbackScore);
       if (fallbackScore.deck.userId === undefined) {
         fallbackScore.deck.userId = userId;
       }

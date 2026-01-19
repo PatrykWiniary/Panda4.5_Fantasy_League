@@ -21,9 +21,11 @@ import {
   DeckError,
   calculateDeckValue,
   ensureUniqueMultipliers,
+  REQUIRED_ROLES,
+  removeCardFromDeck,
 } from "./deckManager";
 import { parseDeckPayload } from "./deckIO";
-import { scoreDeckAgainstPlayers } from "./simulationScoring";
+import { scoreDeckAgainstPlayers, DeckScoreResult } from "./simulationScoring";
 import { ProfileAvatarKey } from "./profileAvatars";
 import {sampleData} from "../data/SampleData.json"
 
@@ -44,6 +46,11 @@ const parsePositiveIntOrFallback = (
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const parseNumberOrFallback = (value: string | undefined, fallback: number) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
 const parseStringOrFallback = (value: string | undefined, fallback: string) =>
   value && value.trim().length > 0 ? value.trim() : fallback;
 
@@ -62,6 +69,52 @@ const PASSWORD_ITERATIONS = parsePositiveIntOrFallback(
 const PASSWORD_DIGEST = parseStringOrFallback(
   process.env.PASSWORD_DIGEST,
   "sha256"
+);
+
+const PLAYER_SCORE_DECAY = Math.min(
+  0.99,
+  Math.max(0.1, parseNumberOrFallback(process.env.PLAYER_SCORE_DECAY, 0.78))
+);
+const PLAYER_SCORE_MIN = parseNumberOrFallback(
+  process.env.PLAYER_SCORE_MIN,
+  50
+);
+const PLAYER_SCORE_MAX = Math.max(
+  PLAYER_SCORE_MIN,
+  parseNumberOrFallback(process.env.PLAYER_SCORE_MAX, 120)
+);
+
+const TRANSFER_LIMIT_PER_TOURNAMENT = parsePositiveIntOrFallback(
+  process.env.TRANSFER_LIMIT_PER_TOURNAMENT,
+  3
+);
+const TRANSFER_FEE_PER_CARD = Math.max(
+  0,
+  parseNumberOrFallback(process.env.TRANSFER_FEE_PER_CARD, 6)
+);
+const BASE_SEASON_CURRENCY = Math.max(
+  0,
+  parseNumberOrFallback(process.env.BASE_SEASON_CURRENCY, 200)
+);
+const SEASON_BONUS_TOP1 = Math.max(
+  0,
+  parseNumberOrFallback(process.env.SEASON_BONUS_TOP1, 60)
+);
+const SEASON_BONUS_TOP2 = Math.max(
+  0,
+  parseNumberOrFallback(process.env.SEASON_BONUS_TOP2, 40)
+);
+const SEASON_BONUS_TOP3 = Math.max(
+  0,
+  parseNumberOrFallback(process.env.SEASON_BONUS_TOP3, 25)
+);
+const MARKET_TREND_WINDOW = Math.min(
+  10,
+  Math.max(3, parsePositiveIntOrFallback(process.env.MARKET_TREND_WINDOW, 5))
+);
+const MARKET_PRICE_DELTA_CAP = Math.max(
+  0,
+  parseNumberOrFallback(process.env.MARKET_PRICE_DELTA_CAP, 8)
 );
 
 type TableColumn = {
@@ -113,6 +166,12 @@ function migrateUsersTable() {
   const hasScoreColumn = columns.some((column) => column.name === "score");
   const hasAvatarColumn = columns.some((column) => column.name === "avatar");
   const hasLobbyReadyColumn = columns.some((column) => column.name === "lobby_ready");
+  const hasTransferCountColumn = columns.some(
+    (column) => column.name === "transfer_count"
+  );
+  const hasTransferTournamentColumn = columns.some(
+    (column) => column.name === "transfer_tournament_id"
+  );
 
   if (!hasScoreColumn) {
     db.prepare(
@@ -128,6 +187,16 @@ function migrateUsersTable() {
     db.prepare(
       "ALTER TABLE users ADD COLUMN lobby_ready INTEGER NOT NULL DEFAULT 0"
     ).run();
+  }
+
+  if (!hasTransferCountColumn) {
+    db.prepare(
+      "ALTER TABLE users ADD COLUMN transfer_count INTEGER NOT NULL DEFAULT 0"
+    ).run();
+  }
+
+  if (!hasTransferTournamentColumn) {
+    db.prepare("ALTER TABLE users ADD COLUMN transfer_tournament_id INTEGER").run();
   }
 }
 
@@ -238,6 +307,99 @@ function migrateMatchHistoryPlayersTable() {
   ensureColumn("team_side", "TEXT");
 }
 
+function migrateTournamentsTable() {
+  const columns = tableColumns("tournaments");
+  if (columns.length === 0) {
+    return;
+  }
+
+  const hasRewardsColumn = columns.some(
+    (column) => column.name === "rewards_applied"
+  );
+  if (!hasRewardsColumn) {
+    db.prepare(
+      "ALTER TABLE tournaments ADD COLUMN rewards_applied INTEGER NOT NULL DEFAULT 0"
+    ).run();
+  }
+}
+
+function ensureTransferHistoryTable() {
+  db.prepare(
+    `
+    CREATE TABLE IF NOT EXISTS transfer_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      action TEXT NOT NULL,
+      role TEXT NOT NULL,
+      player_id INTEGER,
+      player_name TEXT NOT NULL,
+      price INTEGER NOT NULL,
+      fee INTEGER NOT NULL DEFAULT 0,
+      tournament_id INTEGER,
+      stage TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    )
+  `
+  ).run();
+}
+
+function ensureUserBoostsTable() {
+  db.prepare(
+    `
+    CREATE TABLE IF NOT EXISTS user_boosts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      tournament_id INTEGER,
+      boost_type TEXT NOT NULL,
+      scope TEXT NOT NULL DEFAULT 'match',
+      assigned_player_id INTEGER,
+      uses_remaining INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    )
+  `
+  ).run();
+
+  const columns = tableColumns("user_boosts");
+  if (columns.length === 0) {
+    return;
+  }
+  const hasScopeColumn = columns.some((column) => column.name === "scope");
+  if (!hasScopeColumn) {
+    db.prepare(
+      "ALTER TABLE user_boosts ADD COLUMN scope TEXT NOT NULL DEFAULT 'match'"
+    ).run();
+  }
+  const hasAssignedColumn = columns.some(
+    (column) => column.name === "assigned_player_id"
+  );
+  if (!hasAssignedColumn) {
+    db.prepare(
+      "ALTER TABLE user_boosts ADD COLUMN assigned_player_id INTEGER"
+    ).run();
+  }
+
+  db.prepare(
+    "UPDATE user_boosts SET boost_type = 'HOT_STREAK', scope = 'tournament' WHERE boost_type = 'DOUBLE_TOTAL'"
+  ).run();
+}
+
+function ensureUserCardsTable() {
+  db.prepare(
+    `
+    CREATE TABLE IF NOT EXISTS user_cards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      player_id INTEGER NOT NULL,
+      acquired_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, player_id),
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    )
+  `
+  ).run();
+}
+
 function backfillPlayerNicknames() {
   try {
     db.prepare(
@@ -268,6 +430,10 @@ migrateLobbyTable();
 migratePlayersTable();
 migrateMatchHistoryTable();
 migrateMatchHistoryPlayersTable();
+migrateTournamentsTable();
+ensureTransferHistoryTable();
+ensureUserBoostsTable();
+ensureUserCardsTable();
 backfillPlayerNicknames();
 
 type DebugDeckCardSeed = {
@@ -463,6 +629,19 @@ function buildDeckFromSeed(userId: number, deckSeed: DebugDeckCardSeed[]): Deck 
   return createDeck({ userId, slots });
 }
 
+function seedCollectionFromDeck(userId: number, deckSeed: DebugDeckCardSeed[]): void {
+  for (const cardSeed of deckSeed) {
+    if (cardSeed.playerId === undefined) {
+      continue;
+    }
+    try {
+      addPlayerToCollection(userId, cardSeed.playerId);
+    } catch (error) {
+      // ignore duplicates
+    }
+  }
+}
+
 function ensureSampleUsersWithDecks(): void {
   for (const sample of DEBUG_USER_SEEDS) {
     const requiredCurrency = Math.max(
@@ -517,6 +696,12 @@ function ensureSampleUsersWithDecks(): void {
       }
     } catch (error) {
       console.warn("Failed to seed debug deck for user", sample.mail, error);
+    }
+
+    try {
+      seedCollectionFromDeck(userId, sample.deck);
+    } catch (error) {
+      console.warn("Failed to seed collection for user", sample.mail, error);
     }
   }
 }
@@ -659,6 +844,18 @@ function persistCompleteDeck(userId: number, deck: CompleteDeck) {
   stmt.run(userId, payload);
 }
 
+function persistDeck(userId: number, deck: Deck) {
+  const payload = JSON.stringify(deck.slots);
+  const stmt = db.prepare(`
+    INSERT INTO decks (user_id, data, updated_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(user_id) DO UPDATE SET
+      data = excluded.data,
+      updated_at = excluded.updated_at
+  `);
+  stmt.run(userId, payload);
+}
+
 // Fetch only the currency column; throws when the user does not exist.
 export function getUserCurrency(userId: number): number {
   const row = db
@@ -670,6 +867,13 @@ export function getUserCurrency(userId: number): number {
   }
 
   return row.currency;
+}
+
+export function addUserCurrency(userId: number, delta: number): number {
+  const current = getUserCurrency(userId);
+  const next = Math.max(0, Math.floor(current + delta));
+  db.prepare("UPDATE users SET currency = ? WHERE id = ?").run(next, userId);
+  return next;
 }
 
 export function getUserScore(userId: number): number {
@@ -735,29 +939,219 @@ export function getAllDecks(): StoredDeck[] {
   });
 }
 
-export function saveDeck(userId: number, deck: Deck): DeckSaveResult {
-  const currency = getUserCurrency(userId);
+type UserTransferState = {
+  transferCount: number;
+  transferTournamentId: number | null;
+};
 
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getActiveTournamentForTransfers(): TournamentRow | null {
+  const row = db
+    .prepare(
+      `
+      SELECT
+        id,
+        name,
+        region_id,
+        type,
+        status,
+        stage,
+        is_active,
+        current_round,
+        started_at,
+        completed_at,
+        rewards_applied
+      FROM tournaments
+      WHERE is_active = 1
+      ORDER BY COALESCE(started_at, completed_at, CURRENT_TIMESTAMP) DESC, id DESC
+      LIMIT 1
+    `
+    )
+    .get() as TournamentRow | undefined;
+  return row ?? null;
+}
+
+function getUserTransferState(userId: number): UserTransferState {
+  const row = db
+    .prepare(
+      "SELECT transfer_count, transfer_tournament_id FROM users WHERE id = ?"
+    )
+    .get(userId) as
+    | { transfer_count?: number; transfer_tournament_id?: number | null }
+    | undefined;
+
+  if (!row) {
+    throw new Error("USER_NOT_FOUND");
+  }
+
+  return {
+    transferCount: Number(row.transfer_count) || 0,
+    transferTournamentId:
+      typeof row.transfer_tournament_id === "number"
+        ? Number(row.transfer_tournament_id)
+        : null,
+  };
+}
+
+function setUserTransferState(
+  userId: number,
+  tournamentId: number | null,
+  transferCount: number
+): void {
+  db.prepare(
+    "UPDATE users SET transfer_count = ?, transfer_tournament_id = ? WHERE id = ?"
+  ).run(Math.max(0, Math.floor(transferCount)), tournamentId, userId);
+}
+
+function cardIdentity(card: Card | null | undefined): string | null {
+  if (!card) {
+    return null;
+  }
+  if (typeof card.playerId === "number" && Number.isFinite(card.playerId)) {
+    return `player:${card.playerId}`;
+  }
+  return `name:${card.name.trim().toLowerCase()}`;
+}
+
+function countDeckTransfers(previous: Deck, next: Deck): number {
+  const hadAnyCard = REQUIRED_ROLES.some((role) => previous.slots[role]);
+  if (!hadAnyCard) {
+    return 0;
+  }
+
+  let transfers = 0;
+  for (const role of REQUIRED_ROLES) {
+    const prevId = cardIdentity(previous.slots[role]);
+    const nextId = cardIdentity(next.slots[role]);
+    if (prevId !== nextId && (prevId || nextId)) {
+      transfers += 1;
+    }
+  }
+  return transfers;
+}
+
+function applyScoreDecay(currentScore: number, deltaScore: number): number {
+  const decayed = currentScore * PLAYER_SCORE_DECAY + deltaScore;
+  const bounded = clampNumber(decayed, PLAYER_SCORE_MIN, PLAYER_SCORE_MAX);
+  return Number(bounded.toFixed(2));
+}
+
+function calculateMarketValueFromScore(score: number): number {
+  const safeScore = clampNumber(score, PLAYER_SCORE_MIN, PLAYER_SCORE_MAX);
+  return Math.max(10, Math.round(safeScore / 3));
+}
+
+type TransferCommit = {
+  tournamentId: number;
+  nextTransfers: number;
+  fee: number;
+  transferDelta: number;
+};
+
+function hasCompletedBracketMatches(tournamentId: number): boolean {
+  const row = db
+    .prepare(
+      `
+      SELECT COUNT(*) as total
+      FROM tournament_matches
+      WHERE tournament_id = ?
+        AND stage = 'bracket'
+        AND status = 'completed'
+    `
+    )
+    .get(tournamentId) as { total?: number } | undefined;
+  return Number(row?.total) > 0;
+}
+
+function isTransferWindowOpen(tournament: TournamentRow): boolean {
+  if (tournament.stage !== "bracket") {
+    return false;
+  }
+  return !hasCompletedBracketMatches(tournament.id);
+}
+
+function prepareTransferCommit(
+  userId: number,
+  transferDelta: number,
+  currency: number,
+  tournament: TournamentRow | null
+): TransferCommit | null {
+  if (transferDelta <= 0 || !tournament) {
+    return null;
+  }
+
+  if (!isTransferWindowOpen(tournament)) {
+    throw new DeckError(
+      "TRANSFER_WINDOW_CLOSED",
+      "Transfers are only allowed between tournament stages.",
+      {
+        tournamentId: tournament.id,
+        stage: tournament.stage,
+      }
+    );
+  }
+
+  const transferState = getUserTransferState(userId);
+  const isNewTournament =
+    transferState.transferTournamentId === null ||
+    transferState.transferTournamentId !== tournament.id;
+  const currentTransfers = isNewTournament ? 0 : transferState.transferCount;
+  const nextTransfers = currentTransfers + transferDelta;
+
+  if (nextTransfers > TRANSFER_LIMIT_PER_TOURNAMENT) {
+    throw new DeckError(
+      "TRANSFER_LIMIT_EXCEEDED",
+      "Transfer limit reached for the active tournament.",
+      {
+        tournamentId: tournament.id,
+        transfersUsed: currentTransfers,
+        transferLimit: TRANSFER_LIMIT_PER_TOURNAMENT,
+        requestedTransfers: transferDelta,
+      }
+    );
+  }
+
+  const fee = Math.max(0, Math.floor(TRANSFER_FEE_PER_CARD * transferDelta));
+  if (fee > currency) {
+    throw new DeckError(
+      "CURRENCY_LIMIT_EXCEEDED",
+      "Not enough currency to pay the transfer fee.",
+      {
+        currency,
+        transferFee: fee,
+        requestedTransfers: transferDelta,
+      }
+    );
+  }
+
+  return {
+    tournamentId: tournament.id,
+    nextTransfers,
+    fee,
+    transferDelta,
+  };
+}
+
+function commitTransfers(userId: number, commit: TransferCommit | null): number {
+  if (!commit) {
+    return 0;
+  }
+
+  setUserTransferState(userId, commit.tournamentId, commit.nextTransfers);
+  return commit.fee;
+}
+
+export function saveDeck(userId: number, deck: Deck): DeckSaveResult {
   const deckWithOwner = createDeck({
     userId,
     slots: deck.slots,
   });
 
   ensureUniqueMultipliers(deckWithOwner);
-
-  const deckValue = calculateDeckValue(deckWithOwner);
-  if (deckValue > currency) {
-    // Make overspending a hard failure so client callers can surface the deficit.
-    throw new DeckError(
-      "CURRENCY_LIMIT_EXCEEDED",
-      "Deck exceeds available currency.",
-      {
-        totalValue: deckValue,
-        currency,
-        overBudgetBy: deckValue - currency,
-      }
-    );
-  }
+  ensureDeckCardsOwned(userId, deckWithOwner);
 
   try {
     const completeDeck = ensureDeckComplete(deckWithOwner);
@@ -1054,6 +1448,7 @@ type TournamentRow = {
   current_round: number;
   started_at: string | null;
   completed_at: string | null;
+  rewards_applied: number;
 };
 
 type TournamentGroupRow = {
@@ -1858,11 +2253,17 @@ function applyMatchResultsToDecks(players: Player[]): void {
 
   const decks = getAllDecks();
   for (const storedDeck of decks) {
-    const result = scoreDeckAgainstPlayers(storedDeck.deck, players);
     const userId = storedDeck.userId;
     if (!userId) {
       continue;
     }
+
+    const boostInfo = getBoostMapForUser(userId, "match", null);
+    const result = scoreDeckAgainstPlayers(
+      storedDeck.deck,
+      players,
+      boostInfo.map
+    );
 
     const awardedPoints = Math.max(result.totalScore, 0);
     try {
@@ -1876,6 +2277,8 @@ function applyMatchResultsToDecks(players: Player[]): void {
     } catch (error) {
       console.warn("Failed to persist deck after match simulation", userId, error);
     }
+
+    consumeBoostByIdIfApplied(boostInfo.boost, result);
   }
 }
 
@@ -2488,6 +2891,914 @@ export function getPlayersGroupedByRole(
   return grouped;
 }
 
+export type MarketPlayerListing = PlayerOverview & {
+  marketValue: number;
+  recentPrices: number[];
+  trendDelta: number;
+};
+
+type MarketPlayerRow = {
+  id: number;
+  name: string;
+  nickname: string | null;
+  role: Role;
+  score: number;
+};
+
+function fetchMarketPlayerById(playerId: number): MarketPlayerRow | undefined {
+  const row = db
+    .prepare("SELECT id, name, nickname, role, score FROM players WHERE id = ?")
+    .get(playerId) as MarketPlayerRow | undefined;
+  return row;
+}
+
+function fetchMarketPlayerByName(name: string): MarketPlayerRow | undefined {
+  const normalized = name.trim().toLowerCase();
+  const row = db
+    .prepare(
+      `
+      SELECT id, name, nickname, role, score
+      FROM players
+      WHERE LOWER(name) = ? OR LOWER(nickname) = ?
+      LIMIT 1
+    `
+    )
+    .get(normalized, normalized) as MarketPlayerRow | undefined;
+  return row;
+}
+
+function fetchRecentPlayerScores(
+  playerId: number,
+  limit = MARKET_TREND_WINDOW
+): number[] {
+  const safeLimit = Math.min(10, Math.max(1, Math.floor(limit)));
+  const rows = db
+    .prepare(
+      `
+      SELECT mhp.score as score
+      FROM match_history_players mhp
+      JOIN match_history mh ON mh.id = mhp.match_id
+      WHERE mhp.player_id = ?
+      ORDER BY mh.created_at DESC, mhp.id DESC
+      LIMIT ?
+    `
+    )
+    .all(playerId, safeLimit) as Array<{ score: number }>;
+  return rows.map((row) => Number(row.score) || 0);
+}
+
+function calculateMarketValueFromRecent(
+  recentScores: number[],
+  fallbackScore: number
+): number {
+  if (recentScores.length === 0) {
+    return calculateMarketValueFromScore(fallbackScore);
+  }
+  const avg =
+    recentScores.reduce((sum, value) => sum + value, 0) / recentScores.length;
+  const target = calculateMarketValueFromScore(avg);
+  if (recentScores.length < 2 || MARKET_PRICE_DELTA_CAP <= 0) {
+    return target;
+  }
+  const previous = calculateMarketValueFromScore(recentScores[1]);
+  const delta = clampNumber(
+    target - previous,
+    -MARKET_PRICE_DELTA_CAP,
+    MARKET_PRICE_DELTA_CAP
+  );
+  return previous + delta;
+}
+
+function buildRecentPrices(
+  recentScores: number[],
+  fallbackScore: number
+): number[] {
+  if (recentScores.length === 0) {
+    return [calculateMarketValueFromScore(fallbackScore)];
+  }
+  return recentScores.map((score) => calculateMarketValueFromScore(score));
+}
+
+function buildMarketTrend(recentPrices: number[]): number {
+  if (recentPrices.length < 2) {
+    return 0;
+  }
+  const newest = recentPrices[0] ?? 0;
+  const oldest = recentPrices[recentPrices.length - 1] ?? 0;
+  return Number((newest - oldest).toFixed(2));
+}
+
+function resolveMarketPriceForCard(card: Card): {
+  playerId?: number;
+  name: string;
+  role: Role;
+  score?: number;
+  marketValue: number;
+  source: "player" | "card";
+} {
+  const player =
+    (typeof card.playerId === "number" ? fetchMarketPlayerById(card.playerId) : undefined) ??
+    fetchMarketPlayerByName(card.name);
+
+  if (!player) {
+    return {
+      playerId: card.playerId,
+      name: card.name,
+      role: card.role,
+      marketValue: Math.max(0, Math.floor(card.value)),
+      source: "card",
+    };
+  }
+
+  const recentScores = fetchRecentPlayerScores(player.id);
+  return {
+    playerId: player.id,
+    name: player.nickname ?? player.name,
+    role: player.role,
+    score: player.score,
+    marketValue: calculateMarketValueFromRecent(recentScores, player.score),
+    source: "player",
+  };
+}
+
+export function getMarketPlayers(
+  filters: PlayerFilters = {},
+  trendLimit = MARKET_TREND_WINDOW
+): MarketPlayerListing[] {
+  const players = getPlayersOverview(filters);
+  return players.map((player) => {
+    const recentScores = fetchRecentPlayerScores(player.id, trendLimit);
+    const recentPrices = buildRecentPrices(recentScores, player.score);
+    return {
+      ...player,
+      marketValue: calculateMarketValueFromRecent(recentScores, player.score),
+      recentPrices,
+      trendDelta: buildMarketTrend(recentPrices),
+    };
+  });
+}
+
+function buildMarketCardFromPlayer(player: MarketPlayerRow): Card {
+  const recentScores = fetchRecentPlayerScores(player.id);
+  return {
+    name: player.nickname ?? player.name,
+    role: player.role,
+    points: Math.max(20, Math.round(player.score)),
+    value: calculateMarketValueFromRecent(recentScores, player.score),
+    playerId: player.id,
+  };
+}
+
+export type MarketSaleResult = {
+  deck: Deck;
+  summary: DeckSummary;
+  currency: number;
+  sold: {
+    role: Role;
+    playerId?: number;
+    name: string;
+    previousValue: number;
+    marketValue: number;
+    score?: number;
+    source: "player" | "card";
+  };
+};
+
+export type MarketPurchaseResult = {
+  currency: number;
+  purchased: {
+    role: Role;
+    playerId: number;
+    name: string;
+    marketValue: number;
+    score: number;
+  };
+};
+
+export type OwnedPlayer = PlayerOverview & {
+  marketValue: number;
+  recentPrices: number[];
+  trendDelta: number;
+  acquiredAt: string;
+};
+
+export function getUserCollection(
+  userId: number,
+  trendLimit = MARKET_TREND_WINDOW
+): OwnedPlayer[] {
+  const rows = db
+    .prepare(
+      `
+      SELECT
+        p.id,
+        p.name,
+        p.nickname as nickname,
+        p.role,
+        p.kills,
+        p.deaths,
+        p.assists,
+        p.cs,
+        p.gold,
+        p.score,
+        p.region_id as region_id,
+        p.team_id as team_id,
+        t.name as teamName,
+        r.name as regionName,
+        tr.id as tournamentId,
+        tr.name as tournamentName,
+        uc.acquired_at as acquiredAt
+      FROM user_cards uc
+      JOIN players p ON p.id = uc.player_id
+      JOIN teams t ON t.id = p.team_id
+      JOIN tournaments tr ON tr.id = t.tournament_id
+      JOIN regions r ON r.id = tr.region_id
+      WHERE uc.user_id = ?
+      ORDER BY uc.acquired_at DESC
+    `
+    )
+    .all(userId) as Array<PlayerOverviewRow & { acquiredAt: string }>;
+
+  return rows.map((row) => {
+    const recentScores = fetchRecentPlayerScores(row.id, trendLimit);
+    const recentPrices = buildRecentPrices(recentScores, row.score);
+    return {
+      id: row.id,
+      name: row.name,
+      nickname: row.nickname ?? null,
+      role: row.role,
+      kills: row.kills,
+      deaths: row.deaths,
+      assists: row.assists,
+      cs: row.cs,
+      gold: row.gold,
+      score: row.score,
+      region: {
+        id: row.region_id,
+        name: row.regionName,
+      },
+      team: {
+        id: row.team_id,
+        name: row.teamName,
+        tournamentId: row.tournamentId,
+        tournamentName: row.tournamentName,
+      },
+      marketValue: calculateMarketValueFromRecent(recentScores, row.score),
+      recentPrices,
+      trendDelta: buildMarketTrend(recentPrices),
+      acquiredAt: row.acquiredAt,
+    };
+  });
+}
+
+function isPlayerOwned(userId: number, playerId: number): boolean {
+  const row = db
+    .prepare(
+      "SELECT 1 as hasCard FROM user_cards WHERE user_id = ? AND player_id = ?"
+    )
+    .get(userId, playerId) as { hasCard?: number } | undefined;
+  return Boolean(row?.hasCard);
+}
+
+function addPlayerToCollection(userId: number, playerId: number): void {
+  db.prepare(
+    "INSERT INTO user_cards (user_id, player_id) VALUES (?, ?)"
+  ).run(userId, playerId);
+}
+
+function removePlayerFromCollection(userId: number, playerId: number): void {
+  db.prepare(
+    "DELETE FROM user_cards WHERE user_id = ? AND player_id = ?"
+  ).run(userId, playerId);
+}
+
+function ensureDeckCardsOwned(userId: number, deck: Deck): void {
+  const owned = db
+    .prepare("SELECT player_id FROM user_cards WHERE user_id = ?")
+    .all(userId) as Array<{ player_id: number }>;
+  const ownedIds = new Set(owned.map((row) => row.player_id));
+
+  for (const role of REQUIRED_ROLES) {
+    const card = deck.slots[role];
+    if (!card) {
+      continue;
+    }
+    if (typeof card.playerId === "number" && ownedIds.has(card.playerId)) {
+      continue;
+    }
+    throw new DeckError(
+      "CARD_NOT_OWNED",
+      "Deck contains a player that is not owned.",
+      { role, playerId: card.playerId, name: card.name }
+    );
+  }
+}
+
+export type TransferHistoryEntry = {
+  id: number;
+  action: "buy" | "sell";
+  role: Role;
+  playerId?: number | null;
+  playerName: string;
+  price: number;
+  fee: number;
+  tournamentId?: number | null;
+  stage?: string | null;
+  createdAt: string;
+};
+
+export type TransferState = {
+  tournamentId?: number | null;
+  stage?: string | null;
+  windowOpen: boolean;
+  windowLabel: string;
+  transferLimit?: number | null;
+  transfersUsed?: number | null;
+  transferFeePerCard: number;
+  remainingTransfers?: number | null;
+};
+
+function recordTransferHistory(options: {
+  userId: number;
+  action: "buy" | "sell";
+  role: Role;
+  playerId?: number;
+  playerName: string;
+  price: number;
+  fee: number;
+  tournament?: TournamentRow | null;
+}): void {
+  db.prepare(
+    `
+    INSERT INTO transfer_history (
+      user_id,
+      action,
+      role,
+      player_id,
+      player_name,
+      price,
+      fee,
+      tournament_id,
+      stage
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `
+  ).run(
+    options.userId,
+    options.action,
+    options.role,
+    options.playerId ?? null,
+    options.playerName,
+    Math.max(0, Math.floor(options.price)),
+    Math.max(0, Math.floor(options.fee)),
+    options.tournament?.id ?? null,
+    options.tournament?.stage ?? null
+  );
+}
+
+export function getTransferHistory(
+  userId: number,
+  limit = 20
+): TransferHistoryEntry[] {
+  const safeLimit = Math.min(50, Math.max(1, Math.floor(limit)));
+  const rows = db
+    .prepare(
+      `
+      SELECT
+        id,
+        action,
+        role,
+        player_id as playerId,
+        player_name as playerName,
+        price,
+        fee,
+        tournament_id as tournamentId,
+        stage,
+        created_at as createdAt
+      FROM transfer_history
+      WHERE user_id = ?
+      ORDER BY created_at DESC, id DESC
+      LIMIT ?
+    `
+    )
+    .all(userId, safeLimit) as Array<TransferHistoryEntry>;
+  return rows.map((row) => ({
+    ...row,
+    action: row.action === "sell" ? "sell" : "buy",
+  }));
+}
+
+export function getTransferState(userId: number): TransferState {
+  const tournament = getActiveTournamentForTransfers();
+  if (!tournament) {
+    return {
+      tournamentId: null,
+      stage: null,
+      windowOpen: true,
+      windowLabel: "between-tournaments",
+      transferLimit: null,
+      transfersUsed: null,
+      remainingTransfers: null,
+      transferFeePerCard: 0,
+    };
+  }
+
+  ensureUserTournamentBoosts(userId, tournament.id);
+  const transferState = getUserTransferState(userId);
+  const isNewTournament =
+    transferState.transferTournamentId === null ||
+    transferState.transferTournamentId !== tournament.id;
+  const transfersUsed = isNewTournament ? 0 : transferState.transferCount;
+  const remaining = Math.max(TRANSFER_LIMIT_PER_TOURNAMENT - transfersUsed, 0);
+  const windowOpen = isTransferWindowOpen(tournament);
+  return {
+    tournamentId: tournament.id,
+    stage: tournament.stage,
+    windowOpen,
+    windowLabel: windowOpen ? "between-stages" : "locked",
+    transferLimit: TRANSFER_LIMIT_PER_TOURNAMENT,
+    transfersUsed,
+    remainingTransfers: remaining,
+    transferFeePerCard: TRANSFER_FEE_PER_CARD,
+  };
+}
+
+export type BoostType = "DOUBLE_POINTS" | "HOT_STREAK";
+
+function normalizeBoostType(raw: string): BoostType {
+  if (raw === "DOUBLE_TOTAL") {
+    return "HOT_STREAK";
+  }
+  if (raw === "HOT_STREAK") {
+    return "HOT_STREAK";
+  }
+  return "DOUBLE_POINTS";
+}
+
+export type UserBoost = {
+  id: number;
+  userId: number;
+  tournamentId?: number | null;
+  boostType: BoostType;
+  scope: "match" | "tournament";
+  assignedPlayerId?: number | null;
+  usesRemaining: number;
+  createdAt: string;
+};
+
+function ensureUserTournamentBoosts(
+  userId: number,
+  tournamentId: number | null
+): void {
+  if (!tournamentId) {
+    return;
+  }
+
+  const existing = db
+    .prepare(
+      `
+      SELECT boost_type as boostType
+      FROM user_boosts
+      WHERE user_id = ? AND tournament_id = ? AND uses_remaining > 0
+    `
+    )
+    .all(userId, tournamentId) as Array<{ boostType: string }>;
+  const existingTypes = new Set(
+    existing.map((row) => normalizeBoostType(row.boostType))
+  );
+
+  const missing: Array<{ boostType: BoostType; scope: "match" | "tournament" }> =
+    [];
+  if (!existingTypes.has("DOUBLE_POINTS")) {
+    missing.push({ boostType: "DOUBLE_POINTS", scope: "match" });
+  }
+  if (!existingTypes.has("HOT_STREAK")) {
+    missing.push({ boostType: "HOT_STREAK", scope: "tournament" });
+  }
+
+  if (missing.length === 0) {
+    return;
+  }
+
+  const stmt = db.prepare(
+    `
+    INSERT INTO user_boosts (user_id, tournament_id, boost_type, scope, uses_remaining)
+    VALUES (?, ?, ?, ?, 1)
+  `
+  );
+  missing.forEach((entry) => {
+    stmt.run(userId, tournamentId, entry.boostType, entry.scope);
+  });
+}
+
+export function listBoosts(userId: number): UserBoost[] {
+  const activeTournament = getActiveTournamentForTransfers();
+  ensureUserTournamentBoosts(userId, activeTournament?.id ?? null);
+  const rows = db
+    .prepare(
+      `
+      SELECT
+        id,
+        user_id as userId,
+        tournament_id as tournamentId,
+        boost_type as boostType,
+        scope,
+        assigned_player_id as assignedPlayerId,
+        uses_remaining as usesRemaining,
+        created_at as createdAt
+      FROM user_boosts
+      WHERE user_id = ? AND uses_remaining > 0
+      ORDER BY id DESC
+    `
+    )
+    .all(userId) as Array<UserBoost & { boostType: string }>;
+  const normalized = rows.map((row) => ({
+    ...row,
+    boostType: normalizeBoostType(row.boostType),
+  })) as UserBoost[];
+  const seen = new Set<string>();
+  return normalized.filter((boost) => {
+    const key = `${boost.boostType}:${boost.scope}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+export function assignBoostToPlayer(
+  userId: number,
+  boostType: BoostType,
+  playerId: number,
+  tournamentId: number | null
+): UserBoost {
+  if (!isPlayerOwned(userId, playerId)) {
+    throw new DeckError(
+      "CARD_NOT_OWNED",
+      "Player is not owned.",
+      { playerId }
+    );
+  }
+
+  const row = db
+    .prepare(
+      `
+      SELECT id, scope
+      FROM user_boosts
+      WHERE user_id = ?
+        AND boost_type = ?
+        AND uses_remaining > 0
+        AND (tournament_id = ? OR tournament_id IS NULL)
+      ORDER BY id DESC
+      LIMIT 1
+    `
+    )
+    .get(userId, boostType, tournamentId) as
+    | { id: number; scope: "match" | "tournament" }
+    | undefined;
+
+  if (!row) {
+    throw new DeckError("ROLE_NOT_FOUND", "Boost not available.");
+  }
+
+  db.prepare(
+    "UPDATE user_boosts SET assigned_player_id = ? WHERE id = ?"
+  ).run(playerId, row.id);
+
+  return {
+    id: row.id,
+    userId,
+    tournamentId,
+    boostType,
+    scope: row.scope,
+    assignedPlayerId: playerId,
+    usesRemaining: 1,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+export function selectBoost(
+  userId: number,
+  boostType: BoostType,
+  tournamentId?: number | null
+): UserBoost {
+  const active = db
+    .prepare(
+      `
+      SELECT id, uses_remaining
+      FROM user_boosts
+      WHERE user_id = ?
+        AND boost_type = ?
+        AND uses_remaining > 0
+      ORDER BY id DESC
+      LIMIT 1
+    `
+    )
+    .get(userId, boostType) as { id: number; uses_remaining: number } | undefined;
+
+  if (active) {
+    return {
+      id: active.id,
+      userId,
+      tournamentId: tournamentId ?? null,
+      boostType,
+      scope: boostType === "HOT_STREAK" ? "tournament" : "match",
+      assignedPlayerId: null,
+      usesRemaining: active.uses_remaining ?? 1,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  const scope = boostType === "HOT_STREAK" ? "tournament" : "match";
+  const info = db
+    .prepare(
+      `
+      INSERT INTO user_boosts (user_id, tournament_id, boost_type, scope, uses_remaining)
+      VALUES (?, ?, ?, ?, 1)
+    `
+    )
+    .run(userId, tournamentId ?? null, boostType, scope);
+
+  return {
+    id: Number(info.lastInsertRowid),
+    userId,
+    tournamentId: tournamentId ?? null,
+    boostType,
+    scope,
+    assignedPlayerId: null,
+    usesRemaining: 1,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+export function consumeBoost(
+  userId: number,
+  scope: "match" | "tournament",
+  tournamentId?: number | null
+): UserBoost | null {
+  const row = db
+    .prepare(
+      `
+      SELECT id, boost_type as boostType, uses_remaining as usesRemaining, tournament_id as tournamentId, created_at as createdAt, scope, assigned_player_id as assignedPlayerId
+      FROM user_boosts
+      WHERE user_id = ?
+        AND scope = ?
+        AND uses_remaining > 0
+        AND (tournament_id = ? OR tournament_id IS NULL)
+      ORDER BY id DESC
+      LIMIT 1
+    `
+    )
+    .get(userId, scope, tournamentId ?? null) as UserBoost | undefined;
+
+  if (!row) {
+    return null;
+  }
+
+  db.prepare(
+    "UPDATE user_boosts SET uses_remaining = uses_remaining - 1 WHERE id = ?"
+  ).run(row.id);
+
+  return row;
+}
+
+function consumeBoostById(boostId: number): void {
+  db.prepare(
+    "UPDATE user_boosts SET uses_remaining = uses_remaining - 1 WHERE id = ?"
+  ).run(boostId);
+}
+
+function getAssignedBoost(
+  userId: number,
+  scope: "match" | "tournament",
+  tournamentId?: number | null
+): UserBoost | null {
+  const row = db
+    .prepare(
+      `
+      SELECT id, boost_type as boostType, uses_remaining as usesRemaining, tournament_id as tournamentId, created_at as createdAt, scope, assigned_player_id as assignedPlayerId
+      FROM user_boosts
+      WHERE user_id = ?
+        AND scope = ?
+        AND assigned_player_id IS NOT NULL
+        AND uses_remaining > 0
+        AND (tournament_id = ? OR tournament_id IS NULL)
+      ORDER BY id DESC
+      LIMIT 1
+    `
+    )
+    .get(userId, scope, tournamentId ?? null) as UserBoost | undefined;
+  return row ?? null;
+}
+
+function boostMultiplier(boostType: BoostType): number {
+  switch (boostType) {
+    case "HOT_STREAK":
+      return 1.25;
+    case "DOUBLE_POINTS":
+    default:
+      return 2;
+  }
+}
+
+export type ActiveBoost = {
+  id: number;
+  boostType: BoostType;
+  assignedPlayerId: number;
+};
+
+export function getBoostMapForUser(
+  userId: number,
+  scope: "match" | "tournament",
+  tournamentId?: number | null
+): { map: Map<number, number>; boost: ActiveBoost | null } {
+  const boost = getAssignedBoost(userId, scope, tournamentId);
+  if (!boost?.assignedPlayerId) {
+    return { map: new Map(), boost: null };
+  }
+  const map = new Map<number, number>();
+  map.set(boost.assignedPlayerId, boostMultiplier(boost.boostType));
+  return {
+    map,
+    boost: {
+      id: boost.id,
+      boostType: boost.boostType,
+      assignedPlayerId: boost.assignedPlayerId,
+    },
+  };
+}
+
+export function consumeBoostByIdIfApplied(
+  boost: ActiveBoost | null,
+  result: DeckScoreResult
+): void {
+  if (!boost) {
+    return;
+  }
+  const applied = result.entries.some(
+    (entry) => entry.playerId === boost.assignedPlayerId
+  );
+  if (applied) {
+    consumeBoostById(boost.id);
+  }
+}
+
+export function buyCardForDeck(
+  userId: number,
+  playerId: number
+): MarketPurchaseResult {
+  const player = fetchMarketPlayerById(playerId);
+  if (!player) {
+    throw new DeckError("ROLE_NOT_FOUND", "Player not found.");
+  }
+
+  const role = player.role;
+  if (isPlayerOwned(userId, player.id)) {
+    throw new DeckError(
+      "ROLE_ALREADY_OCCUPIED",
+      "Player already owned.",
+      { playerId: player.id }
+    );
+  }
+
+  const activeTournament = getActiveTournamentForTransfers();
+  ensureUserTournamentBoosts(userId, activeTournament?.id ?? null);
+  const transferCommit = prepareTransferCommit(
+    userId,
+    1,
+    getUserCurrency(userId),
+    activeTournament
+  );
+
+  const price = calculateMarketValueFromRecent(
+    fetchRecentPlayerScores(player.id),
+    player.score
+  );
+  const currency = getUserCurrency(userId);
+  const totalCost = price + (transferCommit?.fee ?? 0);
+  if (totalCost > currency) {
+    throw new DeckError(
+      "CURRENCY_LIMIT_EXCEEDED",
+      "Not enough currency to buy this player.",
+      {
+        price,
+        currency,
+        transferFee: transferCommit?.fee ?? 0,
+        overBudgetBy: totalCost - currency,
+      }
+    );
+  }
+
+  const nextCurrency = db.transaction(() => {
+    const fee = commitTransfers(userId, transferCommit);
+    addUserCurrency(userId, -(price + fee));
+    addPlayerToCollection(userId, player.id);
+    recordTransferHistory({
+      userId,
+      action: "buy",
+      role,
+      playerId: player.id,
+      playerName: player.nickname ?? player.name,
+      price,
+      fee,
+      tournament: activeTournament,
+    });
+    return getUserCurrency(userId);
+  })();
+
+  return {
+    currency: nextCurrency,
+    purchased: {
+      role,
+      playerId: player.id,
+      name: player.nickname ?? player.name,
+      marketValue: price,
+      score: player.score,
+    },
+  };
+}
+
+export function sellCardFromDeck(
+  userId: number,
+  playerId: number
+): MarketSaleResult {
+  const player = fetchMarketPlayerById(playerId);
+  if (!player) {
+    throw new DeckError("ROLE_NOT_FOUND", "Player not found.");
+  }
+
+  if (!isPlayerOwned(userId, player.id)) {
+    throw new DeckError(
+      "CARD_NOT_OWNED",
+      "Player is not owned.",
+      { playerId: player.id }
+    );
+  }
+
+  const ownedDeck = getDeck(userId);
+  const updatedDeck = createDeck({ userId, slots: ownedDeck.slots });
+  const slots = updatedDeck.slots;
+  let removedCard: Card | null = null;
+  for (const role of REQUIRED_ROLES) {
+    const card = slots[role];
+    if (card?.playerId === player.id) {
+      removedCard = card;
+      slots[role] = null;
+    }
+  }
+
+  const price = resolveMarketPriceForCard({
+    name: player.nickname ?? player.name,
+    role: player.role,
+    points: player.score,
+    value: calculateMarketValueFromRecent(
+      fetchRecentPlayerScores(player.id),
+      player.score
+    ),
+    playerId: player.id,
+  });
+  const activeTournament = getActiveTournamentForTransfers();
+  ensureUserTournamentBoosts(userId, activeTournament?.id ?? null);
+  const transferCommit = prepareTransferCommit(
+    userId,
+    1,
+    getUserCurrency(userId),
+    activeTournament
+  );
+
+  const currency = db.transaction(() => {
+    const fee = commitTransfers(userId, transferCommit);
+    const nextCurrency = addUserCurrency(userId, price.marketValue - fee);
+    removePlayerFromCollection(userId, player.id);
+    persistDeck(userId, updatedDeck);
+    recordTransferHistory({
+      userId,
+      action: "sell",
+      role: player.role,
+      playerId: player.id,
+      playerName: price.name,
+      price: price.marketValue,
+      fee,
+      tournament: activeTournament,
+    });
+    return nextCurrency;
+  })();
+
+  return {
+    deck: updatedDeck,
+    summary: summarizeDeck(updatedDeck),
+    currency,
+    sold: {
+      role: player.role,
+      playerId: price.playerId,
+      name: price.name,
+      previousValue: removedCard?.value ?? price.marketValue,
+      marketValue: price.marketValue,
+      score: price.score,
+      source: price.source,
+    },
+  };
+}
+
 function cleanDB(){
   db.prepare("DELETE FROM players").run();
   db.prepare("DELETE FROM sqlite_sequence WHERE name='players';")
@@ -3001,7 +4312,7 @@ export function simulateMatch(players: Player[], regionName: string) {
       deltaCs,
       deltaGold
     );
-    player.score += deltaScore;
+    player.score = applyScoreDecay(player.score, deltaScore);
     if (deltaScore > MVP.score) {
       MVP.name = player.nickname ?? player.name;
       MVP.score = deltaScore;
@@ -3127,7 +4438,8 @@ function fetchTournamentRow(
         is_active,
         current_round,
         started_at,
-        completed_at
+        completed_at,
+        rewards_applied
       FROM tournaments
       WHERE region_id = ?
         AND type = 'worlds'
@@ -3595,6 +4907,7 @@ export function startTournamentForRegion(
       current_round: 1,
       started_at: new Date().toISOString(),
       completed_at: null,
+      rewards_applied: 0,
     };
 
     const groups = createTournamentGroups(newTournament, teams);
@@ -3838,7 +5151,46 @@ function refreshTournamentStatus(tournament: TournamentRow): void {
     db.prepare(
       "UPDATE tournaments SET stage = 'completed', status = 'completed', is_active = 0, completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) WHERE id = ?"
     ).run(tournament.id);
+    const completed = db
+      .prepare(
+        "SELECT id, name, region_id, type, status, stage, is_active, current_round, started_at, completed_at, rewards_applied FROM tournaments WHERE id = ?"
+      )
+      .get(tournament.id) as TournamentRow | undefined;
+    if (completed) {
+      applySeasonReset(completed);
+    }
   }
+}
+
+function applySeasonReset(tournament: TournamentRow): void {
+  if (tournament.rewards_applied) {
+    return;
+  }
+
+  const leaderboard = db
+    .prepare("SELECT id, score FROM users ORDER BY score DESC, id ASC LIMIT 3")
+    .all() as Array<{ id: number; score: number }>;
+
+  const bonuses = [SEASON_BONUS_TOP1, SEASON_BONUS_TOP2, SEASON_BONUS_TOP3];
+
+  db.transaction(() => {
+    db.prepare("UPDATE users SET currency = ?").run(BASE_SEASON_CURRENCY);
+    db.prepare(
+      "UPDATE users SET transfer_count = 0, transfer_tournament_id = NULL"
+    ).run();
+    db.prepare("UPDATE user_boosts SET uses_remaining = 0").run();
+
+    leaderboard.forEach((entry, index) => {
+      const bonus = bonuses[index] ?? 0;
+      if (bonus > 0) {
+        addUserCurrency(entry.id, bonus);
+      }
+    });
+
+    db.prepare(
+      "UPDATE tournaments SET rewards_applied = 1 WHERE id = ?"
+    ).run(tournament.id);
+  })();
 }
 
 type PendingMatchRow = MatchRowWithNames;

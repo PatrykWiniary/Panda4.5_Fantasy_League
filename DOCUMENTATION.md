@@ -70,6 +70,10 @@ Modul `backend/src/deckManager.ts` zapewnia spojne operacje na talii:
 - Operacje na slotach: `addCardToDeck`, `removeCardFromDeck`, `replaceCardInDeck`, `upsertCardInDeck`.
 - Walidacje kompletności (`ensureDeckComplete`, `summarizeDeck`) oraz wyjatki `DeckError` z bogatymi metadanymi.
 - Kontrola kosztu talii (`calculateDeckValue`) oraz pilnowanie unikalnych mnoznikow kapitana (`ensureUniqueMultipliers`).
+- Transfery w trakcie aktywnego turnieju sa mozliwe tylko pomiedzy etapami (po fazie grupowej, przed pierwszym meczem drabinki) i moga naliczac oplaty transferowe; miedzy turniejami sa darmowe.
+- Ceny rynkowe kart sa liczone z ostatnich wynikow meczowych zawodnikow (trend cen), niezaleznie od punktow naliczanych za pojedynczy mecz.
+- Kolekcja gracza jest osobna od talii: Market dodaje/usuwa zawodnikow w kolekcji, a PlayerPick wybiera sklad tylko z posiadanych.
+- Boosty sa przypisywane do jednego zawodnika (match lub tournament) i wzmacniaja tylko jego wynik w rozgrywce.
 
 Modul `backend/src/deckIO.ts` odpowiada za parsowanie i serializacje payloadow HTTP (karty, talie, identyfikatory uzytkownikow) oraz generowanie odpowiedzi (`toDeckResponse`). Dzieki temu serwer ma jedno zrodlo walidacji wejscia.
 
@@ -90,6 +94,7 @@ Modul `backend/src/simulationScoring.ts` spina symulacje z taliami. Funkcja `sco
 - Symulacja meczu losuje dwie faktyczne druzyny (na podstawie 	eam_id graczy w wybranym regionie) i tylko ich zawodnicy biora udzial w wydarzeniu – pozostali zawodnicy nie dostaja dodatkowych statystyk.
 - Ranking uzytkownikow (`getLeaderboardTop`, `getUserRankingEntry`) jest udostepniany przez `GET /api/users/leaderboard`, ktory zwraca TOP 10, laczna liczbe menedzerow oraz (opcjonalnie) pozycje wskazanego uzytkownika.
 - Uzytkownicy moga zapisywac wybrany avatar (`POST /api/users/:id/avatar`). Backend normalizuje klucz (tylko alfanumeryczne + mylniki) i przechowuje wartosc w kolumnie `users.avatar`.
+- Po zakonczeniu turnieju system resetuje budzet do bazowej wartosci sezonu i przyznaje bonusy waluty dla TOP 3; transfery i boosty sa czyszczone przed nowym turniejem.
 
 ### Endpointy REST
 Najwazniejsze sciezki serwera (wszystkie zaczynaja sie od `/api`):
@@ -107,6 +112,14 @@ Najwazniejsze sciezki serwera (wszystkie zaczynaja sie od `/api`):
 | `POST` | `/decks/remove-card` | Usuwa karte z roli z uwzglednieniem waluty gracza.
 | `POST` | `/decks/replace-card` | Zastepuje karte na danej roli i sprawdza limit waluty.
 | `POST` | `/decks/save` | Zapisuje kompletna talie i zwraca jej podsumowanie.
+| `GET` | `/market/players?role=Top&regionId=1&teamId=3` | Lista graczy z aktualna wycena rynkowa (`marketValue`) na podstawie ich `score`.
+| `POST` | `/market/sell` | Sprzedaje zawodnika z kolekcji (body: `userId`, `playerId`) i aktualizuje budzet; usuwa z talii, jesli byl wybrany.
+| `POST` | `/market/buy` | Kupuje zawodnika do kolekcji (body: `userId`, `playerId`), aktualizuje budzet.
+| `GET` | `/collection?userId=123` | Lista posiadanych zawodnikow gracza (kolekcja).
+| `GET` | `/market/transfer-state?userId=123` | Zwraca status okna transferowego, limit i oplaty dla uzytkownika.
+| `GET` | `/market/history?userId=123&limit=20` | Historia transferow (kupno/sprzedaz) z cenami i oplatami.
+| `GET` | `/boosts?userId=123` | Lista dostepnych boostow (match/tournament) i przypisanych zawodnikow.
+| `POST` | `/boosts/assign` | Przypisuje boost do zawodnika (body: `userId`, `boostType`, `playerId`).
 | `POST` | `/tournaments/simulate` | Uruchamia symulacje turnieju dla wskazanego uzytkownika, nalicza punkty na podstawie wybranych kart i aktualizuje `users.score`.
 | `GET` | `/users/leaderboard?userId=123` | Zwraca TOP 10 menedzerow, laczna liczbe uzytkownikow oraz (opcjonalnie) pozycje konkretnej osoby.
 | `POST` | `/users/:userId/avatar` | Aktualizuje avatar uzytkownika po stronie backendu (nowa wartosc laduje w kolumnie `users.avatar`).

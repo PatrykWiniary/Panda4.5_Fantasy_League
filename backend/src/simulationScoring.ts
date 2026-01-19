@@ -42,7 +42,11 @@ function resolveMultiplier(multiplier?: Card["multiplier"]): number {
   return MULTIPLIER_VALUES[multiplier] ?? 1;
 }
 
-export function scoreDeckAgainstPlayers(deck: Deck, players: Player[]): DeckScoreResult {
+export function scoreDeckAgainstPlayers(
+  deck: Deck,
+  players: Player[],
+  boostMultipliers: Map<number, number> = new Map()
+): DeckScoreResult {
   const scoredDeck = cloneDeck(deck);
   const entries: DeckScoreEntry[] = [];
   const missingRoles: Role[] = [];
@@ -77,7 +81,8 @@ export function scoreDeckAgainstPlayers(deck: Deck, players: Player[]): DeckScor
 
     const baseScore = calculatePlayerScore(candidate);
     const multiplierValue = resolveMultiplier(card.multiplier);
-    const totalScore = Math.round(baseScore * multiplierValue);
+    const boostMultiplier = boostMultipliers.get(candidate.id) ?? 1;
+    const totalScore = Math.round(baseScore * multiplierValue * boostMultiplier);
 
     card.tournamentPoints = totalScore;
 

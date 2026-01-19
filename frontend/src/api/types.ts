@@ -228,6 +228,108 @@ export type PlayerOverview = {
   };
 };
 
+export type MarketPlayer = PlayerOverview & {
+  marketValue: number;
+  recentPrices: number[];
+  trendDelta: number;
+};
+
+export type MarketPlayersResponse = {
+  players: MarketPlayer[];
+  filters: {
+    role?: DeckRole;
+    regionId?: number;
+    teamId?: number;
+  };
+  trendLimit: number;
+};
+
+export type OwnedPlayer = PlayerOverview & {
+  marketValue: number;
+  recentPrices: number[];
+  trendDelta: number;
+  acquiredAt: string;
+};
+
+export type CollectionResponse = {
+  players: OwnedPlayer[];
+  trendLimit: number;
+};
+
+export type MarketSellResponse = {
+  deck: Deck;
+  summary: DeckSummary;
+  sold: {
+    role: DeckRole;
+    playerId?: number;
+    name: string;
+    previousValue: number;
+    marketValue: number;
+    score?: number;
+    source: "player" | "card";
+  };
+  currency: number;
+};
+
+export type TransferStateResponse = {
+  tournamentId?: number | null;
+  stage?: string | null;
+  windowOpen: boolean;
+  windowLabel: string;
+  transferLimit?: number | null;
+  transfersUsed?: number | null;
+  transferFeePerCard: number;
+  remainingTransfers?: number | null;
+};
+
+export type TransferHistoryEntry = {
+  id: number;
+  action: "buy" | "sell";
+  role: DeckRole;
+  playerId?: number | null;
+  playerName: string;
+  price: number;
+  fee: number;
+  tournamentId?: number | null;
+  stage?: string | null;
+  createdAt: string;
+};
+
+export type TransferHistoryResponse = {
+  history: TransferHistoryEntry[];
+  limit: number;
+};
+
+export type UserBoost = {
+  id: number;
+  userId: number;
+  tournamentId?: number | null;
+  boostType: "DOUBLE_POINTS" | "HOT_STREAK";
+  scope: "match" | "tournament";
+  assignedPlayerId?: number | null;
+  usesRemaining: number;
+  createdAt: string;
+};
+
+export type BoostsResponse = {
+  boosts: UserBoost[];
+};
+
+export type BoostAssignResponse = {
+  boost: UserBoost;
+};
+
+export type MarketBuyResponse = {
+  purchased: {
+    role: DeckRole;
+    playerId: number;
+    name: string;
+    marketValue: number;
+    score: number;
+  };
+  currency: number;
+};
+
 export type GroupedPlayersResponse = {
   groupedByRole: Record<DeckRole, PlayerOverview[]>;
   filters: {

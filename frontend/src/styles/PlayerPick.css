@@ -56,6 +56,40 @@ html, body, #root {
     z-index: 1;
 }
 
+.player-circle.empty {
+    background-color: #000;
+}
+
+.empty-fill {
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    background-color: #000;
+    z-index: 1;
+}
+
+.boost-badge {
+    position: absolute;
+    right: 4px;
+    top: 4px;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: #C9AC6D;
+    color: #111;
+    font-weight: 700;
+    font-size: 12px;
+    line-height: 22px;
+    text-align: center;
+    z-index: 3;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.boost-badge.used {
+    opacity: 0.45;
+}
+
 .player-circle::before {
     content: "";
     position: absolute;
@@ -155,6 +189,36 @@ html, body, #root {
     bottom: 100px;
 }
 
+.recommendations {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: rgba(201, 172, 109, 0.85);
+    font-size: 14px;
+}
+
+.recommendations span:first-child {
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.recommend-apply {
+    margin-top: 8px;
+    align-self: center;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(201, 172, 109, 0.6);
+    background: rgba(0, 0, 0, 0.6);
+    color: #f6e3b1;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.recommend-apply:hover {
+    background: rgba(201, 172, 109, 0.2);
+}
+
 .btn {
     position: relative;
     font-size: 1.1rem;
@@ -237,6 +301,12 @@ html, body, #root {
   position: relative;
   color: #d4af37;
   box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+}
+
+.modal-empty {
+  margin: 0 0 16px;
+  color: rgba(212, 175, 55, 0.75);
+  font-size: 0.95rem;
 }
 
 .close-btn {
@@ -328,6 +398,14 @@ html, body, #root {
   gap: 12px;
 }
 
+.boost-button-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+
 .preview-image {
   width: 250px;
   height: auto;
@@ -347,6 +425,12 @@ html, body, #root {
   margin: 0;
   font-size: 32px;
   color: #C9AC6D;
+}
+
+.boost-info {
+  margin-top: 6px;
+  font-size: 22px;
+  color: rgba(201, 172, 109, 0.85);
 }
 
 .circle-image {
@@ -521,5 +605,13 @@ html, body, #root {
   color: #777;
   border-color: #555;
   cursor: not-allowed;
-  opacity: 0.6;
+  opacity: 0.85;
+}
+
+.btn.confirm.boost-disabled {
+  background-color: rgba(40, 40, 40, 0.9);
+  color: rgba(255, 255, 255, 0.7);
+  border-color: rgba(255, 255, 255, 0.3);
+  cursor: not-allowed;
+  opacity: 0.85;
 }

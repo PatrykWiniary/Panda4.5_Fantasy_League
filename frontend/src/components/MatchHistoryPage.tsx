@@ -12,6 +12,7 @@ import type {
   TournamentControlState,
   DeckResponse,
   DeckCard,
+  MarketPlayersResponse,
 } from "../api/types";
 import MatchPlayerTables from "./MatchPlayerTables";
 import PlayerProfileModal from "./PlayerProfileModal";
@@ -21,6 +22,10 @@ export default function MatchHistoryPage() {
   const { user } = useSession();
   const [series, setSeries] = useState<MatchHistorySeriesEntry[]>([]);
   const [status, setStatus] = useState<string | null>(null);
+  const [marketImpact, setMarketImpact] = useState<{
+    risers: Array<{ name: string; delta: number }>;
+    fallers: Array<{ name: string; delta: number }>;
+  } | null>(null);
   const [simulating, setSimulating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -221,11 +226,33 @@ export default function MatchHistoryPage() {
     }
     setSimulating(true);
     setStatus("Simulating match...");
+    setMarketImpact(null);
     try {
+      const before = await apiFetch<MarketPlayersResponse>("/api/market/players");
       await apiFetch("/api/matches/simulate", {
         method: "POST",
         body: JSON.stringify({}),
       });
+      const after = await apiFetch<MarketPlayersResponse>("/api/market/players");
+      const beforeMap = new Map(before.players.map((player) => [player.id, player]));
+      const deltas = after.players
+        .map((player) => {
+          const prev = beforeMap.get(player.id);
+          return {
+            name: player.nickname ?? player.name,
+            delta: prev ? player.marketValue - prev.marketValue : 0,
+          };
+        })
+        .filter((entry) => entry.delta !== 0);
+      const risers = [...deltas]
+        .filter((entry) => entry.delta > 0)
+        .sort((a, b) => b.delta - a.delta)
+        .slice(0, 3);
+      const fallers = [...deltas]
+        .filter((entry) => entry.delta < 0)
+        .sort((a, b) => a.delta - b.delta)
+        .slice(0, 3);
+      setMarketImpact({ risers, fallers });
       loadMatches(1);
       loadTournamentState();
     } catch (error) {
@@ -368,6 +395,38 @@ export default function MatchHistoryPage() {
         )}
 
         {status && <p className="form-status">{status}</p>}
+        {marketImpact && (
+          <div className="market-impact">
+            <div>
+              <h4>Market risers</h4>
+              {marketImpact.risers.length === 0 ? (
+                <p>Stable.</p>
+              ) : (
+                <ul>
+                  {marketImpact.risers.map((entry) => (
+                    <li key={entry.name}>
+                      {entry.name} (+{entry.delta})
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div>
+              <h4>Market fallers</h4>
+              {marketImpact.fallers.length === 0 ? (
+                <p>Stable.</p>
+              ) : (
+                <ul>
+                  {marketImpact.fallers.map((entry) => (
+                    <li key={entry.name}>
+                      {entry.name} ({entry.delta})
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="match-history-table-wrapper">
           <table className="match-history-table">

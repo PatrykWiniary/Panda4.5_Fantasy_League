@@ -36,7 +36,10 @@ export type DeckErrorCode =
   | "ROLE_EMPTY"
   | "ROLE_MISMATCH"
   | "CURRENCY_LIMIT_EXCEEDED"
-  | "MULTIPLIER_CONFLICT";
+  | "MULTIPLIER_CONFLICT"
+  | "TRANSFER_LIMIT_EXCEEDED"
+  | "TRANSFER_WINDOW_CLOSED"
+  | "CARD_NOT_OWNED";
 
 export class DeckError extends Error {
   constructor(

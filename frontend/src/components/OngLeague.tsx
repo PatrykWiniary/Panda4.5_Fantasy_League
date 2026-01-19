@@ -20,6 +20,7 @@ import type {
   LeaderboardResponse,
   LeaderboardEntry,
   TournamentPlayerStatsResponse,
+  TournamentControlState,
 } from "../api/types";
 import { useSession } from "../context/SessionContext";
 import { resolvePlayerImage } from "../utils/playerImages";
@@ -79,6 +80,7 @@ export default function OngLeaguePage({
   } | null>(null);
   const [latestLobby, setLatestLobby] = useState<string | null>(null);
   const [userStanding, setUserStanding] = useState<LeaderboardEntry | null>(null);
+  const [activeTournamentId, setActiveTournamentId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -146,17 +148,40 @@ export default function OngLeaguePage({
   }, [user?.id]);
 
   useEffect(() => {
+    if (!user) {
+      setActiveTournamentId(null);
+      return;
+    }
+    let canceled = false;
+    apiFetch<TournamentControlState>("/api/regions/1/tournament")
+      .then((payload) => {
+        if (!canceled) {
+          setActiveTournamentId(payload.tournament?.id ?? null);
+        }
+      })
+      .catch(() => {
+        if (!canceled) {
+          setActiveTournamentId(null);
+        }
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
     let canceled = false;
     const playerIds = Object.values(deck)
       .map((card) => card?.playerId)
       .filter((id): id is number => typeof id === "number" && id > 0);
-    if (playerIds.length === 0) {
+    if (!activeTournamentId || playerIds.length === 0) {
       setLatestStats({ byName: new Map(), byId: new Map() });
       setLatestProgress(null);
       setLatestLobby(null);
       return;
     }
 
+    setLatestStats({ byName: new Map(), byId: new Map() });
     apiFetch<TournamentPlayerStatsResponse>(
       `/api/regions/1/tournament/player-stats?ids=${playerIds.join(",")}`
     )
@@ -188,7 +213,7 @@ export default function OngLeaguePage({
     return () => {
       canceled = true;
     };
-  }, [deck]);
+  }, [deck, activeTournamentId]);
 
   useEffect(() => {
     if (popupEvent) {
@@ -216,6 +241,10 @@ export default function OngLeaguePage({
   const playerAvatar = resolveProfileAvatar(user?.avatar);
 
   const champions = useMemo(() => {
+    const hasActiveTournament = activeTournamentId !== null;
+    const hasLiveStats =
+      hasActiveTournament &&
+      (latestStats.byId.size > 0 || latestStats.byName.size > 0);
     const entries: ChampCard[] = (Object.keys(deck) as DeckRole[]).map(
       (role, index) => {
         const card = deck[role];
@@ -223,12 +252,6 @@ export default function OngLeaguePage({
           card?.name && resolvePlayerImage(card.name)
             ? resolvePlayerImage(card.name)
             : fallbackPortrait;
-        const tournamentScore =
-          typeof card?.tournamentPoints === "number"
-            ? card.tournamentPoints
-            : undefined;
-        const basePoints =
-          typeof card?.points === "number" ? card.points : undefined;
         const normalizedName = card?.name?.trim().toLowerCase();
         const latest =
           (card?.playerId !== undefined &&
@@ -241,13 +264,13 @@ export default function OngLeaguePage({
           name: card?.name,
           role,
           kdA: latest?.kdA,
-          pointsDelta: latest?.score ?? tournamentScore ?? basePoints ?? 0,
+          pointsDelta: hasLiveStats ? latest?.score : undefined,
           isMvp: latest?.isMvp,
         };
       }
     );
 
-    if (!entries.some((champ) => champ.isMvp)) {
+    if (!entries.some((champ) => champ.isMvp) && hasLiveStats) {
       const best = entries.reduce(
         (acc, champ) =>
           champ.pointsDelta !== undefined && champ.pointsDelta > acc.value
@@ -265,7 +288,7 @@ export default function OngLeaguePage({
     }
 
     return entries;
-  }, [deck, latestStats]);
+  }, [deck, latestStats, activeTournamentId]);
 
   const leaguePoints = userStanding?.score ?? user?.score ?? 0;
   const rankingPosition = userStanding?.position ?? null;
@@ -359,6 +382,14 @@ export default function OngLeaguePage({
                           {champ.pointsDelta} POINTS
                         </div>
                       )}
+                    </div>
+                  )}
+                  {!champ.kdA &&
+                    champ.pointsDelta === undefined &&
+                    champ.name &&
+                    activeTournamentId !== null && (
+                    <div className="champ-overlay">
+                      <div className="delta">No matches yet</div>
                     </div>
                   )}
                 </div>

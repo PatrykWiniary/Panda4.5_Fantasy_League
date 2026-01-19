@@ -6,7 +6,7 @@ import userIcon from "../assets/user.svg";
 import { useSession } from "../context/SessionContext";
 import { resolveProfileAvatar, PROFILE_AVATAR_OPTIONS } from "../utils/profileAvatars";
 import { apiFetch, ApiError } from "../api/client";
-import type { ApiUser } from "../api/types";
+import type { ApiUser, TransferHistoryResponse } from "../api/types";
 import AvatarPicker from "./AvatarPicker";
 
 export default function ProfilePage() {
@@ -16,10 +16,36 @@ export default function ProfilePage() {
   );
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [transferHistory, setTransferHistory] =
+    useState<TransferHistoryResponse | null>(null);
 
   useEffect(() => {
     setAvatarChoice(user?.avatar ?? PROFILE_AVATAR_OPTIONS[0]?.key ?? "");
   }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setTransferHistory(null);
+      return;
+    }
+    let canceled = false;
+    apiFetch<TransferHistoryResponse>(
+      `/api/market/history?userId=${user.id}&limit=10`
+    )
+      .then((payload) => {
+        if (!canceled) {
+          setTransferHistory(payload);
+        }
+      })
+      .catch(() => {
+        if (!canceled) {
+          setTransferHistory(null);
+        }
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [user?.id]);
 
   const handleSaveAvatar = async () => {
     if (!user) {
@@ -96,6 +122,21 @@ export default function ProfilePage() {
           <p className="profile-hint">
             Head to "Join new league" to draft your next roster.
           </p>
+          <div className="profile-transfer-log">
+            <h3>Recent transfers</h3>
+            {!transferHistory || transferHistory.history.length === 0 ? (
+              <p className="profile-hint">No transfers yet.</p>
+            ) : (
+              <ul>
+                {transferHistory.history.map((entry) => (
+                  <li key={entry.id}>
+                    <strong>{entry.action.toUpperCase()}</strong> {entry.playerName}{" "}
+                    ({entry.role}) за {entry.price}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       ) : (
         <div className="profile-card profile-empty-card">

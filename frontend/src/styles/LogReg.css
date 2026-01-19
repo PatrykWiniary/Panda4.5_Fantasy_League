@@ -201,6 +201,31 @@ body {
   line-height: 1.6;
 }
 
+.profile-transfer-log {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  border-radius: 12px;
+  background: rgba(10, 10, 10, 0.4);
+}
+
+.profile-transfer-log h3 {
+  margin-bottom: 0.75rem;
+  color: #f3c694;
+}
+
+.profile-transfer-log ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.profile-transfer-log li {
+  font-size: 0.95rem;
+  color: #e6dcc4;
+}
+
 /* --- PAGE ICONS --- */
 .login-container .page-icons,
 .registration-container .page-icons {
@@ -442,6 +467,35 @@ body {
   color: #f5e8c7;
   font-size: 1rem;
   letter-spacing: 1px;
+}
+
+.market-impact {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  color: #f5e8c7;
+}
+
+.market-impact h4 {
+  margin: 0 0 6px;
+  font-size: 0.9rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.market-impact ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.market-impact li {
+  font-size: 0.9rem;
 }
 
 .leaderboard-table-wrapper,

@@ -12,7 +12,27 @@ export default function HomePage() {
   const { user } = useSession();
   const [fadeOut, setFadeOut] = useState(false);
   const [activeLobby, setActiveLobby] = useState<LobbyByUserResponse["lobby"] | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
   const navigate = useNavigate();
+  const onboardingSteps = [
+    {
+      title: "Build your roster",
+      body: "Buy players in Market, then pick a full team in PlayerPick.",
+    },
+    {
+      title: "Transfers & prices",
+      body: "Prices move with recent matches. Transfers are limited per tournament stage.",
+    },
+    {
+      title: "Boosts",
+      body: "Assign boosts to a single player for match or tournament bonuses.",
+    },
+    {
+      title: "Match feedback",
+      body: "After simulations, check the market movers to see who spiked or dipped.",
+    },
+  ];
 
   const handleLinkClick = (e: MouseEvent<HTMLAnchorElement>, to: string) => {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button === 1) {
@@ -50,6 +70,17 @@ export default function HomePage() {
       canceled = true;
     };
   }, [user]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const key = "fantasy-league.onboarding.v1";
+    const seen = window.localStorage.getItem(key);
+    if (!seen) {
+      setShowOnboarding(true);
+    }
+  }, []);
 
   return (
     <div className={`homepage ${fadeOut ? "fade-out" : "fade-in"}`}>
@@ -116,6 +147,14 @@ export default function HomePage() {
         </Link>
 
         <Link
+          to="/market"
+          className="homepage-button"
+          onClick={(e) => handleLinkClick(e, "/market")}
+        >
+          MARKET & TRANSFERS
+        </Link>
+
+        <Link
           to="/tournament"
           className="homepage-button"
           onClick={(e) => handleLinkClick(e, "/tournament")}
@@ -127,6 +166,61 @@ export default function HomePage() {
           SIGN OUT
         </Link>
       </div>
+
+      {showOnboarding && (
+        <div className="onboarding-overlay">
+          <div className="onboarding-card">
+            <h2>{onboardingSteps[onboardingStep].title}</h2>
+            <p>{onboardingSteps[onboardingStep].body}</p>
+            <div className="onboarding-dots">
+              {onboardingSteps.map((_, index) => (
+                <span
+                  key={index}
+                  className={index === onboardingStep ? "active" : ""}
+                />
+              ))}
+            </div>
+            <div className="onboarding-actions">
+              <button
+                className="homepage-button outline"
+                onClick={() => {
+                  setShowOnboarding(false);
+                  window.localStorage.setItem("fantasy-league.onboarding.v1", "1");
+                }}
+              >
+                Skip
+              </button>
+              <div className="onboarding-nav">
+                <button
+                  className="homepage-button outline"
+                  onClick={() =>
+                    setOnboardingStep((prev) => Math.max(0, prev - 1))
+                  }
+                  disabled={onboardingStep === 0}
+                >
+                  Back
+                </button>
+                <button
+                  className="homepage-button"
+                  onClick={() => {
+                    if (onboardingStep === onboardingSteps.length - 1) {
+                      setShowOnboarding(false);
+                      window.localStorage.setItem(
+                        "fantasy-league.onboarding.v1",
+                        "1"
+                      );
+                    } else {
+                      setOnboardingStep((prev) => prev + 1);
+                    }
+                  }}
+                >
+                  {onboardingStep === onboardingSteps.length - 1 ? "Done" : "Next"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
