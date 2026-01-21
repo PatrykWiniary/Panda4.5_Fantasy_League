@@ -35,9 +35,22 @@ export default function LoginPage() {
     } catch (error) {
       if (error instanceof ApiError) {
         const body = error.body as { error?: string; message?: string };
-        setStatus(body?.message ?? "Unable to sign in.");
+        if (body?.message) {
+          setStatus(body.message);
+        } else {
+          switch (body?.error) {
+            case "INVALID_CREDENTIALS":
+              setStatus("Invalid email or password.");
+              break;
+            case "MISSING_FIELDS":
+              setStatus("Provide both email and password.");
+              break;
+            default:
+              setStatus(error.status === 429 ? "Too many attempts. Try again soon." : "Unable to sign in.");
+          }
+        }
       } else {
-        setStatus("Unable to sign in.");
+        setStatus(error instanceof Error ? `Unable to sign in. ${error.message}` : "Unable to sign in.");
       }
     } finally {
       setSubmitting(false);
