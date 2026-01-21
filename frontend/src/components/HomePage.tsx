@@ -9,7 +9,7 @@ import type { ApiUser, LobbyByUserResponse } from "../api/types";
 import { useSession } from "../context/SessionContext";
 
 export default function HomePage() {
-  const { user, setUser } = useSession();
+  const { user, setUser, logout } = useSession();
   const [fadeOut, setFadeOut] = useState(false);
   const [activeLobby, setActiveLobby] = useState<LobbyByUserResponse["lobby"] | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -110,7 +110,7 @@ export default function HomePage() {
         </Link>
       </div>
 
-      <h1 className="homepage-title">SUMMONER’S LEAGUE</h1>
+      <h1 className="homepage-title">SUMMONER'S LEAGUE</h1>
       <p className="homepage-subtitle">
         {user ? `Welcome back, ${user.name}!` : "Sign in to manage your roster."}
       </p>
@@ -175,7 +175,14 @@ export default function HomePage() {
           TOURNAMENT CONTROL
         </Link>
         
-        <Link to="/login" className="homepage-button">
+        <Link
+          to="/login"
+          className="homepage-button"
+          onClick={(e) => {
+            logout();
+            handleLinkClick(e, "/login");
+          }}
+        >
           SIGN OUT
         </Link>
       </div>
@@ -234,3 +241,4 @@ export default function HomePage() {
     </div>
   );
 }
+

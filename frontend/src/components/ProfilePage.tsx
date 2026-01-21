@@ -129,7 +129,7 @@ export default function ProfilePage() {
                 {transferHistory.history.map((entry) => (
                   <li key={entry.id}>
                     <strong>{entry.action.toUpperCase()}</strong> {entry.playerName}{" "}
-                    ({entry.role}) за {entry.price}
+                    ({entry.role}) for {entry.price}
                   </li>
                 ))}
               </ul>
@@ -147,3 +147,4 @@ export default function ProfilePage() {
     </div>
   );
 }
+
