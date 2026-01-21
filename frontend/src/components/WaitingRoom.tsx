@@ -139,6 +139,7 @@ export default function WaitingRoomPage() {
 
   const handleStartGame = () => {
     if (!lobby) return;
+    if(lobby.players.length === 1) return;
     if (lobby.lobby.status === "started") {
       if (isHost && lobby.lobby.allReady) {
         if (!user) return;

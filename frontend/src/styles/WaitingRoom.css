@@ -333,8 +333,9 @@ input[type=number] {
     border-radius: 100%;
     cursor: pointer;
     transition: 0.2s ease;
-    font-size: 1.2rem;
+    font-size: 1.0rem;
     justify-content: center;
+    align-items: center;
     display: flex;
     padding: 0.2em;
 }

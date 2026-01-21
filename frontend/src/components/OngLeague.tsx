@@ -10,7 +10,7 @@ import jungleIcon from "../assets/roleIcons/jungle.png";
 import midIcon from "../assets/roleIcons/mid.png";
 import adcIcon from "../assets/roleIcons/adc.png";
 import supportIcon from "../assets/roleIcons/support.png";
-import fallbackPortrait from "../assets/playerPics/Bin.webp";
+import fallbackPortrait from "../assets/playerPics/A.webp";
 import { apiFetch, ApiError } from "../api/client";
 import type {
   DeckResponse,
@@ -91,7 +91,6 @@ export default function OngLeaguePage({
     }
 
     let canceled = false;
-    setStatus("Loading deck...");
     apiFetch<DeckResponse>("/api/decks/me")
       .then((response) => {
         if (canceled) return;

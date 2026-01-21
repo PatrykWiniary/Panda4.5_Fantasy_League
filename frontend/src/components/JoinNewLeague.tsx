@@ -100,7 +100,7 @@ export default function JoinNewLeaguePage() {
 
       <form className="login-form" onSubmit={handleSubmit}>
         <h1 className="login-title login-title--main">JOIN LOBBY</h1>
-        <h2 className="login-title login-title--sub">ENTER ID</h2>
+        <h2 className="login-title login-title--sub"></h2>
 
         <input
           type="number"
