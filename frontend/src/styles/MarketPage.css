@@ -4,9 +4,7 @@
   margin: 0;
   padding: 32px 28px 48px;
   color: #f6f1e1;
-  background: radial-gradient(circle at top, rgba(50, 80, 90, 0.6), rgba(10, 20, 25, 0.95)),
-    url("../assets/rift.png") center/cover no-repeat fixed;
-  box-sizing: border-box;
+  background: linear-gradient(180deg,rgb(39, 38, 21) 0%, rgb(29, 26, 17) 52%, rgba(0, 0, 0, 1) 100%);
 }
 
 .market-header {
