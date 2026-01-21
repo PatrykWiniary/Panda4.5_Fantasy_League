@@ -31,7 +31,7 @@ export default function LoginPage() {
       });
       setSession(payload.user, payload.token);
       setStatus("Signed in successfully.");
-      navigate("/profile");
+      navigate("/");
     } catch (error) {
       if (error instanceof ApiError) {
         const body = error.body as { error?: string; message?: string };
