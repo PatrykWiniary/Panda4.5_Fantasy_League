@@ -87,6 +87,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       .catch(() => {
         if (!canceled) {
           setToken(null);
+          setUserState(null);
           try {
             window.localStorage.removeItem(TOKEN_STORAGE_KEY);
           } catch {

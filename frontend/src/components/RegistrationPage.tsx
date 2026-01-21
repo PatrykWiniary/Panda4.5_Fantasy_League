@@ -45,9 +45,34 @@ export default function RegistrationPage() {
     } catch (error) {
       if (error instanceof ApiError) {
         const body = error.body as { error?: string; message?: string };
-        setStatus(body?.message ?? "Unable to create account.");
+        if (body?.message) {
+          setStatus(body.message);
+        } else {
+          switch (body?.error) {
+            case "USER_ALREADY_EXISTS":
+              setStatus("Account already exists.");
+              break;
+            case "INVALID_EMAIL":
+              setStatus("Provide a valid email address.");
+              break;
+            case "WEAK_PASSWORD":
+              setStatus(
+                "Password must be 8+ chars and include uppercase, lowercase, and a number."
+              );
+              break;
+            case "MISSING_FIELDS":
+              setStatus("Fill out all required fields.");
+              break;
+            default:
+              setStatus(error.status === 429 ? "Too many attempts. Try again soon." : "Unable to create account.");
+          }
+        }
       } else {
-        setStatus("Unable to create account.");
+        setStatus(
+          error instanceof Error
+            ? `Unable to create account. ${error.message}`
+            : "Unable to create account."
+        );
       }
     } finally {
       setSubmitting(false);
@@ -96,6 +121,9 @@ export default function RegistrationPage() {
           onChange={(event) => setPassword(event.target.value)}
           required
         />
+        <p className="form-status warning">
+          Password: 8+ chars, uppercase + lowercase + number.
+        </p>
         <input
           type="number"
           min={0}

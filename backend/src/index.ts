@@ -10,6 +10,7 @@ import {
   clearUsers,
   registerUser,
   loginUser,
+  getUserById,
   getDeck,
   getAllDecks,
   saveDeck,
