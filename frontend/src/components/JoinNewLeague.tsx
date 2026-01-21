@@ -36,7 +36,6 @@ export default function JoinNewLeaguePage() {
       await apiFetch<LobbyResponse>(`/api/lobbies/${parsedLobbyId}/join`, {
         method: "POST",
         body: JSON.stringify({
-          userId: user.id,
           password,
         }),
       });

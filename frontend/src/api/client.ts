@@ -18,10 +18,15 @@ export async function apiFetch<T>(
   path: string,
   { parseJson = true, headers, ...init }: ApiFetchOptions = {}
 ): Promise<T> {
+  const token =
+    typeof window !== "undefined"
+      ? window.localStorage.getItem("fantasy-league.authToken")
+      : null;
   const response = await fetch(path, {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(headers ?? {}),
     },
   });

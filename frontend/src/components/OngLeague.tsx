@@ -92,7 +92,7 @@ export default function OngLeaguePage({
 
     let canceled = false;
     setStatus("Loading deck...");
-    apiFetch<DeckResponse>(`/api/decks/${user.id}`)
+    apiFetch<DeckResponse>("/api/decks/me")
       .then((response) => {
         if (canceled) return;
         setDeck(response.deck.slots);
@@ -127,7 +127,7 @@ export default function OngLeaguePage({
     }
 
     let canceled = false;
-    apiFetch<LeaderboardResponse>(`/api/users/leaderboard?userId=${user.id}`)
+    apiFetch<LeaderboardResponse>("/api/users/leaderboard")
       .then((payload) => {
         if (canceled) return;
         const match =

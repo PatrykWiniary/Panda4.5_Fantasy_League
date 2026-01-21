@@ -34,9 +34,7 @@ export default function WaitingRoomPage() {
 
     const loadLobby = async () => {
       try {
-        const response = await apiFetch<LobbyByUserResponse>(
-          `/api/lobbies?userId=${user.id}`
-        );
+        const response = await apiFetch<LobbyByUserResponse>("/api/lobbies");
         if (canceled) return;
         if (!response.lobby) {
           setLobby(null);
@@ -91,12 +89,10 @@ export default function WaitingRoomPage() {
     if (!lobby || !user) return;
     try {
       const payload: {
-        userId: number;
         name: string;
         entryFee: number;
         password?: string;
       } = {
-        userId: user.id,
         name: tempSettings.lobbyName,
         entryFee: tempSettings.entryFee,
       };
@@ -133,7 +129,6 @@ export default function WaitingRoomPage() {
     try {
       await apiFetch(`/api/lobbies/${lobby.lobby.id}/leave`, {
         method: "POST",
-        body: JSON.stringify({ userId: user.id }),
       });
     } catch {
       /* ignore */
@@ -151,7 +146,6 @@ export default function WaitingRoomPage() {
           `/api/lobbies/${lobby.lobby.id}/simulate`,
           {
             method: "POST",
-            body: JSON.stringify({ userId: user.id }),
           }
         )
           .then((payload) => {
@@ -177,7 +171,6 @@ export default function WaitingRoomPage() {
     if (!isHost || !user) return;
     apiFetch<LobbyResponse>(`/api/lobbies/${lobby.lobby.id}/start`, {
       method: "POST",
-      body: JSON.stringify({ userId: user.id }),
     })
       .then((updated) => {
         setLobby(updated);

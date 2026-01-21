@@ -5,12 +5,12 @@ import "../styles/LogReg.css";
 import homeIcon from "../assets/home.svg";
 import userIcon from "../assets/user.svg";
 import { apiFetch, ApiError } from "../api/client";
-import type { ApiUser } from "../api/types";
+import type { AuthResponse } from "../api/types";
 import { useSession } from "../context/SessionContext";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { setUser } = useSession();
+  const { setSession } = useSession();
   const [mail, setMail] = useState("");
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<string | null>(null);
@@ -25,11 +25,11 @@ export default function LoginPage() {
     setSubmitting(true);
     setStatus(null);
     try {
-      const user = await apiFetch<ApiUser>("/api/login", {
+      const payload = await apiFetch<AuthResponse>("/api/login", {
         method: "POST",
         body: JSON.stringify({ mail, password }),
       });
-      setUser(user);
+      setSession(payload.user, payload.token);
       setStatus("Signed in successfully.");
       navigate("/profile");
     } catch (error) {

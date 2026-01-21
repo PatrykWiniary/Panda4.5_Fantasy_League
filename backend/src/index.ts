@@ -37,6 +37,9 @@ import {
   getUserCollection,
   updateUserAvatar,
   updateUserTutorialSeen,
+  createSession,
+  deleteSession,
+  getUserByToken,
   getRecentMatchHistory,
   getMatchHistoryCount,
   getMatchHistoryById,
@@ -195,6 +198,43 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
+type AuthenticatedRequest = express.Request & { userId: number; token: string };
+
+function requireAuth(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) {
+  const authHeader = req.headers.authorization ?? "";
+  const token = authHeader.startsWith("Bearer ")
+    ? authHeader.slice("Bearer ".length).trim()
+    : "";
+  if (!token) {
+    return res.status(401).json({ error: "AUTH_REQUIRED" });
+  }
+  const user = getUserByToken(token);
+  if (!user) {
+    return res.status(401).json({ error: "INVALID_TOKEN" });
+  }
+  (req as AuthenticatedRequest).userId = user.id;
+  (req as AuthenticatedRequest).token = token;
+  next();
+}
+
+function resolveUserIdOrThrow(
+  req: express.Request,
+  candidate?: number
+): number {
+  const authUserId = (req as Partial<AuthenticatedRequest>).userId;
+  if (!authUserId) {
+    throw new Error("AUTH_REQUIRED");
+  }
+  if (candidate !== undefined && candidate !== authUserId) {
+    throw new Error("FORBIDDEN");
+  }
+  return authUserId;
+}
+
 app.get("/api/items", (req, res) => {
   const items = getAllItems();
   res.json(items);
@@ -205,40 +245,22 @@ app.get("/api/users", (req, res) => {
   res.json(users);
 });
 
-app.get("/api/users/leaderboard", (req, res) => {
+app.get("/api/users/leaderboard", requireAuth, (req, res) => {
   const mode = req.query.mode === "tournament" ? "tournament" : "global";
-  const rawUserId = Array.isArray(req.query.userId)
-    ? req.query.userId[0]
-    : req.query.userId;
-
-  let userId: number | undefined;
-  if (typeof rawUserId === "string" && rawUserId.trim().length > 0) {
-    const parsed = Number(rawUserId);
-    if (!Number.isInteger(parsed) || parsed <= 0) {
-      return res.status(400).json({ error: "INVALID_USER_ID" });
-    }
-    userId = parsed;
-  }
+  const userId = (req as AuthenticatedRequest).userId;
 
   const top = getLeaderboardTop(10, mode);
   const totalUsers = getUsersCount();
-
-  let userEntry = null;
-  let userInTop = false;
-
-  if (userId !== undefined) {
-    const entry = getUserRankingEntry(userId, mode);
-    if (!entry) {
-      return res.status(404).json({ error: "USER_NOT_FOUND" });
-    }
-    userInTop = top.some((candidate) => candidate.id === entry.id);
-    userEntry = entry;
+  const entry = getUserRankingEntry(userId, mode);
+  if (!entry) {
+    return res.status(404).json({ error: "USER_NOT_FOUND" });
   }
+  const userInTop = top.some((candidate) => candidate.id === entry.id);
 
   res.json({
     top,
     totalUsers,
-    userEntry,
+    userEntry: entry,
     userInTop,
   });
 });
@@ -588,7 +610,8 @@ app.post("/api/register", authLimiter, (req, res) => {
       currency: Number.isFinite(currency) ? Number(currency) : 0,
       avatar,
     });
-    res.status(201).json(user);
+    const token = createSession(user.id);
+    res.status(201).json({ user, token });
   } catch (error) {
     if (error instanceof Error && error.message === "USER_ALREADY_EXISTS") {
       return res.status(409).json({ error: "USER_ALREADY_EXISTS" });
@@ -606,7 +629,8 @@ app.post("/api/login", authLimiter, (req, res) => {
 
   try {
     const user = loginUser(mail, password);
-    res.json(user);
+    const token = createSession(user.id);
+    res.json({ user, token });
   } catch (error) {
     if (error instanceof Error && error.message === "INVALID_CREDENTIALS") {
       return res.status(401).json({ error: "INVALID_CREDENTIALS" });
@@ -614,6 +638,21 @@ app.post("/api/login", authLimiter, (req, res) => {
     console.error(error);
     res.status(500).json({ error: "LOGIN_FAILED" });
   }
+});
+
+app.get("/api/me", requireAuth, (req, res) => {
+  const authUserId = (req as AuthenticatedRequest).userId;
+  const user = getUserById(authUserId);
+  if (!user) {
+    return res.status(404).json({ error: "USER_NOT_FOUND" });
+  }
+  res.json(user);
+});
+
+app.post("/api/logout", requireAuth, (req, res) => {
+  const token = (req as AuthenticatedRequest).token;
+  deleteSession(token);
+  res.status(204).end();
 });
 
 app.get("/api/lobbies/list", (req, res) => {
@@ -645,31 +684,27 @@ app.get("/api/lobbies/:lobbyId", (req, res) => {
   }
 });
 
-app.get("/api/lobbies", (req, res) => {
-  const userId = parsePositiveIntQuery(req.query.userId);
-  if (req.query.userId !== undefined && !userId) {
-    return res.status(400).json({ error: "INVALID_USER_ID" });
-  }
-  if (!userId) {
-    return res.status(400).json({ error: "USER_ID_REQUIRED" });
-  }
+app.get("/api/lobbies", requireAuth, (req, res) => {
   try {
+    const userId = (req as AuthenticatedRequest).userId;
     const lobby = getLobbyByUser(userId);
     res.json({ lobby });
   } catch (error) {
-    if (error instanceof Error && error.message === "USER_NOT_FOUND") {
-      return res.status(404).json({ error: "USER_NOT_FOUND" });
+    if (error instanceof Error) {
+      if (error.message === "FORBIDDEN") {
+        return res.status(403).json({ error: "FORBIDDEN" });
+      }
+      if (error.message === "USER_NOT_FOUND") {
+        return res.status(404).json({ error: "USER_NOT_FOUND" });
+      }
     }
     console.error(error);
     res.status(500).json({ error: "LOBBY_FETCH_FAILED" });
   }
 });
 
-app.post("/api/lobbies", (req, res) => {
-  const userId = parsePositiveIntBody(req.body?.userId);
-  if (!userId) {
-    return res.status(400).json({ error: "INVALID_USER_ID" });
-  }
+app.post("/api/lobbies", requireAuth, (req, res) => {
+  const userId = (req as AuthenticatedRequest).userId;
   const name = typeof req.body?.name === "string" ? req.body.name : undefined;
   const password =
     typeof req.body?.password === "string" ? req.body.password : undefined;
@@ -699,15 +734,12 @@ app.post("/api/lobbies", (req, res) => {
   }
 });
 
-app.post("/api/lobbies/:lobbyId/join", (req, res) => {
+app.post("/api/lobbies/:lobbyId/join", requireAuth, (req, res) => {
   const lobbyId = parsePositiveIntBody(req.params.lobbyId);
   if (!lobbyId) {
     return res.status(400).json({ error: "INVALID_LOBBY_ID" });
   }
-  const userId = parsePositiveIntBody(req.body?.userId);
-  if (!userId) {
-    return res.status(400).json({ error: "INVALID_USER_ID" });
-  }
+  const userId = (req as AuthenticatedRequest).userId;
   const password =
     typeof req.body?.password === "string" ? req.body.password : undefined;
   try {
@@ -736,15 +768,12 @@ app.post("/api/lobbies/:lobbyId/join", (req, res) => {
   }
 });
 
-app.post("/api/lobbies/:lobbyId/leave", (req, res) => {
+app.post("/api/lobbies/:lobbyId/leave", requireAuth, (req, res) => {
   const lobbyId = parsePositiveIntBody(req.params.lobbyId);
   if (!lobbyId) {
     return res.status(400).json({ error: "INVALID_LOBBY_ID" });
   }
-  const userId = parsePositiveIntBody(req.body?.userId);
-  if (!userId) {
-    return res.status(400).json({ error: "INVALID_USER_ID" });
-  }
+  const userId = (req as AuthenticatedRequest).userId;
   try {
     const result = leaveLobby({ lobbyId, userId });
     res.json(result);
@@ -787,15 +816,12 @@ app.get("/api/regions/:regionId/tournament/player-stats", (req, res) => {
   }
 });
 
-app.post("/api/lobbies/:lobbyId/ready", (req, res) => {
+app.post("/api/lobbies/:lobbyId/ready", requireAuth, (req, res) => {
   const lobbyId = parsePositiveIntBody(req.params.lobbyId);
   if (!lobbyId) {
     return res.status(400).json({ error: "INVALID_LOBBY_ID" });
   }
-  const userId = parsePositiveIntBody(req.body?.userId);
-  if (!userId) {
-    return res.status(400).json({ error: "INVALID_USER_ID" });
-  }
+  const userId = (req as AuthenticatedRequest).userId;
   const readyFlag = req.body?.ready;
   const ready = readyFlag !== false;
   try {
@@ -821,15 +847,12 @@ app.post("/api/lobbies/:lobbyId/ready", (req, res) => {
   }
 });
 
-app.put("/api/lobbies/:lobbyId", (req, res) => {
+app.put("/api/lobbies/:lobbyId", requireAuth, (req, res) => {
   const lobbyId = parsePositiveIntBody(req.params.lobbyId);
   if (!lobbyId) {
     return res.status(400).json({ error: "INVALID_LOBBY_ID" });
   }
-  const userId = parsePositiveIntBody(req.body?.userId);
-  if (!userId) {
-    return res.status(400).json({ error: "INVALID_USER_ID" });
-  }
+  const userId = (req as AuthenticatedRequest).userId;
   const name = typeof req.body?.name === "string" ? req.body.name : undefined;
   const password =
     typeof req.body?.password === "string" ? req.body.password : undefined;
@@ -863,15 +886,12 @@ app.put("/api/lobbies/:lobbyId", (req, res) => {
   }
 });
 
-app.post("/api/lobbies/:lobbyId/start", (req, res) => {
+app.post("/api/lobbies/:lobbyId/start", requireAuth, (req, res) => {
   const lobbyId = parsePositiveIntBody(req.params.lobbyId);
   if (!lobbyId) {
     return res.status(400).json({ error: "INVALID_LOBBY_ID" });
   }
-  const userId = parsePositiveIntBody(req.body?.userId);
-  if (!userId) {
-    return res.status(400).json({ error: "INVALID_USER_ID" });
-  }
+  const userId = (req as AuthenticatedRequest).userId;
   try {
     const lobby = startLobby({ lobbyId, userId });
     res.json(lobby);
@@ -889,15 +909,12 @@ app.post("/api/lobbies/:lobbyId/start", (req, res) => {
   }
 });
 
-app.post("/api/lobbies/:lobbyId/simulate", (req, res) => {
+app.post("/api/lobbies/:lobbyId/simulate", requireAuth, (req, res) => {
   const lobbyId = parsePositiveIntBody(req.params.lobbyId);
   if (!lobbyId) {
     return res.status(400).json({ error: "INVALID_LOBBY_ID" });
   }
-  const userId = parsePositiveIntBody(req.body?.userId);
-  if (!userId) {
-    return res.status(400).json({ error: "INVALID_USER_ID" });
-  }
+  const userId = (req as AuthenticatedRequest).userId;
   const lobby = getLobbyById(lobbyId);
   if (!lobby) {
     return res.status(404).json({ error: "LOBBY_NOT_FOUND" });
@@ -946,12 +963,8 @@ app.get("/api/lobbies/:lobbyId/leaderboard", (req, res) => {
   }
 });
 
-app.post("/api/users/:userId/avatar", (req, res) => {
-  const userId = Number(req.params.userId);
-  if (!Number.isInteger(userId) || userId <= 0) {
-    return res.status(400).json({ error: "INVALID_USER_ID" });
-  }
-
+app.post("/api/users/me/avatar", requireAuth, (req, res) => {
+  const userId = (req as AuthenticatedRequest).userId;
   const rawAvatar = req.body?.avatar;
   let avatar: string | null = null;
   if (rawAvatar !== undefined && rawAvatar !== null && rawAvatar !== "") {
@@ -974,11 +987,8 @@ app.post("/api/users/:userId/avatar", (req, res) => {
   }
 });
 
-app.patch("/api/users/:userId/tutorial", (req, res) => {
-  const userId = Number(req.params.userId);
-  if (!Number.isInteger(userId) || userId <= 0) {
-    return res.status(400).json({ error: "INVALID_USER_ID" });
-  }
+app.patch("/api/users/me/tutorial", requireAuth, (req, res) => {
+  const userId = (req as AuthenticatedRequest).userId;
   const seen = Boolean(req.body?.seen);
   try {
     const updated = updateUserTutorialSeen(userId, seen);
@@ -1063,9 +1073,9 @@ app.get("/api/decks", (_req, res) => {
   }
 });
 
-app.get("/api/decks/:userId", (req, res) => {
+app.get("/api/decks/me", requireAuth, (req, res) => {
   try {
-    const userId = parseUserId(req.params.userId);
+    const userId = (req as AuthenticatedRequest).userId;
     const deck = getDeck(userId);
     sendDeck(res, deck);
   } catch (error) {
@@ -1077,14 +1087,11 @@ app.get("/api/decks/:userId", (req, res) => {
   }
 });
 
-app.post("/api/decks/empty", (req, res) => {
+app.post("/api/decks/empty", requireAuth, (req, res) => {
   try {
-    const rawUserId = req.body?.userId;
-    if (rawUserId !== undefined) {
-      const userId = parseUserId(rawUserId);
-      const deck = createDeck({ userId });
-      return sendDeck(res, deck);
-    }
+    const userId = resolveUserIdOrThrow(req);
+    const deck = createDeck({ userId });
+    return sendDeck(res, deck);
   } catch (error) {
     if (error instanceof DeckPayloadError && error.code === "INVALID_USER_ID") {
       return res.status(400).json({ error: "INVALID_USER_ID" });
@@ -1101,11 +1108,9 @@ app.post("/api/decks/empty", (req, res) => {
     return res.status(500).json({ error: "DECK_OPERATION_FAILED" });
   }
 
-  const deck = createDeck();
-  sendDeck(res, deck);
 });
 
-app.post("/api/decks/add-card", (req, res) => {
+app.post("/api/decks/add-card", requireAuth, (req, res) => {
   const { deck: deckPayload, card: cardPayload } = req.body ?? {};
   if (
     !deckPayload ||
@@ -1117,15 +1122,9 @@ app.post("/api/decks/add-card", (req, res) => {
   }
 
   try {
-    let deck = parseDeckPayload(deckPayload);
+    const userId = (req as AuthenticatedRequest).userId;
+    let deck = parseDeckPayload({ ...deckPayload, userId });
     const card = parseCardPayload(cardPayload);
-    // Resolve owning user so we can validate wallet limits for the mutation.
-    const rawUserId =
-      deck.userId ??
-      (typeof (deckPayload as { userId?: unknown }).userId !== "undefined"
-        ? (deckPayload as { userId?: unknown }).userId
-        : req.body?.userId);
-    const userId = parseUserId(rawUserId);
 
     if (deck.userId !== userId) {
       deck = createDeck({ userId, slots: deck.slots });
@@ -1146,21 +1145,15 @@ app.post("/api/decks/add-card", (req, res) => {
   }
 });
 
-app.post("/api/decks/remove-card", (req, res) => {
+app.post("/api/decks/remove-card", requireAuth, (req, res) => {
   const { deck: deckPayload, role } = req.body ?? {};
   if (!deckPayload || typeof deckPayload !== "object" || !role) {
     return res.status(400).json({ error: "INVALID_PAYLOAD" });
   }
 
   try {
-    let deck = parseDeckPayload(deckPayload);
-    // Resolve owning user so we can validate wallet limits for the mutation.
-    const rawUserId =
-      deck.userId ??
-      (typeof (deckPayload as { userId?: unknown }).userId !== "undefined"
-        ? (deckPayload as { userId?: unknown }).userId
-        : req.body?.userId);
-    const userId = parseUserId(rawUserId);
+    const userId = (req as AuthenticatedRequest).userId;
+    let deck = parseDeckPayload({ ...deckPayload, userId });
 
     if (deck.userId !== userId) {
       deck = createDeck({ userId, slots: deck.slots });
@@ -1182,7 +1175,7 @@ app.post("/api/decks/remove-card", (req, res) => {
   }
 });
 
-app.post("/api/decks/replace-card", (req, res) => {
+app.post("/api/decks/replace-card", requireAuth, (req, res) => {
   const { deck: deckPayload, role, card: cardPayload } = req.body ?? {};
   if (
     !deckPayload ||
@@ -1195,15 +1188,9 @@ app.post("/api/decks/replace-card", (req, res) => {
   }
 
   try {
-    let deck = parseDeckPayload(deckPayload);
+    const userId = (req as AuthenticatedRequest).userId;
+    let deck = parseDeckPayload({ ...deckPayload, userId });
     const card = parseCardPayload({ ...cardPayload, role }, role as RoleInput);
-    // Resolve owning user so we can fetch the available currency.
-    const rawUserId =
-      deck.userId ??
-      (typeof (deckPayload as { userId?: unknown }).userId !== "undefined"
-        ? (deckPayload as { userId?: unknown }).userId
-        : req.body?.userId);
-    const userId = parseUserId(rawUserId);
 
     if (deck.userId !== userId) {
       deck = createDeck({ userId, slots: deck.slots });
@@ -1224,14 +1211,14 @@ app.post("/api/decks/replace-card", (req, res) => {
   }
 });
 
-app.post("/api/market/sell", (req, res) => {
-  const { userId: rawUserId, playerId } = req.body ?? {};
+app.post("/api/market/sell", requireAuth, (req, res) => {
+  const { playerId } = req.body ?? {};
   if (!playerId) {
     return res.status(400).json({ error: "INVALID_PAYLOAD" });
   }
 
   try {
-    const userId = parseUserId(rawUserId);
+    const userId = resolveUserIdOrThrow(req);
     const parsedPlayerId = Number(playerId);
     if (!Number.isInteger(parsedPlayerId) || parsedPlayerId <= 0) {
       return res.status(400).json({ error: "INVALID_PLAYER_ID" });
@@ -1258,14 +1245,14 @@ app.post("/api/market/sell", (req, res) => {
   }
 });
 
-app.post("/api/market/buy", (req, res) => {
-  const { userId: rawUserId, playerId } = req.body ?? {};
+app.post("/api/market/buy", requireAuth, (req, res) => {
+  const { playerId } = req.body ?? {};
   if (!playerId) {
     return res.status(400).json({ error: "INVALID_PAYLOAD" });
   }
 
   try {
-    const userId = parseUserId(rawUserId);
+    const userId = resolveUserIdOrThrow(req);
     const parsedPlayerId = Number(playerId);
     if (!Number.isInteger(parsedPlayerId) || parsedPlayerId <= 0) {
       return res.status(400).json({ error: "INVALID_PLAYER_ID" });
@@ -1287,9 +1274,9 @@ app.post("/api/market/buy", (req, res) => {
   }
 });
 
-app.get("/api/collection", (req, res) => {
+app.get("/api/collection", requireAuth, (req, res) => {
   try {
-    const userId = parseUserId(req.query.userId);
+    const userId = (req as AuthenticatedRequest).userId;
     const rawTrend = parsePositiveIntQuery(req.query.trendLimit) ?? 5;
     const trendLimit = Math.min(Math.max(rawTrend, 3), 10);
     const players = getUserCollection(userId, trendLimit);
@@ -1306,9 +1293,9 @@ app.get("/api/collection", (req, res) => {
   }
 });
 
-app.get("/api/market/transfer-state", (req, res) => {
+app.get("/api/market/transfer-state", requireAuth, (req, res) => {
   try {
-    const userId = parseUserId(req.query.userId);
+    const userId = (req as AuthenticatedRequest).userId;
     const state = getTransferState(userId);
     res.json(state);
   } catch (error) {
@@ -1323,9 +1310,9 @@ app.get("/api/market/transfer-state", (req, res) => {
   }
 });
 
-app.get("/api/market/history", (req, res) => {
+app.get("/api/market/history", requireAuth, (req, res) => {
   try {
-    const userId = parseUserId(req.query.userId);
+    const userId = (req as AuthenticatedRequest).userId;
     const rawLimit = parsePositiveIntQuery(req.query.limit) ?? 20;
     const limit = Math.min(Math.max(rawLimit, 1), 50);
     const history = getTransferHistory(userId, limit);
@@ -1342,9 +1329,9 @@ app.get("/api/market/history", (req, res) => {
   }
 });
 
-app.get("/api/boosts", (req, res) => {
+app.get("/api/boosts", requireAuth, (req, res) => {
   try {
-    const userId = parseUserId(req.query.userId);
+    const userId = (req as AuthenticatedRequest).userId;
     const boosts = listBoosts(userId);
     res.json({ boosts });
   } catch (error) {
@@ -1359,13 +1346,13 @@ app.get("/api/boosts", (req, res) => {
   }
 });
 
-app.post("/api/boosts/assign", (req, res) => {
-  const { userId: rawUserId, boostType, playerId } = req.body ?? {};
+app.post("/api/boosts/assign", requireAuth, (req, res) => {
+  const { boostType, playerId } = req.body ?? {};
   if (!boostType || !playerId) {
     return res.status(400).json({ error: "INVALID_PAYLOAD" });
   }
   try {
-    const userId = parseUserId(rawUserId);
+    const userId = resolveUserIdOrThrow(req);
     const parsedPlayerId = Number(playerId);
     if (!Number.isInteger(parsedPlayerId) || parsedPlayerId <= 0) {
       return res.status(400).json({ error: "INVALID_PLAYER_ID" });
@@ -1393,14 +1380,14 @@ app.post("/api/boosts/assign", (req, res) => {
   }
 });
 
-app.post("/api/decks/save", (req, res) => {
-  const { userId: rawUserId, deck: deckPayload } = req.body ?? {};
+app.post("/api/decks/save", requireAuth, (req, res) => {
+  const { deck: deckPayload } = req.body ?? {};
   if (!deckPayload || typeof deckPayload !== "object") {
     return res.status(400).json({ error: "INVALID_PAYLOAD" });
   }
 
   try {
-    const userId = parseUserId(rawUserId);
+    const userId = resolveUserIdOrThrow(req);
     const deck = parseDeckPayload({ ...deckPayload, userId });
     const currency = getUserCurrency(userId);
     const result = saveDeck(userId, deck);
@@ -1435,16 +1422,15 @@ app.post("/api/decks/save", (req, res) => {
   }
 });
 
-app.post("/api/tournaments/simulate", (req, res) => {
+app.post("/api/tournaments/simulate", requireAuth, (req, res) => {
   const {
-    userId: rawUserId,
     regionId: rawRegionId,
     games: rawGames,
     resetData: resetFlag,
   } = req.body ?? {};
 
   try {
-    const userId = parseUserId(rawUserId);
+    const userId = (req as AuthenticatedRequest).userId;
     const parsedRegionId = Number(rawRegionId);
     const regionId =
       Number.isInteger(parsedRegionId) && parsedRegionId > 0

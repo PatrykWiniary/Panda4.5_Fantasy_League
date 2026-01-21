@@ -29,9 +29,7 @@ export default function ProfilePage() {
       return;
     }
     let canceled = false;
-    apiFetch<TransferHistoryResponse>(
-      `/api/market/history?userId=${user.id}&limit=10`
-    )
+    apiFetch<TransferHistoryResponse>("/api/market/history?limit=10")
       .then((payload) => {
         if (!canceled) {
           setTransferHistory(payload);
@@ -54,7 +52,7 @@ export default function ProfilePage() {
     setSaving(true);
     setStatus(null);
     try {
-      const updated = await apiFetch<ApiUser>(`/api/users/${user.id}/avatar`, {
+      const updated = await apiFetch<ApiUser>("/api/users/me/avatar", {
         method: "POST",
         body: JSON.stringify({ avatar: avatarChoice || null }),
       });

@@ -142,7 +142,7 @@ export default function PlayerPick() {
       return;
     }
     let canceled = false;
-    apiFetch<CollectionResponse>(`/api/collection?userId=${user.id}`)
+    apiFetch<CollectionResponse>("/api/collection")
       .then((payload) => {
         if (canceled) return;
         const result = buildPlayersFromApi(payload);
@@ -168,7 +168,7 @@ export default function PlayerPick() {
       return;
     }
     let canceled = false;
-    apiFetch<DeckResponse>(`/api/decks/${user.id}`)
+    apiFetch<DeckResponse>("/api/decks/me")
       .then((response) => {
         if (canceled) return;
         setSavedDeck(response.deck);
@@ -186,7 +186,7 @@ export default function PlayerPick() {
       return;
     }
     let canceled = false;
-    apiFetch<BoostsResponse>(`/api/boosts?userId=${user.id}`)
+    apiFetch<BoostsResponse>("/api/boosts")
       .then((payload) => {
         if (!canceled) {
           setBoosts(payload);
@@ -215,7 +215,7 @@ export default function PlayerPick() {
       return;
     }
     let canceled = false;
-    apiFetch<LobbyByUserResponse>(`/api/lobbies?userId=${user.id}`)
+    apiFetch<LobbyByUserResponse>("/api/lobbies")
       .then((payload) => {
         if (canceled) return;
         setActiveLobby(payload.lobby);
@@ -283,7 +283,6 @@ export default function PlayerPick() {
     }
 
     const deckPayload: Deck = {
-      userId: user.id,
       slots: buildDeckSlots(draftTeam),
     };
 
@@ -292,7 +291,7 @@ export default function PlayerPick() {
     try {
       const response = await apiFetch<DeckResponse>("/api/decks/save", {
         method: "POST",
-        body: JSON.stringify({ userId: user.id, deck: deckPayload }),
+        body: JSON.stringify({ deck: deckPayload }),
       });
       setSaveStatus({
         type: "success",
@@ -326,7 +325,6 @@ export default function PlayerPick() {
       const response = await apiFetch<BoostAssignResponse>("/api/boosts/assign", {
         method: "POST",
         body: JSON.stringify({
-          userId: user.id,
           boostType,
           playerId: selectedPlayer.id,
         }),
@@ -363,13 +361,11 @@ export default function PlayerPick() {
     if (success) {
       if (user) {
         try {
-          const lobbyResponse = await apiFetch<LobbyByUserResponse>(
-            `/api/lobbies?userId=${user.id}`
-          );
+          const lobbyResponse = await apiFetch<LobbyByUserResponse>("/api/lobbies");
           if (lobbyResponse.lobby?.lobby.status === "started") {
             await apiFetch(`/api/lobbies/${lobbyResponse.lobby.lobby.id}/ready`, {
               method: "POST",
-              body: JSON.stringify({ userId: user.id, ready: true }),
+              body: JSON.stringify({ ready: true }),
             });
             setActiveLobby(lobbyResponse.lobby);
             setIsLockedIn(true);
@@ -517,7 +513,6 @@ export default function PlayerPick() {
               try {
                 await apiFetch(`/api/lobbies/${activeLobby.lobby.id}/leave`, {
                   method: "POST",
-                  body: JSON.stringify({ userId: user.id }),
                 });
               } finally {
                 navigate("/");

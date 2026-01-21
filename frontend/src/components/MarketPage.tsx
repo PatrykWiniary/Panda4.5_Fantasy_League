@@ -54,11 +54,11 @@ export default function MarketPage() {
     setAvailabilityFilter("all");
   };
 
-  const refreshUserMarketState = async (userId: number) => {
+  const refreshUserMarketState = async () => {
     const [transferPayload, historyPayload, collectionPayload] = await Promise.all([
-      apiFetch<TransferStateResponse>(`/api/market/transfer-state?userId=${userId}`),
-      apiFetch<TransferHistoryResponse>(`/api/market/history?userId=${userId}&limit=20`),
-      apiFetch<CollectionResponse>(`/api/collection?userId=${userId}`),
+      apiFetch<TransferStateResponse>("/api/market/transfer-state"),
+      apiFetch<TransferHistoryResponse>("/api/market/history?limit=20"),
+      apiFetch<CollectionResponse>("/api/collection"),
     ]);
     setTransferState(transferPayload);
     setHistory(historyPayload);
@@ -73,15 +73,11 @@ export default function MarketPage() {
     setLoading(true);
     Promise.all([
       apiFetch<MarketPlayersResponse>("/api/market/players"),
-      user ? apiFetch<TransferStateResponse>(`/api/market/transfer-state?userId=${user.id}`) : Promise.resolve(null),
-      user ? apiFetch<TransferHistoryResponse>(`/api/market/history?userId=${user.id}&limit=20`) : Promise.resolve(null),
-      user ? apiFetch<CollectionResponse>(`/api/collection?userId=${user.id}`) : Promise.resolve(null),
-      user
-        ? apiFetch<DeckResponse>(`/api/decks/${user.id}`).catch(() => null)
-        : Promise.resolve(null),
-      user
-        ? apiFetch<LeaderboardResponse>(`/api/users/leaderboard?userId=${user.id}&mode=global`).catch(() => null)
-        : Promise.resolve(null),
+      user ? apiFetch<TransferStateResponse>("/api/market/transfer-state") : Promise.resolve(null),
+      user ? apiFetch<TransferHistoryResponse>("/api/market/history?limit=20") : Promise.resolve(null),
+      user ? apiFetch<CollectionResponse>("/api/collection") : Promise.resolve(null),
+      user ? apiFetch<DeckResponse>("/api/decks/me").catch(() => null) : Promise.resolve(null),
+      user ? apiFetch<LeaderboardResponse>("/api/users/leaderboard?mode=global").catch(() => null) : Promise.resolve(null),
     ])
       .then(
         ([
@@ -243,12 +239,12 @@ export default function MarketPage() {
     try {
       const payload = await apiFetch<MarketBuyResponse>("/api/market/buy", {
         method: "POST",
-        body: JSON.stringify({ userId: user.id, playerId }),
+        body: JSON.stringify({ playerId }),
       });
       setStatus({ type: "success", message: `Bought ${payload.purchased.name}.` });
       setUser({ ...user, currency: payload.currency });
       try {
-        await refreshUserMarketState(user.id);
+        await refreshUserMarketState();
       } catch {
         /* ignore refresh failures */
       }
@@ -274,12 +270,12 @@ export default function MarketPage() {
     try {
       const payload = await apiFetch<MarketSellResponse>("/api/market/sell", {
         method: "POST",
-        body: JSON.stringify({ userId: user.id, playerId }),
+        body: JSON.stringify({ playerId }),
       });
       setStatus({ type: "success", message: `Sold ${payload.sold.name}.` });
       setUser({ ...user, currency: payload.currency });
       try {
-        await refreshUserMarketState(user.id);
+        await refreshUserMarketState();
       } catch {
         /* ignore refresh failures */
       }

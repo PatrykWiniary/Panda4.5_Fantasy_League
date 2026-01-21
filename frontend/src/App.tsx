@@ -17,7 +17,10 @@ import { SessionProvider, useSession } from "./context/SessionContext";
 import MarketPage from "./components/MarketPage";
 
 function RequireAuth() {
-  const { user } = useSession();
+  const { user, ready } = useSession();
+  if (!ready) {
+    return null;
+  }
   if (!user) {
     return <Navigate to="/login" replace />;
   }

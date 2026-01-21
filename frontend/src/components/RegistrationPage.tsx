@@ -5,14 +5,14 @@ import "../styles/LogReg.css";
 import homeIcon from "../assets/home.svg";
 import userIcon from "../assets/user.svg";
 import { apiFetch, ApiError } from "../api/client";
-import type { ApiUser } from "../api/types";
+import type { AuthResponse } from "../api/types";
 import { useSession } from "../context/SessionContext";
 import { PROFILE_AVATAR_OPTIONS } from "../utils/profileAvatars";
 import AvatarPicker from "./AvatarPicker";
 
 export default function RegistrationPage() {
   const navigate = useNavigate();
-  const { setUser } = useSession();
+  const { setSession } = useSession();
   const [mail, setMail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -35,11 +35,11 @@ export default function RegistrationPage() {
         currency: Number(currency) || 0,
         avatar: avatar || null,
       };
-      const user = await apiFetch<ApiUser>("/api/register", {
+      const response = await apiFetch<AuthResponse>("/api/register", {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      setUser(user);
+      setSession(response.user, response.token);
       setStatus("Account created successfully.");
       navigate("/profile");
     } catch (error) {

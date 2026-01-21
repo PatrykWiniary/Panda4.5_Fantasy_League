@@ -51,6 +51,11 @@ export type ApiUser = {
   tutorialSeen?: boolean;
 };
 
+export type AuthResponse = {
+  user: ApiUser;
+  token: string;
+};
+
 export type LobbySummary = {
   id: number;
   name: string;

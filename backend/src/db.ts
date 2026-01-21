@@ -227,6 +227,31 @@ function migrateUsersTable() {
   }
 }
 
+function ensureSessionsTable() {
+  db.prepare(
+    `
+    CREATE TABLE IF NOT EXISTS sessions (
+      token TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      expires_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    )
+  `
+  ).run();
+
+  const columns = tableColumns("sessions");
+  if (columns.length === 0) {
+    return;
+  }
+  const hasExpiresAt = columns.some((column) => column.name === "expires_at");
+  if (!hasExpiresAt) {
+    db.prepare(
+      "ALTER TABLE sessions ADD COLUMN expires_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP"
+    ).run();
+  }
+}
+
 function migrateLobbyTable() {
   const columns = tableColumns("lobby");
   if (columns.length === 0) {
@@ -461,6 +486,7 @@ migrateTournamentsTable();
 ensureTransferHistoryTable();
 ensureUserBoostsTable();
 ensureUserCardsTable();
+ensureSessionsTable();
 backfillPlayerNicknames();
 
 type DebugDeckCardSeed = {
@@ -2509,6 +2535,53 @@ export function updateUserTutorialSeen(
     userId
   );
   return getUserById(userId);
+}
+
+export function createSession(userId: number): string {
+  const token = crypto.randomBytes(32).toString("hex");
+  db.prepare(
+    "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, datetime('now', '+7 days'))"
+  ).run(token, userId);
+  return token;
+}
+
+export function deleteSession(token: string): void {
+  db.prepare("DELETE FROM sessions WHERE token = ?").run(token);
+}
+
+export function getUserByToken(token: string): SafeUser | undefined {
+  const row = db
+    .prepare(
+      `SELECT u.id, u.name, u.mail, u.currency, u.score, u.avatar, u.tutorial_seen
+       FROM sessions s
+       JOIN users u ON u.id = s.user_id
+       WHERE s.token = ?
+         AND s.expires_at > CURRENT_TIMESTAMP`
+    )
+    .get(token) as
+    | {
+        id: number;
+        name: string;
+        mail: string;
+        currency: number;
+        score: number;
+        avatar: string | null;
+        tutorial_seen: number;
+      }
+    | undefined;
+  if (!row) {
+    db.prepare("DELETE FROM sessions WHERE token = ?").run(token);
+    return undefined;
+  }
+  return {
+    id: row.id,
+    name: row.name,
+    mail: row.mail,
+    currency: row.currency,
+    score: row.score,
+    avatar: row.avatar,
+    tutorialSeen: Boolean(row.tutorial_seen),
+  };
 }
 
 function fetchLobbyRowById(lobbyId: number): DbLobbyRow | undefined {

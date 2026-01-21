@@ -111,7 +111,7 @@ export default function MatchHistoryPage() {
     }
 
     let canceled = false;
-    apiFetch<DeckResponse>(`/api/decks/${user.id}`)
+    apiFetch<DeckResponse>("/api/decks/me")
       .then((response) => {
         if (canceled) return;
         const slots = response.deck.slots;

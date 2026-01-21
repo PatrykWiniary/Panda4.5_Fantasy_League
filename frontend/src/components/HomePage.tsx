@@ -55,7 +55,7 @@ export default function HomePage() {
       return;
     }
     let canceled = false;
-    apiFetch<LobbyByUserResponse>(`/api/lobbies?userId=${user.id}`)
+    apiFetch<LobbyByUserResponse>("/api/lobbies")
       .then((payload) => {
         if (!canceled) {
           setActiveLobby(payload.lobby);
@@ -85,7 +85,7 @@ export default function HomePage() {
       return;
     }
     try {
-      const updated = await apiFetch<ApiUser>(`/api/users/${user.id}/tutorial`, {
+      const updated = await apiFetch<ApiUser>("/api/users/me/tutorial", {
         method: "PATCH",
         body: JSON.stringify({ seen: true }),
       });

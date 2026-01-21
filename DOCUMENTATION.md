@@ -22,7 +22,7 @@
 6. [Przykladowe karty](#przykladowe-karty)
 7. [Uruchomienie i build](#uruchomienie-i-build)
 8. [Scenariusze testowe](#scenariusze-testowe)
-9. [Przewodnik dla nowych deweloperów(dla osób niewiedzących co robimy na backendzie xD)](#przewodnik-dla-nowych-deweloperow)
+9. [Przewodnik dla nowych deweloperów](#przewodnik-dla-nowych-deweloperow)
 
 ---
 
@@ -141,32 +141,35 @@ Najwazniejsze sciezki serwera (wszystkie zaczynaja sie od `/api`):
 | `GET` | `/teams?regionId=ID` | Zwraca druzyny (z turniejem, regionem i liczba graczy) z opcjonalnym filtrem po regionie.
 | `GET` | `/players?role=Top&regionId=1&teamId=3&grouped=true` | Uniwersalny endpoint zwracajacy liste lub mapowanie graczy wedlug roli; pozwala filtrowac po regionie, druzynie i roli (wynik wykorzystywany przez widok Player Pick).
 | `GET` | `/decks` | Lista wszystkich zapisanych talii (uzytkownik, data aktualizacji, talia, podsumowanie).
-| `GET` | `/decks/:userId` | Talia pojedynczego uzytkownika.
+| `GET` | `/decks/me` | Talia zalogowanego uzytkownika.
 | `POST` | `/decks/empty` | Tworzy pusta talie (wszystkie sloty `null`).
 | `POST` | `/decks/add-card` | Dodaje karte do wskazanego slotu; waliduje duplikaty i role.
 | `POST` | `/decks/remove-card` | Usuwa karte z roli z uwzglednieniem waluty gracza.
 | `POST` | `/decks/replace-card` | Zastepuje karte na danej roli i sprawdza limit waluty.
 | `POST` | `/decks/save` | Zapisuje kompletna talie i zwraca jej podsumowanie.
 | `GET` | `/market/players?role=Top&regionId=1&teamId=3` | Lista graczy z aktualna wycena rynkowa (`marketValue`) na podstawie ich `score`.
-| `POST` | `/market/sell` | Sprzedaje zawodnika z kolekcji (body: `userId`, `playerId`) i aktualizuje budzet; usuwa z talii, jesli byl wybrany.
-| `POST` | `/market/buy` | Kupuje zawodnika do kolekcji (body: `userId`, `playerId`), aktualizuje budzet.
-| `GET` | `/collection?userId=123` | Lista posiadanych zawodnikow gracza (kolekcja).
-| `GET` | `/market/transfer-state?userId=123` | Zwraca status okna transferowego, limit i oplaty dla uzytkownika.
-| `GET` | `/market/history?userId=123&limit=20` | Historia transferow (kupno/sprzedaz) z cenami i oplatami.
-| `GET` | `/boosts?userId=123` | Lista dostepnych boostow (match/tournament) i przypisanych zawodnikow.
-| `POST` | `/boosts/assign` | Przypisuje boost do zawodnika (body: `userId`, `boostType`, `playerId`).
-| `POST` | `/tournaments/simulate` | Uruchamia symulacje turnieju dla wskazanego uzytkownika, nalicza punkty na podstawie wybranych kart i aktualizuje `users.score`.
-| `GET` | `/users/leaderboard?userId=123&mode=tournament` | Zwraca TOP 10 menedzerow dla trybu `global` lub `tournament` (domyslnie global) oraz (opcjonalnie) pozycje konkretnej osoby.
-| `POST` | `/users/:userId/avatar` | Aktualizuje avatar uzytkownika po stronie backendu (nowa wartosc laduje w kolumnie `users.avatar`).
-| `GET` | `/lobbies?userId=123` | Zwraca aktywne lobby uzytkownika lub `null`, gdy nie jest w zadnym lobby.
+| `POST` | `/market/sell` | Sprzedaje zawodnika z kolekcji (body: `playerId`) i aktualizuje budzet; usuwa z talii, jesli byl wybrany.
+| `POST` | `/market/buy` | Kupuje zawodnika do kolekcji (body: `playerId`), aktualizuje budzet.
+| `GET` | `/collection` | Lista posiadanych zawodnikow zalogowanego gracza (kolekcja).
+| `GET` | `/market/transfer-state` | Zwraca status okna transferowego, limit i oplaty dla zalogowanego uzytkownika.
+| `GET` | `/market/history?limit=20` | Historia transferow (kupno/sprzedaz) z cenami i oplatami.
+| `GET` | `/boosts` | Lista dostepnych boostow (match/tournament) i przypisanych zawodnikow.
+| `POST` | `/boosts/assign` | Przypisuje boost do zawodnika (body: `boostType`, `playerId`).
+| `POST` | `/tournaments/simulate` | Uruchamia symulacje turnieju dla zalogowanego uzytkownika, nalicza punkty na podstawie wybranych kart i aktualizuje `users.score`.
+| `GET` | `/users/leaderboard?mode=tournament` | Zwraca TOP 10 menedzerow dla trybu `global` lub `tournament` (domyslnie global) oraz pozycje zalogowanej osoby.
+| `POST` | `/users/me/avatar` | Aktualizuje avatar zalogowanego uzytkownika (kolumna `users.avatar`).
+| `PATCH` | `/users/me/tutorial` | Oznacza tutorial jako obejrzany dla zalogowanego uzytkownika.
+| `GET` | `/me` | Zwraca aktualnie zalogowanego uzytkownika na podstawie tokenu.
+| `POST` | `/logout` | Usuwa aktywna sesje (token).
+| `GET` | `/lobbies` | Zwraca aktywne lobby zalogowanego uzytkownika lub `null`.
 | `GET` | `/lobbies/:lobbyId` | Zwraca dane lobby oraz liste graczy.
-| `POST` | `/lobbies` | Tworzy lobby (body: `userId`, `name?`, `password?`, `entryFee?`) i ustawia hosta.
-| `POST` | `/lobbies/:lobbyId/join` | Dolacza do lobby (body: `userId`, `password?`).
-| `POST` | `/lobbies/:lobbyId/leave` | Opuszcza lobby (body: `userId`), usuwa lobby gdy puste.
-| `PUT` | `/lobbies/:lobbyId` | Aktualizuje ustawienia lobby (body: `userId`, `name?`, `password?`, `entryFee?`), tylko host.
-| `POST` | `/lobbies/:lobbyId/start` | Startuje lobby (body: `userId`), tylko host.
-| `POST` | `/lobbies/:lobbyId/ready` | Ustawia gotowosc gracza (body: `userId`, `ready?`), wymaga statusu `started`.
-| `POST` | `/lobbies/:lobbyId/simulate` | Symuluje wspolny mecz dla lobby (body: `userId`), tylko host i tylko gdy wszyscy gotowi.
+| `POST` | `/lobbies` | Tworzy lobby (body: `name?`, `password?`, `entryFee?`) i ustawia hosta.
+| `POST` | `/lobbies/:lobbyId/join` | Dolacza do lobby (body: `password?`).
+| `POST` | `/lobbies/:lobbyId/leave` | Opuszcza lobby (bez body), usuwa lobby gdy puste.
+| `PUT` | `/lobbies/:lobbyId` | Aktualizuje ustawienia lobby (body: `name?`, `password?`, `entryFee?`), tylko host.
+| `POST` | `/lobbies/:lobbyId/start` | Startuje lobby, tylko host.
+| `POST` | `/lobbies/:lobbyId/ready` | Ustawia gotowosc gracza (body: `ready?`), wymaga statusu `started`.
+| `POST` | `/lobbies/:lobbyId/simulate` | Symuluje wspolny mecz dla lobby, tylko host i tylko gdy wszyscy gotowi.
 | `GET` | `/lobbies/:lobbyId/leaderboard` | Ranking graczy tylko z danego lobby.
 | `GET` | `/regions/:regionId/tournament/player-stats?ids=1,2,3` | Zwraca zsumowane K/D/A oraz score z aktywnego turnieju dla wskazanych graczy.
 | `GET` | `/matches/history?limit=15&page=2` | Stronnicowana historia ostatnich symulacji (region, zespoly, zwyciezca, MVP, data).
@@ -220,7 +223,7 @@ Projekt ma charakter warsztatowy: pozwala tworzyc talie zawodnikow League of Leg
 - W tabelach rankingowych zalogowany uzytkownik jest podkreslany ciemniejszym tlem, dzieki czemu latwo go odszukac.
 
 ### Najczesciej wykorzystywane widoki
-- **Items**: prosta lista kontrolna (pozostalosci z var. edukacyjnych).
+- **Items**: prosta lista kontrolna (pozostalosci po wczesniejszych wersjach).
 - **Users**: przeglad uzytkownikow z bazy, wraz z waluta i liczba punktow.
 - **Deck Tester**: najwazniejsza czesc panelu testowego (edytor kart, podsumowanie talii, komunikaty o bledach).
 - **Saved Decks**: historyczne talie wraz z ostatnimi wynikami (`tournamentPoints`).
@@ -229,19 +232,22 @@ Projekt ma charakter warsztatowy: pozwala tworzyc talie zawodnikow League of Leg
 ### Gdzie trafiaja dane
 - Dane stale (uzytkownicy, talie, statystyki turniejowe) przechowywane sa w SQLite (`backend/data/app.db`).
 - Frontend komunikuje sie z backendem JSON-owymi endpointami REST (opis w sekcji [Endpointy REST](#endpointy-rest)).
-- Aktualny uzytkownik jest zapisywany w `localStorage` przegladarki (`fantasy-league.loggedUser`).
+- W przegladarce zapisywany jest jedynie token sesji (`fantasy-league.authToken`). Dane uzytkownika pobierane sa z `/api/me`.
 
 ### Rejestracja i logowanie
 - **Walidacja po stronie klienta i serwera.** Formularz "Register" sprawdza wstepnie poprawnosc e-maila (`EMAIL_REGEX`) oraz sile hasla (min. 8 znakow, mala i duza litera, cyfra). Te same reguly sa egzekwowane w backendzie (`backend/src/validation.ts`), wiec nie mozna ich ominac przez wyslanie zapytania recznie.
 - **Hashowanie hasel.** Przy rejestracji backend nigdy nie zapisuje hasla w postaci jawnej. Funkcja `hashPassword` w `backend/src/db.ts` generuje losowa sol i wylicza hash PBKDF2 (`sha256`) z domyslnymi parametrami 16B soli, 32B hashy i 310000 iteracji. Kazdy z tych parametrow mozna zmienic zmiennymi srodowiskowymi (`PASSWORD_SALT_BYTES`, `PASSWORD_HASH_BYTES`, `PASSWORD_HASH_ITERATIONS`, `PASSWORD_DIGEST`).
 - **Logowanie.** Podczas logowania rekord uzytkownika jest wyszukiwany po adresie e-mail, a nastepnie haslo porownywane z zapisanym hashem funkcja `verifyPassword`, ktora ponownie liczy PBKDF2 i uzywa `crypto.timingSafeEqual`, aby uniknac atakow czasowych.
 - **Obsluga bledow.** Gdy konto o wskazanym e-mailu juz istnieje, rejestracja zwraca `USER_ALREADY_EXISTS`. Bledne dane logowania odpowiadaja komunikatem `INVALID_CREDENTIALS`.
-- **Przechowywanie sesji.** Po udanym logowaniu frontend zapisuje niesekretne dane uzytkownika (ID, imie, budzet, punktacje) w `localStorage`. Informacje te sluza jedynie do wypelniania formularzy; haslo ani tokeny sesyjne nie sa przechowywane w przegladarce.
+- **Sesje i tokeny.** Po udanej rejestracji/logowaniu backend zwraca `{ user, token }`. Token jest zapisywany w `localStorage` i wysylany jako `Authorization: Bearer <token>` do wszystkich endpointow chronionych.
+- **Odtwarzanie sesji.** Po odswiezeniu strony frontend wykonuje `GET /api/me` aby pobrac dane uzytkownika na podstawie tokenu.
+- **Wylogowanie.** `POST /api/logout` usuwa token z tabeli `sessions`, a frontend czysci zapisany token.
+- **Wygasanie tokenow.** Token sesji wygasa po 7 dniach (`sessions.expires_at`), a przeterminowane tokeny sa odrzucane.
 
 ### Lobby i waiting room
-- **Tworzenie lobby.** Widok `CreateNewLeague` wysyla `POST /api/lobbies` z `userId`, opcjonalna nazwa, haslem i wpisowym (`entryFee`). Backend zapisuje lobby, ustawia `host_id` i przypisuje uzytkownika do `users.lobby_id`.
-- **Dolaczenie do lobby.** Widok `JoinNewLeague` wysyla `POST /api/lobbies/:lobbyId/join` z `userId` i opcjonalnym haslem. Backend weryfikuje haslo i dopisuje gracza do lobby.
-- **Waiting room.** Widok `WaitingRoom` odpyta `GET /api/lobbies?userId=...` (polling co 5s) i renderuje liste graczy. Host moze edytowac ustawienia przez `PUT /api/lobbies/:lobbyId`. Przycisk RETURN wysyla `POST /api/lobbies/:lobbyId/leave` i wraca do menu.
+- **Tworzenie lobby.** Widok `CreateNewLeague` wysyla `POST /api/lobbies` z opcjonalna nazwa, haslem i wpisowym (`entryFee`). Backend zapisuje lobby, ustawia `host_id` i przypisuje uzytkownika do `users.lobby_id` na podstawie tokenu.
+- **Dolaczenie do lobby.** Widok `JoinNewLeague` wysyla `POST /api/lobbies/:lobbyId/join` z opcjonalnym haslem. Backend weryfikuje haslo i dopisuje gracza do lobby na podstawie tokenu.
+- **Waiting room.** Widok `WaitingRoom` odpyta `GET /api/lobbies` (polling co 5s) i renderuje liste graczy. Host moze edytowac ustawienia przez `PUT /api/lobbies/:lobbyId`. Przycisk RETURN wysyla `POST /api/lobbies/:lobbyId/leave` i wraca do menu.
 - **Start gry.** Host klika START, co wywoluje `POST /api/lobbies/:lobbyId/start`. Backend ustawia status lobby na `started` i timestamp `started_at`. Waiting room wykrywa zmiane statusu i przenosi wszystkich do `/playerpick`.
 - **Lock-in i gotowosc.** Po zapisaniu skladu w `PlayerPick` frontend oznacza gracza jako gotowego przez `POST /api/lobbies/:lobbyId/ready` (domyslnie `ready=true`).
 - **Symulacja meczu.** Gdy wszyscy gracze z lobby sa gotowi, host moze uruchomic `POST /api/lobbies/:lobbyId/simulate`. Backend wykonuje jedna symulacje i nalicza punkty wszystkim uzytkownikom (wspolne mecze dla wszystkich lobby).
@@ -258,6 +264,7 @@ Projekt ma charakter warsztatowy: pozwala tworzyc talie zawodnikow League of Leg
 - **Ograniczenie liczby prob logowania.** Kazdy adres IP ma domyslnie 10 podejsc do logowania/rejestracji na minute. Gdy ktos probuje zgadnac haslo metoda brute force, kolejne zapytania dostaje zablokowane. Administrator moze latwo zmienic limit w zmiennych `AUTH_RATE_LIMIT_WINDOW_MS` (okno czasowe) i `AUTH_RATE_LIMIT_MAX_ATTEMPTS` (liczba prob).
 - **Ustawienia kryptografii przez zmienne srodowiskowe.** Metoda PBKDF2, ktora haszuje hasla, korzysta z parametrow z `process.env`. To pozwala zwiekszyc liczbe iteracji (czyli czas potrzebny napasnikowi na zlamanie hasla) bez modyfikowania kodu. Domyslne wartosci sa bezpieczne dla srodowiska demo.
 - **Poprawna wspolpraca z reverse proxy.** Flaga `TRUST_PROXY=true` wylacza sie tylko wtedy, gdy aplikacja stoi za serwerem takim jak nginx lub load balancer. Pozwala to prawidlowo odczytywac oryginalne IP klienta i korzystac z ograniczenia liczby prob.
+- **Tokeny wygasaja po 7 dniach.** Backend usuwa/przestaje akceptowac tokeny po przekroczeniu `sessions.expires_at`.
 ---
 
 ## System punktacji

@@ -30,7 +30,7 @@ export default function LeaderboardPage() {
       return;
     }
     let canceled = false;
-    apiFetch<LobbyByUserResponse>(`/api/lobbies?userId=${user.id}`)
+    apiFetch<LobbyByUserResponse>("/api/lobbies")
       .then((payload) => {
         if (!canceled) {
           setLobbyId(payload.lobby?.lobby.id ?? null);
@@ -77,8 +77,7 @@ export default function LeaderboardPage() {
         }
 
         setStatus("Loading world leaderboard...");
-        const query = user ? `?userId=${user.id}&mode=global` : "?mode=global";
-        const payload = await apiFetch<LeaderboardResponse>(`/api/users/leaderboard${query}`);
+        const payload = await apiFetch<LeaderboardResponse>("/api/users/leaderboard?mode=global");
         setData(payload);
         setStatus(null);
       } catch (error) {

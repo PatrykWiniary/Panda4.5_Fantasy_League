@@ -36,7 +36,6 @@ export default function CreateNewLeaguePage() {
       await apiFetch<LobbyResponse>("/api/lobbies", {
         method: "POST",
         body: JSON.stringify({
-          userId: user.id,
           name,
           password,
           entryFee: parsedEntryFee,
