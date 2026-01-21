@@ -41,7 +41,7 @@ export default function RegistrationPage() {
       });
       setSession(response.user, response.token);
       setStatus("Account created successfully.");
-      navigate("/profile");
+      navigate("/");
     } catch (error) {
       if (error instanceof ApiError) {
         const body = error.body as { error?: string; message?: string };
