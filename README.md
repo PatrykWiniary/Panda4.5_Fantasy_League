@@ -8,3 +8,7 @@ How to run:
 - in front/backend folder
 - docker run --rm -p 5173:5173 --name frontend-1 fantasy-footbalol-frontend
 - to stop: docker stop frontend-1
+
+For scripts error:
+- in vscode terminal where you want to run e.g. "npm install"
+- Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass

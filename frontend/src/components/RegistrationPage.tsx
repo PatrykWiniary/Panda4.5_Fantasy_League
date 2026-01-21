@@ -1,39 +1,131 @@
-import { useEffect, useState } from 'react';
+import { useState } from "react";
+import type { FormEvent } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import "../styles/LogReg.css";
+import homeIcon from "../assets/home.svg";
+import userIcon from "../assets/user.svg";
+import { apiFetch, ApiError } from "../api/client";
+import type { AuthResponse } from "../api/types";
+import { useSession } from "../context/SessionContext";
+import { PROFILE_AVATAR_OPTIONS } from "../utils/profileAvatars";
+import AvatarPicker from "./AvatarPicker";
 
-type Item = { id: number; name: string; qty: number };
+export default function RegistrationPage() {
+  const navigate = useNavigate();
+  const { setSession } = useSession();
+  const [mail, setMail] = useState("");
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [currency, setCurrency] = useState("150");
+  const [avatar, setAvatar] = useState(
+    PROFILE_AVATAR_OPTIONS[0]?.key ?? ""
+  );
+  const [status, setStatus] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-export default function App() {
-  const [items, setItems] = useState<Item[]>([]);
-  const [name, setName] = useState('');
-
-  useEffect(() => {
-    fetch('/api/items')
-      .then(r => r.json())
-      .then(setItems)
-      .catch(console.error);
-  }, []);
-
-  const add = async () => {
-    if (!name) return;
-    const res = await fetch('/api/items', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, qty: 1 })
-    });
-    const newItem = await res.json();
-    setItems(s => [...s, newItem]);
-    setName('');
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setStatus(null);
+    try {
+      const payload = {
+        name,
+        mail,
+        password,
+        currency: Number(currency) || 0,
+        avatar: avatar || null,
+      };
+      const response = await apiFetch<AuthResponse>("/api/register", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      setSession(response.user, response.token);
+      setStatus("Account created successfully.");
+      navigate("/");
+    } catch (error) {
+      if (error instanceof ApiError) {
+        const body = error.body as { error?: string; message?: string };
+        setStatus(body?.message ?? "Unable to create account.");
+      } else {
+        setStatus("Unable to create account.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <div style={{ padding: 20 }}>
-      <h1>Items</h1>
-      <ul>
-        {items.map(i => <li key={i.id}>{i.name} ({i.qty})</li>)}
-      </ul>
-      <span> Haello! </span>
-      <input value={name} onChange={e => setName(e.target.value)} />
-      <button onClick={add}>Add</button>
+    <div className="login-container">
+      <div className="page-icons">
+        <Link to="/" className="page-icon home-icon">
+          <img src={homeIcon} alt="Home" className="icon-image" />
+        </Link>
+        <div className="page-icon user-icon disabled-icon">
+          <img src={userIcon} alt="Profile" className="icon-image" />
+        </div>
+      </div>
+
+      <form className="login-form" onSubmit={handleSubmit}>
+        <h1 className="login-title login-title--main">SUMMONER'S LEAGUE</h1>
+        <h2 className="login-title login-title--sub">SIGN UP</h2>
+
+        <input
+          type="text"
+          placeholder="USERNAME"
+          className="login-input"
+          autoComplete="name"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          required
+        />
+        <input
+          type="email"
+          placeholder="EMAIL"
+          className="login-input"
+          autoComplete="email"
+          value={mail}
+          onChange={(event) => setMail(event.target.value)}
+          required
+        />
+        <input
+          type="password"
+          placeholder="PASSWORD"
+          className="login-input"
+          autoComplete="new-password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          required
+        />
+        <input
+          type="number"
+          min={0}
+          placeholder="STARTING GOLD"
+          className="login-input"
+          value={currency}
+          onChange={(event) => setCurrency(event.target.value)}
+        />
+        <AvatarPicker
+          value={avatar}
+          onChange={setAvatar}
+          disabled={submitting}
+          title="Choose your profile icon"
+        />
+
+        <div className="login-actions">
+          <button type="submit" className="login-button" disabled={submitting}>
+            {submitting ? "Creating..." : "SIGN UP"}
+          </button>
+        </div>
+
+        {status && <p className="form-status">{status}</p>}
+
+        <div className="login-register">
+          Already have an account?{" "}
+          <Link to="/login" className="register-link">
+            Sign in
+          </Link>
+        </div>
+      </form>
     </div>
   );
 }
